@@ -82,7 +82,9 @@ const { alerts } = useDashboardAlerts()
               >
                 <template #icon>
                   <component
-                    :is="alert.title === '熱危害' ? Flame : alert.title === '空污' ? Wind : Droplets"
+                    :is="
+                      alert.title === '熱危害' ? Flame : alert.title === '空污' ? Wind : Droplets
+                    "
                     class="size-5"
                   />
                 </template>
