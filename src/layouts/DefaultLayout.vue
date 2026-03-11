@@ -18,7 +18,7 @@ watch(
     if (isMobile.value) {
       sidebarStore.setMobileOpen(false)
     }
-  },
+  }
 )
 </script>
 
@@ -41,7 +41,7 @@ watch(
       class="hidden border-r border-border bg-card md:block md:shrink-0 md:transition-[width]"
       :class="sidebarStore.collapsed ? 'md:w-14' : 'md:w-56'"
     >
-      <div class="flex h-full w-full flex-col pt-4">
+      <div class="flex h-full w-full flex-col">
         <AppSidebar :collapsed="sidebarStore.collapsed" />
       </div>
     </aside>
