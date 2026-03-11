@@ -21,12 +21,10 @@ const data = ref<Payment[]>([
 </script>
 
 <template>
-  <div class="container space-y-6 py-6">
+  <div class="container space-y-6">
     <div>
       <h1 class="text-2xl font-semibold">DataTable 功能展示</h1>
-      <p class="text-muted-foreground mt-1">
-        排序、篩選、分頁、欄位顯示切換、列選取、列操作選單
-      </p>
+      <p class="text-muted-foreground mt-1">排序、篩選、分頁、欄位顯示切換、列選取、列操作選單</p>
     </div>
 
     <DataTable
