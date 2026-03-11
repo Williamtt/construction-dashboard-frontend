@@ -1,15 +1,56 @@
 <script setup lang="ts">
+import { watch } from 'vue'
+import { useRoute } from 'vue-router'
+import AppHeader from '@/components/common/AppHeader.vue'
+import AppSidebar from '@/components/common/AppSidebar.vue'
+import { Sheet, SheetContent } from '@/components/ui/sheet'
+import { useSidebarStore } from '@/stores/sidebar'
+import { useIsMobile } from '@/composables'
+
+const route = useRoute()
+const sidebarStore = useSidebarStore()
+const isMobile = useIsMobile()
+
+watch(
+  () => route.path,
+  () => {
+    if (isMobile.value) {
+      sidebarStore.setMobileOpen(false)
+    }
+  },
+)
 </script>
 
 <template>
-  <div class="min-h-screen bg-background">
-    <header class="border-b border-border">
-      <div class="container flex h-14 items-center px-4">
-        <span class="font-semibold">Construction Dashboard</span>
+  <div class="flex min-h-screen bg-background">
+    <!-- 手機：側欄在 Sheet 內 -->
+    <Sheet
+      :open="sidebarStore.mobileOpen"
+      @update:open="(v: boolean) => sidebarStore.setMobileOpen(v)"
+    >
+      <SheetContent side="left" class="w-64 p-0">
+        <div class="flex h-full flex-col pt-6">
+          <AppSidebar :collapsed="false" />
+        </div>
+      </SheetContent>
+    </Sheet>
+
+    <!-- 桌面：左側固定側欄 -->
+    <aside
+      class="hidden border-r border-border bg-card md:block md:shrink-0 md:transition-[width]"
+      :class="sidebarStore.collapsed ? 'md:w-14' : 'md:w-56'"
+    >
+      <div class="flex h-full w-full flex-col pt-4">
+        <AppSidebar :collapsed="sidebarStore.collapsed" />
       </div>
-    </header>
-    <main class="container px-4 py-6">
-      <RouterView />
-    </main>
+    </aside>
+
+    <!-- 主內容區 -->
+    <div class="flex min-w-0 flex-1 flex-col">
+      <AppHeader :is-mobile="isMobile" />
+      <main class="flex-1 overflow-auto p-4 md:p-6">
+        <RouterView />
+      </main>
+    </div>
   </div>
 </template>

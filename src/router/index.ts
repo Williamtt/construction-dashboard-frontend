@@ -14,6 +14,21 @@ const router = createRouter({
           name: ROUTE_NAME.HOME,
           component: () => import('@/views/HomeView.vue'),
         },
+        {
+          path: 'dashboard',
+          name: ROUTE_NAME.DASHBOARD,
+          component: () => import('@/views/DashboardView.vue'),
+        },
+        {
+          path: 'layout-verify',
+          name: ROUTE_NAME.LAYOUT_VERIFY,
+          component: () => import('@/views/LayoutVerifyView.vue'),
+        },
+        {
+          path: 'projects',
+          name: ROUTE_NAME.PROJECTS,
+          component: () => import('@/views/ProjectsView.vue'),
+        },
       ],
     },
   ],
