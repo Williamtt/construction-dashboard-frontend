@@ -3,14 +3,40 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import StateCard from '@/components/dashboard/StateCard.vue'
 import TimeDisplay from '@/components/dashboard/TimeDisplay.vue'
+import MonitorCard from '@/components/dashboard/MonitorCard.vue'
+import MonitoringChart from '@/components/dashboard/MonitoringChart.vue'
+import ChartSummaryCards from '@/components/dashboard/ChartSummaryCards.vue'
+import AutoRotateSwitch from '@/components/dashboard/AutoRotateSwitch.vue'
 import AlertCard from '@/components/dashboard/AlertCard.vue'
 import AnimatedNumber from '@/components/common/AnimatedNumber.vue'
 import { useDashboardKpi } from '@/composables/useDashboardKpi'
 import { useDashboardAlerts } from '@/composables/useDashboardAlerts'
-import { Calendar, TrendingUp, Wallet, Flame, Wind, Droplets } from 'lucide-vue-next'
+import { useMonitoringMetrics } from '@/composables/useMonitoringMetrics'
+import {
+  Calendar,
+  TrendingUp,
+  Wallet,
+  Flame,
+  Wind,
+  Droplets,
+  Thermometer,
+  CloudRain,
+  Waves,
+  Gauge,
+} from 'lucide-vue-next'
 
 const { projectInfo, progress, budget } = useDashboardKpi()
 const { alerts } = useDashboardAlerts()
+const { metrics, selectedKey, chartData, chartSummary, autoRotateEnabled, selectMetric } = useMonitoringMetrics()
+
+const monitoringIcons: Record<string, typeof Thermometer> = {
+  temperature: Thermometer,
+  humidity: Droplets,
+  pm25: Gauge,
+  wind: Wind,
+  rainfall: CloudRain,
+  waterLevel: Waves,
+}
 </script>
 
 <template>
@@ -93,12 +119,41 @@ const { alerts } = useDashboardAlerts()
           </CardContent>
         </Card>
         <Card>
-          <CardHeader class="flex flex-row items-center justify-between">
+          <CardHeader class="flex flex-row flex-wrap items-center justify-between gap-3">
             <CardTitle>環境監測數據</CardTitle>
-            <span class="text-xs text-muted-foreground">更新時間: —</span>
+            <div class="flex items-center gap-4">
+              <span class="text-xs text-muted-foreground">更新時間: 17:56:48</span>
+              <AutoRotateSwitch v-model="autoRotateEnabled" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <p class="text-sm text-muted-foreground">（溫度、濕度、PM2.5 等佔位）</p>
+          <CardContent class="space-y-4">
+            <div class="grid w-full grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+              <MonitorCard
+                v-for="m in metrics"
+                :key="m.id"
+                :label="m.label"
+                :value="`${m.value} ${m.unit}`"
+                :selected="selectedKey === m.key"
+                @click="selectMetric(m.key)"
+              >
+                <template #icon>
+                  <component
+                    :is="monitoringIcons[m.key] ?? Thermometer"
+                    class="size-5"
+                  />
+                </template>
+              </MonitorCard>
+            </div>
+            <div class="overflow-hidden">
+              <Transition name="slide-right" mode="out-in">
+                <Card :key="selectedKey" class="overflow-visible">
+                  <CardContent class="space-y-4 pt-6">
+                    <MonitoringChart :data="chartData" />
+                    <ChartSummaryCards :summary="chartSummary" />
+                  </CardContent>
+                </Card>
+              </Transition>
+            </div>
           </CardContent>
         </Card>
       </TabsContent>
@@ -124,3 +179,23 @@ const { alerts } = useDashboardAlerts()
     </Tabs>
   </div>
 </template>
+
+<style>
+/* 圖表區切換：向右滑入動畫（新內容自右側滑入，舊內容向左滑出） */
+.slide-right-enter-active,
+.slide-right-leave-active {
+  transition: transform 0.35s ease-out;
+}
+.slide-right-enter-from {
+  transform: translateX(100%);
+}
+.slide-right-enter-to {
+  transform: translateX(0);
+}
+.slide-right-leave-from {
+  transform: translateX(0);
+}
+.slide-right-leave-to {
+  transform: translateX(-100%);
+}
+</style>

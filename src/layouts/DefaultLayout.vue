@@ -23,7 +23,7 @@ watch(
 </script>
 
 <template>
-  <div class="flex min-h-screen bg-background">
+  <div class="flex h-screen overflow-hidden bg-background">
     <!-- 手機：側欄在 Sheet 內 -->
     <Sheet
       :open="sidebarStore.mobileOpen"
@@ -47,7 +47,7 @@ watch(
     </aside>
 
     <!-- 主內容區 -->
-    <div class="flex min-w-0 flex-1 flex-col">
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col">
       <AppHeader :is-mobile="isMobile" />
       <div class="border-b border-border bg-background px-4 py-2 md:px-6">
         <AppBreadcrumb />

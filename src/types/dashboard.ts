@@ -50,3 +50,46 @@ export interface ChartSeriesItem {
   type: string
   data: (number | [string, number])[]
 }
+
+/** 環境監測項目（上方卡片用，可點選切換圖表） */
+export interface MonitorMetric {
+  id: string
+  key: string
+  label: string
+  value: number | string
+  unit: string
+}
+
+/** 圖表門檻線（上限、警戒等） */
+export interface ChartThreshold {
+  value: number
+  label: string
+  lineStyle?: { color?: string; type?: 'solid' | 'dashed' }
+}
+
+/** 監測項目 24h 趨勢資料點 */
+export interface MonitoringTrendPoint {
+  time: string
+  value: number
+}
+
+/** 監測圖表資料（依選中項目提供給下方圖表） */
+export interface MonitoringChartData {
+  metricKey: string
+  metricLabel: string
+  unit: string
+  series: MonitoringTrendPoint[]
+  /** 上限值（可選，圖表畫虛線） */
+  upperLimit?: number
+  /** 警戒值（可選，圖表畫虛線） */
+  warningThreshold?: number
+}
+
+/** 圖表下方摘要數值（當前、平均、最高、最低） */
+export interface MonitoringChartSummary {
+  current: number
+  average: number
+  max: number
+  min: number
+  unit: string
+}
