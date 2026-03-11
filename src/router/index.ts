@@ -29,6 +29,11 @@ const router = createRouter({
           name: ROUTE_NAME.PROJECTS,
           component: () => import('@/views/ProjectsView.vue'),
         },
+        {
+          path: 'data-table-demo',
+          name: ROUTE_NAME.DATA_TABLE_DEMO,
+          component: () => import('@/views/DataTableDemoView.vue'),
+        },
       ],
     },
   ],

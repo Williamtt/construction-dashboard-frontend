@@ -10,6 +10,8 @@ export const ROUTE_PATH = {
   PROJECTS: '/projects',
   /** 驗證用測試頁（Layout / 導航 / 區塊） */
   LAYOUT_VERIFY: '/layout-verify',
+  /** DataTable 功能展示頁 */
+  DATA_TABLE_DEMO: '/data-table-demo',
 } as const
 
 export const ROUTE_NAME = {
@@ -20,4 +22,5 @@ export const ROUTE_NAME = {
   DASHBOARD_EXECUTION: 'dashboard-execution',
   PROJECTS: 'projects',
   LAYOUT_VERIFY: 'layout-verify',
+  DATA_TABLE_DEMO: 'data-table-demo',
 } as const

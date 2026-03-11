@@ -6,6 +6,7 @@ import {
   LayoutGrid,
   FolderKanban,
   ClipboardCheck,
+  Table2,
   type LucideIcon,
 } from 'lucide-vue-next'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -24,6 +25,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutGrid,
   FolderKanban,
   ClipboardCheck,
+  Table2,
 }
 
 withDefaults(
