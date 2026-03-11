@@ -3,6 +3,7 @@ import { watch } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from '@/components/common/AppHeader.vue'
 import AppSidebar from '@/components/common/AppSidebar.vue'
+import AppBreadcrumb from '@/components/common/AppBreadcrumb.vue'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useSidebarStore } from '@/stores/sidebar'
 import { useIsMobile } from '@/composables'
@@ -48,6 +49,9 @@ watch(
     <!-- 主內容區 -->
     <div class="flex min-w-0 flex-1 flex-col">
       <AppHeader :is-mobile="isMobile" />
+      <div class="border-b border-border bg-background px-4 py-2 md:px-6">
+        <AppBreadcrumb />
+      </div>
       <main class="flex-1 overflow-auto p-4 md:p-6">
         <RouterView />
       </main>
