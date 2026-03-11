@@ -2,11 +2,14 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import StateCard from '@/components/dashboard/StateCard.vue'
+import AlertCard from '@/components/dashboard/AlertCard.vue'
 import AnimatedNumber from '@/components/common/AnimatedNumber.vue'
 import { useDashboardKpi } from '@/composables/useDashboardKpi'
-import { Calendar, TrendingUp, Wallet } from 'lucide-vue-next'
+import { useDashboardAlerts } from '@/composables/useDashboardAlerts'
+import { Calendar, TrendingUp, Wallet, Flame, Wind, Droplets } from 'lucide-vue-next'
 
 const { projectInfo, progress, budget } = useDashboardKpi()
+const { alerts } = useDashboardAlerts()
 </script>
 
 <template>
@@ -65,7 +68,22 @@ const { projectInfo, progress, budget } = useDashboardKpi()
             <span class="text-xs text-muted-foreground">更新時間: 即時監測</span>
           </CardHeader>
           <CardContent>
-            <p class="text-sm text-muted-foreground">（警報卡片佔位）</p>
+            <div class="grid gap-4 sm:grid-cols-3">
+              <AlertCard
+                v-for="alert in alerts"
+                :key="alert.id"
+                :level="alert.level"
+                :title="alert.title"
+                :value="alert.value"
+              >
+                <template #icon>
+                  <component
+                    :is="alert.title === '熱危害' ? Flame : alert.title === '空污' ? Wind : Droplets"
+                    class="size-5"
+                  />
+                </template>
+              </AlertCard>
+            </div>
           </CardContent>
         </Card>
         <Card>
