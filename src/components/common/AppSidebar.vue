@@ -56,9 +56,9 @@ const navItems = computed(() =>
         <RouterLink
           v-for="item in navItems"
           :key="item.id"
+          v-slot="{ navigate }"
           :to="item.path"
           custom
-          v-slot="{ navigate }"
         >
           <div
             class="flex min-h-9 items-center rounded-md"
