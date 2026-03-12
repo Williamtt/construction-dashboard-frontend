@@ -86,7 +86,12 @@ const isAdminScope = computed(() => route.path.startsWith('/admin'))
 const globalSidebarEntries = computed(() => {
   const entries = [...GLOBAL_SIDEBAR_ENTRIES]
   if (authStore.canAccessAdmin && !authStore.isPlatformAdmin) {
-    entries.push({ id: 'admin', label: '後台管理', path: ROUTE_PATH.ADMIN_PROJECTS, icon: 'ShieldCheck' })
+    entries.push({
+      id: 'admin',
+      label: '後台管理',
+      path: ROUTE_PATH.ADMIN_PROJECTS,
+      icon: 'ShieldCheck',
+    })
   }
   return entries
 })
@@ -140,7 +145,7 @@ function projectChildPath(pathSuffix: string): string {
       </header>
 
       <nav class="flex flex-col gap-2 p-2" :class="collapsed ? 'items-center' : ''">
-        <!-- 多租後台（平台方）：租戶管理、專案總覽、使用者總覽 + 專案列表 -->
+        <!-- 多租後台（平台方）：租戶管理、專案總覽、使用者總覽 -->
         <template v-if="isPlatformAdminScope">
           <div
             v-for="item in PLATFORM_ADMIN_SIDEBAR_ENTRIES"
@@ -162,7 +167,10 @@ function projectChildPath(pathSuffix: string): string {
                     "
                     @click="navigate"
                   >
-                    <component :is="ICON_MAP[item.icon] ?? LayoutDashboard" class="size-4 shrink-0" />
+                    <component
+                      :is="ICON_MAP[item.icon] ?? LayoutDashboard"
+                      class="size-4 shrink-0"
+                    />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">{{ item.label }}</TooltipContent>
@@ -197,7 +205,12 @@ function projectChildPath(pathSuffix: string): string {
                 </TooltipTrigger>
                 <TooltipContent side="right">專案列表</TooltipContent>
               </Tooltip>
-              <Button v-else variant="ghost" class="h-9 w-full justify-start gap-3 rounded-md px-3" @click="navigate">
+              <Button
+                v-else
+                variant="ghost"
+                class="h-9 w-full justify-start gap-3 rounded-md px-3"
+                @click="navigate"
+              >
                 <ArrowLeft class="size-4 shrink-0" />
                 <span class="truncate">專案列表</span>
               </Button>
@@ -223,7 +236,10 @@ function projectChildPath(pathSuffix: string): string {
                     "
                     @click="navigate"
                   >
-                    <component :is="ICON_MAP[item.icon] ?? LayoutDashboard" class="size-4 shrink-0" />
+                    <component
+                      :is="ICON_MAP[item.icon] ?? LayoutDashboard"
+                      class="size-4 shrink-0"
+                    />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">{{ item.label }}</TooltipContent>
@@ -246,14 +262,8 @@ function projectChildPath(pathSuffix: string): string {
           </div>
         </template>
 
-        <!-- 專案內：當前專案名稱 + 切換專案 + 概況/監測/契約 + 專案列表 -->
+        <!-- 專案內：當前專案名稱 + 切換專案 + 概況/監測/契約 -->
         <template v-else-if="isProjectScope">
-          <div v-show="!collapsed" class="px-3 py-1.5">
-            <p class="truncate text-xs font-medium text-muted-foreground">當前專案</p>
-            <p class="truncate text-sm font-semibold text-foreground">
-              {{ projectStore.currentProjectName ?? projectId }}
-            </p>
-          </div>
           <RouterLink v-slot="{ navigate }" to="/projects" custom>
             <div :class="collapsed ? 'flex justify-center' : 'pl-3'">
               <Tooltip v-if="collapsed">
@@ -309,12 +319,16 @@ function projectChildPath(pathSuffix: string): string {
                         :class="
                           cn(
                             'h-9 w-9 shrink-0 justify-center rounded-md',
-                            isItemActive(projectChildPath(child.pathSuffix)) && 'bg-accent text-accent-foreground'
+                            isItemActive(projectChildPath(child.pathSuffix)) &&
+                              'bg-accent text-accent-foreground'
                           )
                         "
                         @click="navigate"
                       >
-                        <component :is="ICON_MAP[child.icon] ?? LayoutDashboard" class="size-4 shrink-0" />
+                        <component
+                          :is="ICON_MAP[child.icon] ?? LayoutDashboard"
+                          class="size-4 shrink-0"
+                        />
                       </Button>
                     </TooltipTrigger>
                     <TooltipContent side="right">{{ child.label }}</TooltipContent>
@@ -325,39 +339,22 @@ function projectChildPath(pathSuffix: string): string {
                     :class="
                       cn(
                         'h-9 w-full justify-start gap-3 rounded-md px-3',
-                        isItemActive(projectChildPath(child.pathSuffix)) && 'bg-accent text-accent-foreground'
+                        isItemActive(projectChildPath(child.pathSuffix)) &&
+                          'bg-accent text-accent-foreground'
                       )
                     "
                     @click="navigate"
                   >
-                    <component :is="ICON_MAP[child.icon] ?? LayoutDashboard" class="size-4 shrink-0" />
+                    <component
+                      :is="ICON_MAP[child.icon] ?? LayoutDashboard"
+                      class="size-4 shrink-0"
+                    />
                     <span class="truncate">{{ child.label }}</span>
                   </Button>
                 </div>
               </RouterLink>
             </div>
           </template>
-          <RouterLink v-slot="{ navigate }" to="/projects" custom>
-            <div :class="collapsed ? 'flex justify-center' : 'pl-3'">
-              <Tooltip v-if="collapsed">
-                <TooltipTrigger as-child>
-                  <Button variant="ghost" size="icon" class="h-9 w-9 shrink-0" @click="navigate">
-                    <FolderKanban class="size-4" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent side="right">專案列表</TooltipContent>
-              </Tooltip>
-              <Button
-                v-else
-                variant="ghost"
-                class="h-9 w-full justify-start gap-3 rounded-md px-3"
-                @click="navigate"
-              >
-                <FolderKanban class="size-4 shrink-0" />
-                <span class="truncate">專案列表</span>
-              </Button>
-            </div>
-          </RouterLink>
         </template>
 
         <!-- 非專案內（專案列表頁等）：專案列表 + 廠商管理員顯示後台管理 -->
@@ -369,7 +366,10 @@ function projectChildPath(pathSuffix: string): string {
             :to="item.path"
             custom
           >
-            <div class="flex min-h-9 items-center rounded-md" :class="collapsed ? 'justify-center' : ''">
+            <div
+              class="flex min-h-9 items-center rounded-md"
+              :class="collapsed ? 'justify-center' : ''"
+            >
               <Tooltip v-if="collapsed">
                 <TooltipTrigger as-child>
                   <Button
@@ -383,7 +383,10 @@ function projectChildPath(pathSuffix: string): string {
                     "
                     @click="navigate"
                   >
-                    <component :is="ICON_MAP[item.icon] ?? LayoutDashboard" class="size-4 shrink-0" />
+                    <component
+                      :is="ICON_MAP[item.icon] ?? LayoutDashboard"
+                      class="size-4 shrink-0"
+                    />
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent side="right">{{ item.label }}</TooltipContent>

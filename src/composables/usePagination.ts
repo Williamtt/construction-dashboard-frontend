@@ -1,10 +1,7 @@
 import { ref, computed } from 'vue'
+import type { UsePaginationOptions } from '@/types'
 
-export interface UsePaginationOptions {
-  initialPage?: number
-  initialLimit?: number
-  total?: number
-}
+export type { UsePaginationOptions }
 
 /**
  * 列表分頁邏輯，可接 API 的 meta

@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Video } from 'lucide-vue-next'
 import { ROUTE_NAME } from '@/constants'
+import type { MonitoringDeviceItem } from '@/types'
 
 /** 設備類別 */
 const DEVICE_CATEGORIES = [
@@ -13,23 +15,11 @@ const DEVICE_CATEGORIES = [
   },
 ] as const
 
-/** 單一設備（mock） */
-interface DeviceItem {
-  id: string
-  name: string
-  description: string
-  status: 'online' | 'offline'
-  category: string
-}
-
 const route = useRoute()
 const router = useRouter()
 
-const cctvDevices: DeviceItem[] = [
-  { id: 'cctv-1', name: '大門入口', description: '即時監控 · 已連線', status: 'online', category: 'cctv' },
-  { id: 'cctv-2', name: '工地東側', description: '即時監控 · 已連線', status: 'online', category: 'cctv' },
-  { id: 'cctv-3', name: '物料區', description: '即時監控 · 離線', status: 'offline', category: 'cctv' },
-]
+/** 設備列表（之後改 API 取得） */
+const cctvDevices = ref<MonitoringDeviceItem[]>([])
 
 function goToDevice(deviceId: string) {
   const projectId = route.params.projectId as string

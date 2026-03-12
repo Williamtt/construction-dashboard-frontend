@@ -6,11 +6,8 @@ import { ref, computed } from 'vue'
  * 用於側欄顯示專案名稱、麵包屑、API 帶 projectId 等
  */
 export const useProjectStore = defineStore('project', () => {
-  /** 專案 id → 名稱（目前 mock；之後可改為 API 或從專案列表 response 快取） */
-  const projectNameMap = ref<Record<string, string>>({
-    proj1: '示範工程 A',
-    proj2: '示範工程 B',
-  })
+  /** 專案 id → 名稱（由專案列表 API 或進入專案時寫入） */
+  const projectNameMap = ref<Record<string, string>>({})
 
   /** 當前專案 id（由 layout/route 同步，或從專案列表選完寫入） */
   const currentProjectId = ref<string | null>(null)

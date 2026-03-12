@@ -3,36 +3,15 @@
  * 架構：專案內路徑為 /p/:projectId/...，需用 buildProjectPath(projectId, pathSuffix) 組出實際 path
  */
 
-export interface NavItem {
-  id: string
-  label: string
-  path: string
-  icon: string
-}
+import type {
+  NavItem,
+  NavItemProject,
+  NavGroup,
+  NavGroupProject,
+  SidebarEntry,
+} from '@/types/navigation'
 
-/** 專案內導航子項（path 為 pathSuffix，實際 path = /p/:projectId + pathSuffix） */
-export interface NavItemProject {
-  id: string
-  label: string
-  pathSuffix: string
-  icon: string
-}
-
-export interface NavGroup {
-  id: string
-  label: string
-  children: NavItem[]
-}
-
-export interface NavGroupProject {
-  id: string
-  label: string
-  children: NavItemProject[]
-}
-
-export type SidebarEntry =
-  | { type: 'item'; item: NavItem }
-  | { type: 'group'; group: NavGroup }
+export type { NavItem, NavItemProject, NavGroup, NavGroupProject, SidebarEntry }
 
 /** 專案內側欄：概況、監測、契約（path 用 pathSuffix，由 AppSidebar 搭配 projectId 組出） */
 export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
@@ -67,7 +46,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
   },
 ]
 
-/** 非專案內（專案列表頁等）顯示的側欄項目 */
+/** 非專案內（專案列表頁等）顯示的側欄項目；非平台方登入時顯示專案列表 */
 export const GLOBAL_SIDEBAR_ENTRIES: NavItem[] = [
   { id: 'projects', label: '專案列表', path: '/projects', icon: 'FolderKanban' },
 ]

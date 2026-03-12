@@ -3,11 +3,11 @@ import { useRoute } from 'vue-router'
 import { BREADCRUMB_LABELS, BREADCRUMB_PROJECT_SUFFIX_LABELS } from '@/constants/breadcrumb'
 import { useDeviceBreadcrumbStore } from '@/stores/deviceBreadcrumb'
 import { useProjectStore } from '@/stores/project'
+import { useTenantStore } from '@/stores/tenant'
 
-export interface BreadcrumbItem {
-  label: string
-  to?: string
-}
+import type { BreadcrumbItem } from '@/types'
+
+export type { BreadcrumbItem }
 
 /**
  * 依當前路由 path 組出麵包屑
@@ -21,6 +21,8 @@ export function useBreadcrumb() {
   const deviceBreadcrumbStore = useDeviceBreadcrumbStore()
   const projectStore = useProjectStore()
 
+  const tenantStore = useTenantStore()
+
   const items = computed<BreadcrumbItem[]>(() => {
     const path = route.path
     if (!path || path === '/') {
@@ -28,6 +30,16 @@ export function useBreadcrumb() {
     }
 
     const segments = path.split('/').filter(Boolean)
+
+    // 平台方租戶管理詳情：/platform-admin/tenants/:tenantId
+    if (segments[0] === 'platform-admin' && segments[1] === 'tenants' && segments.length === 3) {
+      const tenantName = tenantStore.currentTenantName ?? segments[2]
+      return [
+        { label: BREADCRUMB_LABELS['/'] ?? '首頁', to: '/' },
+        { label: BREADCRUMB_LABELS['/platform-admin/tenants'] ?? '租戶管理', to: '/platform-admin/tenants' },
+        { label: tenantName },
+      ]
+    }
 
     // 專案內路徑：/p/:projectId/...
     if (segments[0] === 'p' && segments.length >= 2) {

@@ -112,14 +112,8 @@ watch(addCategoryDialogOpen, (open) => {
   if (open) newCategoryLabel.value = ''
 })
 
-/** 契約檔案列表（假資料，之後改 API） */
-const fileList = ref<ContractFileRow[]>([
-  { id: '1', fileName: '主契約-工程採購契約書.pdf', uploadDate: '2025-01-10', uploader: '王小明', category: 'main' },
-  { id: '2', fileName: '補充契約-第一次變更.pdf', uploadDate: '2025-02-15', uploader: '王小明', category: 'supplement' },
-  { id: '3', fileName: '變更契約-工期展延.pdf', uploadDate: '2025-03-01', uploader: '李秘書', category: 'change' },
-  { id: '4', fileName: '主契約-附件一預算書.pdf', uploadDate: '2025-01-10', uploader: '王小明', category: 'main' },
-  { id: '5', fileName: '其他-會議紀錄.pdf', uploadDate: '2025-04-01', uploader: '陳助理', category: 'other' },
-])
+/** 契約檔案列表（之後改 API 取得） */
+const fileList = ref<ContractFileRow[]>([])
 
 /** 依選擇分類篩選 */
 const filteredList = computed(() => {
@@ -141,7 +135,7 @@ const uploadCategoryOptions = computed(() =>
   categories.value.filter((c) => c.key !== 'all').map((c) => ({ value: c.key, label: c.label }))
 )
 
-/** 送出上傳（假寫入，之後改 API） */
+/** 送出上傳（之後改 API） */
 function submitUpload() {
   if (!uploadForm.value.file) return
   fileList.value = [
@@ -206,9 +200,9 @@ const columns = computed<ColumnDef<ContractFileRow, unknown>[]>(() => [
   },
   {
     id: 'actions',
-    header: () => h('div', { class: 'text-right font-medium' }, '操作'),
+    header: () => h('div', { class: 'font-medium' }, '操作'),
     cell: ({ row }) =>
-      h('div', { class: 'flex justify-end' }, [
+      h('div', { class: 'flex' }, [
         h(ContractFileRowActions, {
           row: row.original,
           onDownload: (r) => { /* TODO: 下載 */ console.log('下載', r) },

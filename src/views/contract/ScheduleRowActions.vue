@@ -7,17 +7,8 @@ import {
   DropdownMenuTrigger,
   DropdownMenuSeparator,
 } from '@/components/ui/dropdown-menu'
+import type { ScheduleRowItem } from '@/types'
 import { MoreHorizontal, Pencil, Eye, Trash2 } from 'lucide-vue-next'
-
-/** 與 ContractScheduleView 列表列同結構，供操作時傳回 */
-export interface ScheduleRowItem {
-  id: string
-  applyDate: string
-  type: string
-  applyDays: number
-  approvedDays: number
-  status: string
-}
 
 defineProps<{
   row: ScheduleRowItem

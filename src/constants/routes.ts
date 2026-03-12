@@ -41,6 +41,8 @@ export const ROUTE_PATH = {
   /** 多租後台（平台營運） */
   PLATFORM_ADMIN: '/platform-admin',
   PLATFORM_ADMIN_TENANTS: '/platform-admin/tenants',
+  /** 單一租戶管理頁（path 含 :tenantId） */
+  PLATFORM_ADMIN_TENANT_MANAGE: '/platform-admin/tenants/:tenantId',
   PLATFORM_ADMIN_PROJECTS: '/platform-admin/projects',
   PLATFORM_ADMIN_USERS: '/platform-admin/users',
   /** 非專案內（全域） */
@@ -68,6 +70,12 @@ export const ROUTE_NAME = {
   ADMIN_SETTINGS: 'admin-settings',
   PLATFORM_ADMIN: 'platform-admin',
   PLATFORM_ADMIN_TENANTS: 'platform-admin-tenants',
+  PLATFORM_ADMIN_TENANT_MANAGE: 'platform-admin-tenant-manage',
   PLATFORM_ADMIN_PROJECTS: 'platform-admin-projects',
   PLATFORM_ADMIN_USERS: 'platform-admin-users',
 } as const
+
+/** 組出單一租戶管理頁 path */
+export function buildTenantManagePath(tenantId: string): string {
+  return `/platform-admin/tenants/${encodeURIComponent(tenantId)}`
+}

@@ -116,6 +116,11 @@ const router = createRouter({
           component: () => import('@/views/platform-admin/PlatformTenantsView.vue'),
         },
         {
+          path: 'platform-admin/tenants/:tenantId',
+          name: ROUTE_NAME.PLATFORM_ADMIN_TENANT_MANAGE,
+          component: () => import('@/views/platform-admin/PlatformTenantManageView.vue'),
+        },
+        {
           path: 'platform-admin/projects',
           name: ROUTE_NAME.PLATFORM_ADMIN_PROJECTS,
           component: () => import('@/views/platform-admin/PlatformProjectsView.vue'),

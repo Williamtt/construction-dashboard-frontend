@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ColumnDef } from '@tanstack/vue-table'
 import { ref, computed, h } from 'vue'
+import type { MonitoringDailyRow } from '@/types'
 import {
   Card,
   CardContent,
@@ -66,60 +67,12 @@ const yearOptions = computed(() => {
 /** 月份 1–12 */
 const monthOptions = Array.from({ length: 12 }, (_, i) => i + 1)
 
-/** 當月天數 */
-function getDaysInMonth(year: number, month: number) {
-  return new Date(year, month, 0).getDate()
-}
-
-/** 每日一筆：日期 + 當日最高、最低、平均 */
-interface MonitoringDailyRow {
-  date: string
-  min: number
-  max: number
-  avg: number
-}
-
-/** 依選定年/月產生每日 mock 資料（含最高、最低、平均） */
-function buildDailyMock(metricKey: string, year: number, month: number): MonitoringDailyRow[] {
-  const days = getDaysInMonth(year, month)
-  const base =
-    metricKey === 'temperature'
-      ? 28
-      : metricKey === 'humidity'
-        ? 65
-        : metricKey === 'waterLevel'
-          ? 5.5
-          : 40
-  const spread = metricKey === 'waterLevel' ? 0.8 : metricKey === 'temperature' ? 6 : 15
-  const list: MonitoringDailyRow[] = []
-  for (let d = 1; d <= days; d++) {
-    const seed = year * 10000 + month * 100 + d
-    const center = base + (Math.sin(seed * 0.1) * 0.5 + (seed % 7) / 7) * spread
-    const daySpread = spread * 0.4
-    const min = center - daySpread * (0.3 + (seed % 5) / 10)
-    const max = center + daySpread * (0.3 + (seed % 7) / 10)
-    const avg = (min + max) / 2
-    list.push({
-      date: `${year}-${String(month).padStart(2, '0')}-${String(d).padStart(2, '0')}`,
-      min: Number(min.toFixed(1)),
-      max: Number(max.toFixed(1)),
-      avg: Number(avg.toFixed(1)),
-    })
-  }
-  return list
-}
-
-/** 圖表用資料（選中年/月，以當日平均為趨勢線） */
-const chartData = computed(() => {
-  const y = Number(selectedYear.value) || new Date().getFullYear()
-  const m = Number(selectedMonth.value) || 1
-  const list = buildDailyMock(selectedKey.value, y, m)
-  return {
-    metricLabel: currentMetric.value.label,
-    unit: currentMetric.value.unit,
-    series: list.map((p) => ({ time: p.date.slice(8), value: p.avg })),
-  }
-})
+/** 圖表用資料（之後改 API 取得） */
+const chartData = computed(() => ({
+  metricLabel: currentMetric.value.label,
+  unit: currentMetric.value.unit,
+  series: [] as { time: string; value: number }[],
+}))
 
 /** 圖表 ECharts option */
 const chartOption = computed(() => {
@@ -164,12 +117,8 @@ const chartOption = computed(() => {
   }
 })
 
-/** 列表用資料（每日一筆） */
-const tableRows = computed(() => {
-  const y = Number(selectedYear.value) || new Date().getFullYear()
-  const m = Number(selectedMonth.value) || 1
-  return buildDailyMock(selectedKey.value, y, m)
-})
+/** 列表用資料（之後改 API 取得） */
+const tableRows = computed<MonitoringDailyRow[]>(() => [])
 
 /** DataTable 欄位定義：日期、最高、最低、平均（標題依當前監測項目與單位） */
 const dataTableColumns = computed<ColumnDef<MonitoringDailyRow, unknown>[]>(() => {
@@ -194,7 +143,7 @@ const dataTableColumns = computed<ColumnDef<MonitoringDailyRow, unknown>[]>(() =
           title: `最高${label}（${unit}）`,
         }),
       cell: ({ row }) =>
-        h('div', { class: 'text-right text-foreground' }, String(row.getValue('max'))),
+        h('div', { class: 'text-foreground' }, String(row.getValue('max'))),
     },
     {
       accessorKey: 'min',
@@ -204,7 +153,7 @@ const dataTableColumns = computed<ColumnDef<MonitoringDailyRow, unknown>[]>(() =
           title: `最低${label}（${unit}）`,
         }),
       cell: ({ row }) =>
-        h('div', { class: 'text-right text-foreground' }, String(row.getValue('min'))),
+        h('div', { class: 'text-foreground' }, String(row.getValue('min'))),
     },
     {
       accessorKey: 'avg',
@@ -214,7 +163,7 @@ const dataTableColumns = computed<ColumnDef<MonitoringDailyRow, unknown>[]>(() =
           title: `平均${label}（${unit}）`,
         }),
       cell: ({ row }) =>
-        h('div', { class: 'text-right text-foreground' }, String(row.getValue('avg'))),
+        h('div', { class: 'text-foreground' }, String(row.getValue('avg'))),
     },
   ]
 })

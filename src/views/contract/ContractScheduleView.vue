@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { ColumnDef } from '@tanstack/vue-table'
-import { ref, computed, h } from 'vue'
+import { ref, computed, h, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Card,
   CardContent,
@@ -30,16 +31,14 @@ import { DataTable } from '@/components/common/data-table'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import ScheduleRowActions from '@/views/contract/ScheduleRowActions.vue'
 import type { Column } from '@tanstack/vue-table'
-import { CalendarRange, Plus, Calendar, Hash, CheckCircle } from 'lucide-vue-next'
+import type { ScheduleAdjustmentRow } from '@/types'
+import { CalendarRange, Plus, Calendar, Hash, CheckCircle, Loader2 } from 'lucide-vue-next'
+import { getProject, getScheduleAdjustments, createScheduleAdjustment, updateScheduleAdjustment, deleteScheduleAdjustment } from '@/api/project'
 
-/** 列表單筆：申請日期、類型、申請天數、核定天數、申請狀態 */
-export interface ScheduleAdjustmentRow {
-  id: string
-  applyDate: string
-  type: string
-  applyDays: number
-  approvedDays: number
-  status: string
+const route = useRoute()
+
+function getProjectId(): string {
+  return (route.params.projectId as string) ?? ''
 }
 
 /** 類型選項 */
@@ -56,26 +55,36 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: '駁回' },
 ] as const
 
-/** 上方摘要用假資料（之後可改為 API 或從專案資訊／列表計算） */
-const summary = ref({
-  totalApplyDays: 45,
-  totalApprovedDays: 30,
-  startDate: '2025-01-15',
-  plannedEndDate: '2026-03-15',
+const loading = ref(true)
+const saving = ref(false)
+const errorMessage = ref('')
+
+/** 專案資訊（用於摘要開工／預計竣工） */
+const projectInfo = ref<{ startDate: string | null; plannedEndDate: string | null; revisedEndDate: string | null } | null>(null)
+
+/** 工期調整列表 */
+const list = ref<ScheduleAdjustmentRow[]>([])
+
+/** 上方摘要：從 list 與 project 計算 */
+const summary = computed(() => {
+  const totalApplyDays = list.value.reduce((s, r) => s + r.applyDays, 0)
+  const totalApprovedDays = list.value.reduce((s, r) => s + r.approvedDays, 0)
+  const startDate = projectInfo.value?.startDate ? projectInfo.value.startDate.slice(0, 10) : '—'
+  let plannedEndDate = '—'
+  if (projectInfo.value?.revisedEndDate) {
+    plannedEndDate = projectInfo.value.revisedEndDate.slice(0, 10)
+  } else if (projectInfo.value?.startDate && totalApprovedDays > 0) {
+    const d = new Date(projectInfo.value.startDate)
+    d.setDate(d.getDate() + totalApprovedDays)
+    plannedEndDate = d.toISOString().slice(0, 10)
+  } else if (projectInfo.value?.plannedEndDate) {
+    plannedEndDate = projectInfo.value.plannedEndDate.slice(0, 10)
+  }
+  return { totalApplyDays, totalApprovedDays, startDate, plannedEndDate }
 })
 
-/** 列表假資料 */
-const list = ref<ScheduleAdjustmentRow[]>([
-  { id: '1', applyDate: '2025-02-01', type: 'extension', applyDays: 15, approvedDays: 15, status: 'approved' },
-  { id: '2', applyDate: '2025-03-10', type: 'extension', applyDays: 30, approvedDays: 15, status: 'approved' },
-  { id: '3', applyDate: '2025-04-05', type: 'suspension', applyDays: 7, approvedDays: 0, status: 'rejected' },
-  { id: '4', applyDate: '2025-05-01', type: 'extension', applyDays: 20, approvedDays: 0, status: 'pending' },
-])
-
-/** Modal 開關 */
+/** 新增 Modal */
 const dialogOpen = ref(false)
-
-/** 新增表單（僅 UI，送出後可接 API） */
 const form = ref({
   applyDate: '',
   type: 'extension',
@@ -83,6 +92,21 @@ const form = ref({
   approvedDays: 0,
   status: 'pending',
 })
+
+/** 編輯 Modal */
+const editDialogOpen = ref(false)
+const editingId = ref('')
+const editForm = ref({
+  applyDate: '',
+  type: 'extension',
+  applyDays: 0,
+  approvedDays: 0,
+  status: 'pending',
+})
+
+/** 刪除確認 */
+const deleteDialogOpen = ref(false)
+const deletingRow = ref<ScheduleAdjustmentRow | null>(null)
 
 function typeLabel(value: string): string {
   return TYPE_OPTIONS.find((o) => o.value === value)?.label ?? value
@@ -92,26 +116,134 @@ function statusLabel(value: string): string {
   return STATUS_OPTIONS.find((o) => o.value === value)?.label ?? value
 }
 
-/** 送出新增（假寫入 list，之後改為 API） */
-function submitAdd() {
+/** API 回傳的 applyDate 可能為 ISO，顯示用 YYYY-MM-DD */
+function formatApplyDate(applyDate: string): string {
+  if (!applyDate) return '—'
+  return applyDate.slice(0, 10)
+}
+
+async function loadData() {
+  const projectId = getProjectId()
+  if (!projectId) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const [project, adjustments] = await Promise.all([
+      getProject(projectId),
+      getScheduleAdjustments(projectId),
+    ])
+    if (project) {
+      projectInfo.value = {
+        startDate: project.startDate,
+        plannedEndDate: project.plannedEndDate,
+        revisedEndDate: project.revisedEndDate,
+      }
+    } else {
+      projectInfo.value = null
+    }
+    list.value = adjustments ?? []
+  } catch {
+    errorMessage.value = '無法載入工期調整資料'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadData)
+watch(() => route.params.projectId, loadData)
+
+function closeDialog() {
+  dialogOpen.value = false
+}
+
+async function submitAdd() {
   if (!form.value.applyDate.trim()) return
-  list.value = [
-    ...list.value,
-    {
-      id: String(Date.now()),
+  const projectId = getProjectId()
+  if (!projectId) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await createScheduleAdjustment(projectId, {
       applyDate: form.value.applyDate,
       type: form.value.type,
       applyDays: form.value.applyDays,
       approvedDays: form.value.approvedDays,
       status: form.value.status,
-    },
-  ]
-  form.value = { applyDate: '', type: 'extension', applyDays: 0, approvedDays: 0, status: 'pending' }
-  dialogOpen.value = false
+    })
+    form.value = { applyDate: '', type: 'extension', applyDays: 0, approvedDays: 0, status: 'pending' }
+    dialogOpen.value = false
+    await loadData()
+  } catch {
+    errorMessage.value = '新增失敗'
+  } finally {
+    saving.value = false
+  }
 }
 
-function closeDialog() {
-  dialogOpen.value = false
+function openEdit(row: ScheduleAdjustmentRow) {
+  editingId.value = row.id
+  editForm.value = {
+    applyDate: formatApplyDate(row.applyDate),
+    type: row.type,
+    applyDays: row.applyDays,
+    approvedDays: row.approvedDays,
+    status: row.status,
+  }
+  editDialogOpen.value = true
+}
+
+function closeEditDialog() {
+  editDialogOpen.value = false
+  editingId.value = ''
+}
+
+async function submitEdit() {
+  const projectId = getProjectId()
+  if (!projectId || !editingId.value) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await updateScheduleAdjustment(projectId, editingId.value, {
+      applyDate: editForm.value.applyDate,
+      type: editForm.value.type,
+      applyDays: editForm.value.applyDays,
+      approvedDays: editForm.value.approvedDays,
+      status: editForm.value.status,
+    })
+    closeEditDialog()
+    await loadData()
+  } catch {
+    errorMessage.value = '更新失敗'
+  } finally {
+    saving.value = false
+  }
+}
+
+function openDelete(row: ScheduleAdjustmentRow) {
+  deletingRow.value = row
+  deleteDialogOpen.value = true
+}
+
+function closeDeleteDialog() {
+  deleteDialogOpen.value = false
+  deletingRow.value = null
+}
+
+async function confirmDelete() {
+  const projectId = getProjectId()
+  const row = deletingRow.value
+  if (!projectId || !row) return
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await deleteScheduleAdjustment(projectId, row.id)
+    closeDeleteDialog()
+    await loadData()
+  } catch {
+    errorMessage.value = '刪除失敗'
+  } finally {
+    saving.value = false
+  }
 }
 
 /** DataTable 欄位定義 */
@@ -124,7 +256,7 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => [
         title: '申請日期',
       }),
     cell: ({ row }) =>
-      h('div', { class: 'font-medium text-foreground' }, row.getValue('applyDate') as string),
+      h('div', { class: 'font-medium text-foreground' }, formatApplyDate(row.getValue('applyDate') as string)),
   },
   {
     accessorKey: 'type',
@@ -144,7 +276,7 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => [
         title: '申請天數',
       }),
     cell: ({ row }) =>
-      h('div', { class: 'text-right tabular-nums text-foreground' }, `${row.getValue('applyDays') as number} 天`),
+      h('div', { class: 'tabular-nums text-foreground' }, `${row.getValue('applyDays') as number} 天`),
   },
   {
     accessorKey: 'approvedDays',
@@ -154,7 +286,7 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => [
         title: '核定天數',
       }),
     cell: ({ row }) =>
-      h('div', { class: 'text-right tabular-nums text-foreground' }, `${row.getValue('approvedDays') as number} 天`),
+      h('div', { class: 'tabular-nums text-foreground' }, `${row.getValue('approvedDays') as number} 天`),
   },
   {
     accessorKey: 'status',
@@ -171,14 +303,14 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => [
   },
   {
     id: 'actions',
-    header: () => h('div', { class: 'text-right font-medium' }, '操作'),
+    header: () => h('div', { class: 'font-medium' }, '操作'),
     cell: ({ row }) =>
-      h('div', { class: 'flex justify-end' }, [
+      h('div', { class: 'flex' }, [
         h(ScheduleRowActions, {
           row: row.original,
-          onEdit: (r) => { /* TODO: 開啟編輯 Modal 或導向 */ console.log('編輯', r) },
-          onView: (r) => { /* TODO: 開啟查看或導向 */ console.log('查看', r) },
-          onDelete: (r) => { /* TODO: 確認後呼叫刪除 API */ console.log('刪除', r) },
+          onEdit: (r) => openEdit(r),
+          onView: (r) => openEdit(r),
+          onDelete: (r) => openDelete(r),
         }),
       ]),
     enableSorting: false,
@@ -319,15 +451,111 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => [
               <Button variant="outline" @click="closeDialog">
                 取消
               </Button>
-              <Button @click="submitAdd">
+              <Button :disabled="saving" @click="submitAdd">
+                <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
                 送出
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <!-- 編輯工期調整 -->
+        <Dialog v-model:open="editDialogOpen">
+          <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>編輯工期調整</DialogTitle>
+              <DialogDescription>
+                修改申請日期、類型、天數與狀態。
+              </DialogDescription>
+            </DialogHeader>
+            <div class="grid gap-4 py-4">
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground">申請日期</label>
+                <Input v-model="editForm.applyDate" type="date" />
+              </div>
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground">類型</label>
+                <Select v-model="editForm.type">
+                  <SelectTrigger>
+                    <SelectValue placeholder="請選擇類型" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="opt in TYPE_OPTIONS"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="grid grid-cols-2 gap-4">
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-foreground">申請天數</label>
+                  <Input v-model.number="editForm.applyDays" type="number" min="0" />
+                </div>
+                <div class="grid gap-2">
+                  <label class="text-sm font-medium text-foreground">核定天數</label>
+                  <Input v-model.number="editForm.approvedDays" type="number" min="0" />
+                </div>
+              </div>
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground">申請狀態</label>
+                <Select v-model="editForm.status">
+                  <SelectTrigger>
+                    <SelectValue placeholder="請選擇狀態" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="opt in STATUS_OPTIONS"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" @click="closeEditDialog">
+                取消
+              </Button>
+              <Button :disabled="saving" @click="submitEdit">
+                <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
+                儲存
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <!-- 刪除確認 -->
+        <Dialog v-model:open="deleteDialogOpen">
+          <DialogContent class="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>確認刪除</DialogTitle>
+              <DialogDescription>
+                確定要刪除此筆工期調整紀錄？此操作無法復原。
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" @click="closeDeleteDialog">取消</Button>
+              <Button variant="destructive" :disabled="saving" @click="confirmDelete">
+                <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
+                {{ saving ? '刪除中…' : '刪除' }}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </CardHeader>
       <CardContent>
+        <p v-if="errorMessage" class="mb-4 text-sm text-destructive">{{ errorMessage }}</p>
+        <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 class="size-8 animate-spin" />
+        </div>
         <DataTable
+          v-else
           :columns="columns"
           :data="list"
           :show-view-options="false"

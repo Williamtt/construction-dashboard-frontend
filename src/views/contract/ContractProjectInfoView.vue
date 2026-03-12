@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Card,
   CardContent,
@@ -16,24 +17,38 @@ import {
   User,
   Eye,
   Pencil,
+  Loader2,
 } from 'lucide-vue-next'
+import { getProject, updateProject } from '@/api/project'
+import type { ProjectDetail } from '@/types'
+
+const route = useRoute()
+
+function getProjectId(): string {
+  return (route.params.projectId as string) ?? ''
+}
+
+const loading = ref(true)
+const saving = ref(false)
+const errorMessage = ref('')
 
 /** 是否為編輯模式 */
 const isEditMode = ref(false)
 
-/** 表單資料（假資料，僅供版面展示；之後可改為 API 取得／送出） */
+/** 表單資料 */
 const form = ref({
-  projectName: '示範工程案 A',
-  designUnit: '○○工程顧問有限公司',
-  supervisionUnit: '△△監造股份有限公司',
-  contractor: '□□營造股份有限公司',
-  summary: '本工程為示範專案，包含主體結構、機電與景觀工程，採統包方式辦理。',
-  benefits: '提升區域品質、帶動周邊發展、符合綠建築標章。',
-  startDate: '2025-01-15',
-  plannedEndDate: '2026-06-30',
-  siteManager: '王小明',
-  contactPhone: '02-1234-5678',
-  projectStaff: '李工程師、陳技師、林品管',
+  projectName: '',
+  designUnit: '',
+  supervisionUnit: '',
+  contractor: '',
+  summary: '',
+  benefits: '',
+  startDate: '',
+  plannedEndDate: '',
+  revisedEndDate: '',
+  siteManager: '',
+  contactPhone: '',
+  projectStaff: '',
 })
 
 /** 用於顯示的空白佔位 */
@@ -41,6 +56,83 @@ const emptyPlaceholder = '—'
 
 function displayValue(value: string | undefined): string {
   return value?.trim() || emptyPlaceholder
+}
+
+function dateToInputValue(iso: string | null | undefined): string {
+  if (!iso) return ''
+  return iso.slice(0, 10)
+}
+
+function fillForm(project: ProjectDetail) {
+  form.value = {
+    projectName: project.name ?? '',
+    designUnit: project.designUnit ?? '',
+    supervisionUnit: project.supervisionUnit ?? '',
+    contractor: project.contractor ?? '',
+    summary: project.summary ?? '',
+    benefits: project.benefits ?? '',
+    startDate: dateToInputValue(project.startDate),
+    plannedEndDate: dateToInputValue(project.plannedEndDate),
+    revisedEndDate: dateToInputValue(project.revisedEndDate),
+    siteManager: project.siteManager ?? '',
+    contactPhone: project.contactPhone ?? '',
+    projectStaff: project.projectStaff ?? '',
+  }
+}
+
+async function loadProject() {
+  const id = getProjectId()
+  if (!id) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const project = await getProject(id)
+    if (project) fillForm(project)
+  } catch {
+    errorMessage.value = '無法載入專案資訊'
+  } finally {
+    loading.value = false
+  }
+}
+
+onMounted(loadProject)
+watch(() => route.params.projectId, () => loadProject())
+
+async function save() {
+  const id = getProjectId()
+  if (!id) return
+  if (!form.value.projectName.trim()) {
+    errorMessage.value = '請輸入工程名稱'
+    return
+  }
+  saving.value = true
+  errorMessage.value = ''
+  try {
+    await updateProject(id, {
+      name: form.value.projectName.trim() || undefined,
+      designUnit: form.value.designUnit.trim() || null,
+      supervisionUnit: form.value.supervisionUnit.trim() || null,
+      contractor: form.value.contractor.trim() || null,
+      summary: form.value.summary.trim() || null,
+      benefits: form.value.benefits.trim() || null,
+      startDate: form.value.startDate || null,
+      plannedEndDate: form.value.plannedEndDate || null,
+      revisedEndDate: form.value.revisedEndDate || null,
+      siteManager: form.value.siteManager.trim() || null,
+      contactPhone: form.value.contactPhone.trim() || null,
+      projectStaff: form.value.projectStaff.trim() || null,
+    })
+    isEditMode.value = false
+    await loadProject()
+  } catch (err: unknown) {
+    const res =
+      err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+        : null
+    errorMessage.value = res?.message ?? '儲存失敗'
+  } finally {
+    saving.value = false
+  }
 }
 </script>
 
@@ -80,6 +172,12 @@ function displayValue(value: string | undefined): string {
       </div>
     </div>
 
+    <div v-if="loading" class="flex items-center justify-center py-16">
+      <Loader2 class="size-8 animate-spin text-muted-foreground" />
+    </div>
+    <p v-else-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
+
+    <template v-else>
     <!-- 基本資訊 -->
     <Card class="overflow-hidden border-border">
       <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
@@ -203,6 +301,10 @@ function displayValue(value: string | undefined): string {
             <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">預定完工日期</p>
             <p class="text-sm font-medium text-foreground">{{ displayValue(form.plannedEndDate) }}</p>
           </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">變更竣工日期</p>
+            <p class="text-sm font-medium text-foreground">{{ form.revisedEndDate ? form.revisedEndDate : '未變更' }}</p>
+          </div>
         </template>
         <template v-else>
           <div class="space-y-2">
@@ -212,6 +314,10 @@ function displayValue(value: string | undefined): string {
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">預定完工日期</label>
             <Input v-model="form.plannedEndDate" type="date" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">變更竣工日期</label>
+            <Input v-model="form.revisedEndDate" type="date" class="mt-0.5" placeholder="未變更可留空" />
           </div>
         </template>
       </CardContent>
@@ -272,12 +378,15 @@ function displayValue(value: string | undefined): string {
       v-if="isEditMode"
       class="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-6"
     >
-      <Button variant="outline" @click="isEditMode = false">
+      <p v-if="errorMessage" class="w-full text-sm text-destructive">{{ errorMessage }}</p>
+      <Button variant="outline" :disabled="saving" @click="isEditMode = false">
         取消
       </Button>
-      <Button>
-        儲存
+      <Button :disabled="saving" @click="save">
+        <Loader2 v-if="saving" class="size-4 animate-spin" />
+        {{ saving ? '儲存中…' : '儲存' }}
       </Button>
     </div>
+    </template>
   </div>
 </template>

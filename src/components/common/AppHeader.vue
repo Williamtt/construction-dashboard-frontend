@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { RouterLink } from 'vue-router'
-import { Menu, User, Bell, Sun, Moon, Settings } from 'lucide-vue-next'
+import { computed } from 'vue'
+import { Menu, User, Bell, Sun, Moon } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -11,13 +11,16 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import { useRoute } from 'vue-router'
 import { useSidebarStore } from '@/stores/sidebar'
 import { useThemeStore } from '@/stores/theme'
 import { useAuthStore } from '@/stores/auth'
+import { useProjectStore } from '@/stores/project'
 import { useAuth } from '@/composables/useAuth'
-import { ROUTE_PATH } from '@/constants'
 
+const route = useRoute()
 const sidebarStore = useSidebarStore()
+const projectStore = useProjectStore()
 const themeStore = useThemeStore()
 const authStore = useAuthStore()
 const { logout } = useAuth()
@@ -25,6 +28,16 @@ const { logout } = useAuth()
 const props = withDefaults(
   defineProps<{ isMobile?: boolean }>(),
   { isMobile: false },
+)
+
+/** 是否在專案內（URL 為 /p/:projectId/...） */
+const isProjectScope = computed(() => !!route.params.projectId)
+
+/** Header 標題：專案內顯示專案名稱，否則顯示預設標題 */
+const headerTitle = computed(() =>
+  isProjectScope.value && projectStore.currentProjectName
+    ? projectStore.currentProjectName
+    : 'Construction Dashboard'
 )
 
 /** 通知數量（佔位，之後接 API） */
@@ -51,22 +64,9 @@ function handleMenuClick() {
       <Menu class="size-5" />
     </Button>
     <div class="flex min-w-0 flex-1 items-center gap-2">
-      <span class="truncate font-semibold text-foreground">Construction Dashboard</span>
+      <span class="truncate font-semibold text-foreground">{{ headerTitle }}</span>
     </div>
     <div class="flex shrink-0 items-center gap-2">
-      <DropdownMenu v-if="authStore.canAccessAdmin && !authStore.isPlatformAdmin">
-        <DropdownMenuTrigger as-child>
-          <Button variant="ghost" size="sm" class="gap-1.5">
-            <Settings class="size-4" />
-            後台
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" class="w-48">
-          <DropdownMenuItem as-child>
-            <RouterLink :to="ROUTE_PATH.ADMIN_PROJECTS">單租後台</RouterLink>
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
       <Button
         variant="ghost"
         size="icon"

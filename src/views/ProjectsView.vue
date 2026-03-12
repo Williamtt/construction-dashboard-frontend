@@ -14,17 +14,7 @@ import { buildProjectPath } from '@/constants/routes'
 import { useProjectStore } from '@/stores/project'
 import { apiClient } from '@/api/client'
 import { API_PATH } from '@/constants/api'
-import type { ApiResponse } from '@/types'
-
-interface ProjectItem {
-  id: string
-  name: string
-  description?: string | null
-  code?: string | null
-  status: string
-  createdAt: string
-  updatedAt: string
-}
+import type { ApiResponse, ProjectItem } from '@/types'
 
 const router = useRouter()
 const projectStore = useProjectStore()
