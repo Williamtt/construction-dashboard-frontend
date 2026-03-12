@@ -12,6 +12,11 @@ import {
   Image,
   FileText,
   Upload,
+  ClipboardList,
+  CalendarRange,
+  FileSignature,
+  CalendarClock,
+  Flag,
   type LucideIcon,
 } from 'lucide-vue-next'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -32,6 +37,11 @@ const ICON_MAP: Record<string, LucideIcon> = {
   Image,
   FileText,
   Upload,
+  ClipboardList,
+  CalendarRange,
+  FileSignature,
+  CalendarClock,
+  Flag,
 }
 
 withDefaults(

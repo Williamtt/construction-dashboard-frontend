@@ -22,7 +22,18 @@ export type SidebarEntry =
 
 export const SIDEBAR_ENTRIES: SidebarEntry[] = [
   { type: 'item', item: { id: 'home', label: '首頁', path: '/', icon: 'LayoutDashboard' } },
-  { type: 'item', item: { id: 'dashboard', label: '儀表板', path: '/dashboard', icon: 'LayoutGrid' } },
+  {
+    type: 'group',
+    group: {
+      id: 'overview',
+      label: '概況',
+      children: [
+        { id: 'dashboard', label: '儀表板', path: '/dashboard', icon: 'LayoutGrid' },
+        { id: 'overview-events', label: '大事記', path: '/overview/events', icon: 'CalendarClock' },
+        { id: 'overview-milestones', label: '里程碑', path: '/overview/milestones', icon: 'Flag' },
+      ],
+    },
+  },
   {
     type: 'group',
     group: {
@@ -34,6 +45,18 @@ export const SIDEBAR_ENTRIES: SidebarEntry[] = [
         { id: 'monitoring-devices', label: '設備', path: '/monitoring/devices', icon: 'Cpu' },
         { id: 'monitoring-media', label: '影像', path: '/monitoring/media', icon: 'Image' },
         { id: 'monitoring-reports', label: '報表', path: '/monitoring/reports', icon: 'FileText' },
+      ],
+    },
+  },
+  {
+    type: 'group',
+    group: {
+      id: 'contract',
+      label: '契約',
+      children: [
+        { id: 'contract-project-info', label: '專案資訊', path: '/contract/project-info', icon: 'ClipboardList' },
+        { id: 'contract-schedule', label: '工期調整', path: '/contract/schedule', icon: 'CalendarRange' },
+        { id: 'contract-management', label: '契約管理', path: '/contract/management', icon: 'FileSignature' },
       ],
     },
   },

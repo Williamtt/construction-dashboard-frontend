@@ -20,6 +20,20 @@ const router = createRouter({
           component: () => import('@/views/DashboardView.vue'),
         },
         {
+          path: 'overview',
+          redirect: { name: ROUTE_NAME.DASHBOARD },
+        },
+        {
+          path: 'overview/events',
+          name: ROUTE_NAME.OVERVIEW_EVENTS,
+          component: () => import('@/views/overview/OverviewEventsView.vue'),
+        },
+        {
+          path: 'overview/milestones',
+          name: ROUTE_NAME.OVERVIEW_MILESTONES,
+          component: () => import('@/views/overview/OverviewMilestonesView.vue'),
+        },
+        {
           path: 'layout-verify',
           name: ROUTE_NAME.LAYOUT_VERIFY,
           component: () => import('@/views/LayoutVerifyView.vue'),
@@ -57,6 +71,25 @@ const router = createRouter({
           path: 'monitoring/upload',
           name: ROUTE_NAME.MONITORING_UPLOAD,
           component: () => import('@/views/monitoring/MonitoringUploadView.vue'),
+        },
+        {
+          path: 'contract',
+          redirect: { name: ROUTE_NAME.CONTRACT_PROJECT_INFO },
+        },
+        {
+          path: 'contract/project-info',
+          name: ROUTE_NAME.CONTRACT_PROJECT_INFO,
+          component: () => import('@/views/contract/ContractProjectInfoView.vue'),
+        },
+        {
+          path: 'contract/schedule',
+          name: ROUTE_NAME.CONTRACT_SCHEDULE,
+          component: () => import('@/views/contract/ContractScheduleView.vue'),
+        },
+        {
+          path: 'contract/management',
+          name: ROUTE_NAME.CONTRACT_MANAGEMENT,
+          component: () => import('@/views/contract/ContractManagementView.vue'),
         },
         {
           path: 'projects',

@@ -25,7 +25,6 @@ const uploadMessage = ref<{ type: 'success' | 'error'; text: string } | null>(nu
 const hasFile = computed(() => !!selectedFile.value)
 const fileName = computed(() => selectedFile.value?.name ?? '')
 
-const acceptedExtensions = '.xlsx,.xls,.csv'
 const acceptAttr = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv'
 
 /** 下載 Excel 樣板：之後可改為呼叫 API_PATH.MONITORING_TEMPLATE 或開啟新視窗下載 */

@@ -7,6 +7,10 @@ export const ROUTE_PATH = {
   DASHBOARD: '/dashboard',
   DASHBOARD_MONITORING: '/dashboard/monitoring',
   DASHBOARD_EXECUTION: '/dashboard/execution',
+  /** 概況：大事記 */
+  OVERVIEW_EVENTS: '/overview/events',
+  /** 概況：里程碑 */
+  OVERVIEW_MILESTONES: '/overview/milestones',
   /** 監測：歷史數據 */
   MONITORING_METRICS: '/monitoring/metrics',
   /** 監測：設備管理 */
@@ -19,6 +23,12 @@ export const ROUTE_PATH = {
   MONITORING_REPORTS: '/monitoring/reports',
   /** 監測：數據上傳（Excel 樣板下載與上傳） */
   MONITORING_UPLOAD: '/monitoring/upload',
+  /** 契約：專案資訊 */
+  CONTRACT_PROJECT_INFO: '/contract/project-info',
+  /** 契約：工期調整 */
+  CONTRACT_SCHEDULE: '/contract/schedule',
+  /** 契約：契約管理 */
+  CONTRACT_MANAGEMENT: '/contract/management',
   PROJECTS: '/projects',
   /** 驗證用測試頁（Layout / 導航 / 區塊） */
   LAYOUT_VERIFY: '/layout-verify',
@@ -32,12 +42,17 @@ export const ROUTE_NAME = {
   DASHBOARD: 'dashboard',
   DASHBOARD_MONITORING: 'dashboard-monitoring',
   DASHBOARD_EXECUTION: 'dashboard-execution',
+  OVERVIEW_EVENTS: 'overview-events',
+  OVERVIEW_MILESTONES: 'overview-milestones',
   MONITORING_METRICS: 'monitoring-metrics',
   MONITORING_DEVICES: 'monitoring-devices',
   MONITORING_DEVICE_DETAIL: 'monitoring-device-detail',
   MONITORING_MEDIA: 'monitoring-media',
   MONITORING_REPORTS: 'monitoring-reports',
   MONITORING_UPLOAD: 'monitoring-upload',
+  CONTRACT_PROJECT_INFO: 'contract-project-info',
+  CONTRACT_SCHEDULE: 'contract-schedule',
+  CONTRACT_MANAGEMENT: 'contract-management',
   PROJECTS: 'projects',
   LAYOUT_VERIFY: 'layout-verify',
   DATA_TABLE_DEMO: 'data-table-demo',

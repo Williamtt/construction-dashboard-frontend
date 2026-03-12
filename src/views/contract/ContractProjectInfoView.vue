@@ -1,0 +1,283 @@
+<script setup lang="ts">
+import { ref } from 'vue'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import {
+  Building2,
+  FileText,
+  CalendarRange,
+  User,
+  Eye,
+  Pencil,
+} from 'lucide-vue-next'
+
+/** 是否為編輯模式 */
+const isEditMode = ref(false)
+
+/** 表單資料（假資料，僅供版面展示；之後可改為 API 取得／送出） */
+const form = ref({
+  projectName: '示範工程案 A',
+  designUnit: '○○工程顧問有限公司',
+  supervisionUnit: '△△監造股份有限公司',
+  contractor: '□□營造股份有限公司',
+  summary: '本工程為示範專案，包含主體結構、機電與景觀工程，採統包方式辦理。',
+  benefits: '提升區域品質、帶動周邊發展、符合綠建築標章。',
+  startDate: '2025-01-15',
+  plannedEndDate: '2026-06-30',
+  siteManager: '王小明',
+  contactPhone: '02-1234-5678',
+  projectStaff: '李工程師、陳技師、林品管',
+})
+
+/** 用於顯示的空白佔位 */
+const emptyPlaceholder = '—'
+
+function displayValue(value: string | undefined): string {
+  return value?.trim() || emptyPlaceholder
+}
+</script>
+
+<template>
+  <div class="space-y-6">
+    <!-- 頁首：標題 + 模式切換 -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <h1 class="text-xl font-semibold tracking-tight text-foreground">
+          專案資訊
+        </h1>
+        <p class="mt-1 text-sm text-muted-foreground">
+          契約專案之基本資料、工期與聯絡資訊
+        </p>
+      </div>
+      <div class="flex shrink-0 items-center gap-2 rounded-lg border border-border bg-card p-1">
+        <Button
+          variant="ghost"
+          size="sm"
+          class="gap-2"
+          :class="{ 'bg-background shadow-sm': !isEditMode }"
+          @click="isEditMode = false"
+        >
+          <Eye class="size-4" />
+          查看
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="gap-2"
+          :class="{ 'bg-background shadow-sm': isEditMode }"
+          @click="isEditMode = true"
+        >
+          <Pencil class="size-4" />
+          編輯
+        </Button>
+      </div>
+    </div>
+
+    <!-- 基本資訊 -->
+    <Card class="overflow-hidden border-border">
+      <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Building2 class="size-5" />
+          </div>
+          <div>
+            <CardTitle class="text-base">基本資訊</CardTitle>
+            <CardDescription>工程與參與單位</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="grid gap-6 pt-6 sm:grid-cols-2">
+        <template v-if="!isEditMode">
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程名稱</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.projectName) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">設計單位</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.designUnit) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">監造單位</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.supervisionUnit) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">施工廠商</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.contractor) }}</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程名稱</label>
+            <Input v-model="form.projectName" placeholder="請輸入工程名稱" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">設計單位</label>
+            <Input v-model="form.designUnit" placeholder="請輸入設計單位" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">監造單位</label>
+            <Input v-model="form.supervisionUnit" placeholder="請輸入監造單位" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">施工廠商</label>
+            <Input v-model="form.contractor" placeholder="請輸入施工廠商" class="mt-0.5" />
+          </div>
+        </template>
+      </CardContent>
+    </Card>
+
+    <!-- 工程內容 -->
+    <Card class="overflow-hidden border-border">
+      <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <FileText class="size-5" />
+          </div>
+          <div>
+            <CardTitle class="text-base">工程內容</CardTitle>
+            <CardDescription>概要與效益</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="space-y-6 pt-6">
+        <template v-if="!isEditMode">
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程概要</p>
+            <p class="text-sm leading-relaxed text-foreground whitespace-pre-line">{{ displayValue(form.summary) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程效益</p>
+            <p class="text-sm leading-relaxed text-foreground whitespace-pre-line">{{ displayValue(form.benefits) }}</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程概要</label>
+            <textarea
+              v-model="form.summary"
+              placeholder="請輸入工程概要"
+              rows="3"
+              class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50"
+            />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程效益</label>
+            <textarea
+              v-model="form.benefits"
+              placeholder="請輸入工程效益"
+              rows="3"
+              class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50"
+            />
+          </div>
+        </template>
+      </CardContent>
+    </Card>
+
+    <!-- 工期 -->
+    <Card class="overflow-hidden border-border">
+      <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <CalendarRange class="size-5" />
+          </div>
+          <div>
+            <CardTitle class="text-base">工期</CardTitle>
+            <CardDescription>開竣工日期</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="grid gap-6 pt-6 sm:grid-cols-2">
+        <template v-if="!isEditMode">
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">開工日期</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.startDate) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">預定完工日期</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.plannedEndDate) }}</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">開工日期</label>
+            <Input v-model="form.startDate" type="date" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">預定完工日期</label>
+            <Input v-model="form.plannedEndDate" type="date" class="mt-0.5" />
+          </div>
+        </template>
+      </CardContent>
+    </Card>
+
+    <!-- 聯絡與人員 -->
+    <Card class="overflow-hidden border-border">
+      <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <User class="size-5" />
+          </div>
+          <div>
+            <CardTitle class="text-base">聯絡與人員</CardTitle>
+            <CardDescription>工地負責人與專案人員</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="grid gap-6 pt-6 sm:grid-cols-2">
+        <template v-if="!isEditMode">
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工地負責人</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.siteManager) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">聯絡電話</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.contactPhone) }}</p>
+          </div>
+          <div class="space-y-1 sm:col-span-2">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">專案工程人員</p>
+            <p class="text-sm leading-relaxed text-foreground">{{ displayValue(form.projectStaff) }}</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工地負責人</label>
+            <Input v-model="form.siteManager" placeholder="請輸入工地負責人" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">聯絡電話</label>
+            <Input v-model="form.contactPhone" placeholder="請輸入聯絡電話" type="tel" class="mt-0.5" />
+          </div>
+          <div class="space-y-2 sm:col-span-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">專案工程人員</label>
+            <textarea
+              v-model="form.projectStaff"
+              placeholder="請輸入專案工程人員，多人可用逗號或換行分隔"
+              rows="2"
+              class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50"
+            />
+          </div>
+        </template>
+      </CardContent>
+    </Card>
+
+    <!-- 編輯模式：底部操作列 -->
+    <div
+      v-if="isEditMode"
+      class="flex flex-wrap items-center justify-end gap-3 border-t border-border pt-6"
+    >
+      <Button variant="outline" @click="isEditMode = false">
+        取消
+      </Button>
+      <Button>
+        儲存
+      </Button>
+    </div>
+  </div>
+</template>

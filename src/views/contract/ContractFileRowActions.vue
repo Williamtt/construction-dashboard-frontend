@@ -1,0 +1,58 @@
+<script setup lang="ts">
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+} from '@/components/ui/dropdown-menu'
+import { MoreHorizontal, Download, Trash2 } from 'lucide-vue-next'
+import type { ContractFileRow } from '@/types/contract'
+
+defineProps<{
+  row: ContractFileRow
+}>()
+
+const emit = defineEmits<{
+  download: [row: ContractFileRow]
+  delete: [row: ContractFileRow]
+}>()
+
+function onDownload(row: ContractFileRow) {
+  emit('download', row)
+}
+
+function onDelete(row: ContractFileRow) {
+  emit('delete', row)
+}
+</script>
+
+<template>
+  <DropdownMenu>
+    <DropdownMenuTrigger as-child>
+      <Button
+        variant="ghost"
+        size="icon"
+        class="size-8 shrink-0"
+        aria-label="更多功能"
+      >
+        <MoreHorizontal class="size-4" />
+      </Button>
+    </DropdownMenuTrigger>
+    <DropdownMenuContent align="end" class="w-[10rem]">
+      <DropdownMenuItem class="gap-2 cursor-pointer" @click="onDownload(row)">
+        <Download class="size-4" />
+        下載
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem
+        class="gap-2 cursor-pointer text-destructive focus:text-destructive"
+        @click="onDelete(row)"
+      >
+        <Trash2 class="size-4" />
+        刪除
+      </DropdownMenuItem>
+    </DropdownMenuContent>
+  </DropdownMenu>
+</template>

@@ -5,6 +5,9 @@
 export const BREADCRUMB_LABELS: Record<string, string> = {
   '/': '首頁',
   '/dashboard': '儀表板',
+  '/overview': '概況',
+  '/overview/events': '大事記',
+  '/overview/milestones': '里程碑',
   '/dashboard/monitoring': '監測數據',
   '/dashboard/execution': '施工執行',
   '/monitoring': '監測',
@@ -13,6 +16,10 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
   '/monitoring/media': '影像',
   '/monitoring/reports': '報表',
   '/monitoring/upload': '數據上傳',
+  '/contract': '契約',
+  '/contract/project-info': '專案資訊',
+  '/contract/schedule': '工期調整',
+  '/contract/management': '契約管理',
   '/projects': '專案列表',
   '/layout-verify': 'Layout 驗證',
 }
