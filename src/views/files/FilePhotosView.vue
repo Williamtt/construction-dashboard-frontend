@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -413,6 +414,7 @@ function handlePhotoClick(item: PhotoGridItem, e: MouseEvent) {
 function clearSelection() {
   selectedIds.value = new Set()
   lastClickedId.value = null
+  selectionMode.value = false
 }
 
 /** 切到全部 tab 並開啟 lightbox（僅在允許開 modal 的檢視時由 handlePhotoClick 呼叫） */
@@ -735,74 +737,86 @@ async function confirmAddSelectedToAlbum() {
       </ScrollArea>
     </aside>
 
-    <!-- Main: toolbar + grid -->
+    <!-- Main: 標題獨立一列；下一列為 Tab + 工具列，再下方為圖面區 -->
     <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div class="flex shrink-0 flex-col gap-2">
-        <div class="flex items-center justify-between gap-4 px-4 py-3">
-          <h2 class="truncate text-base font-semibold text-foreground">
-            {{ currentTitle }}
-          </h2>
-          <div class="flex items-center gap-2">
-          <input
-            ref="fileInputRef"
-            type="file"
-            class="hidden"
-            accept="image/*"
-            multiple
-            @change="onFileInputChange"
-          />
-          <Button
-            v-if="activeView !== 'favorites' && activeView !== 'library' && activeView !== 'recent'"
-            variant="outline"
-            size="sm"
-            :disabled="!libraryPhotoItems.length || addToAlbumLoading"
-            @click="openAddToAlbum"
-          >
-            從圖庫加入
-          </Button>
-          <Button
-            :variant="selectionMode ? 'secondary' : 'outline'"
-            size="sm"
-            @click="toggleSelectionMode"
-          >
-            {{ selectionMode ? '完成' : '選取' }}
-          </Button>
-          <Button
-            size="sm"
-            :disabled="uploadInProgress || !projectId"
-            @click="triggerUpload"
-          >
-            <Loader2 v-if="uploadInProgress" class="mr-2 size-4 animate-spin" />
-            <Upload v-else class="mr-2 size-4" />
-            上傳照片
-          </Button>
-        </div>
-        </div>
-        <!-- 多選工具列：選取模式或有選取時顯示 -->
-        <div
-          v-if="selectionMode || selectedIds.size > 0"
-          class="flex items-center gap-3 border-t border-border bg-muted/50 px-4 py-2"
-        >
-          <span class="text-sm text-muted-foreground">已選 {{ selectedIds.size }} 張</span>
-          <Button variant="ghost" size="sm" @click="clearSelection">取消選取</Button>
-          <Button variant="outline" size="sm" :disabled="selectedIds.size === 0" @click="openDeleteSelected">
-            <Trash2 class="mr-1.5 size-4" />
-            刪除
-          </Button>
-          <Button variant="outline" size="sm" :disabled="selectedIds.size === 0" @click="openAddSelectedToAlbum">
-            <FolderOpen class="mr-1.5 size-4" />
-            加入到相簿
-          </Button>
-        </div>
+      <!-- 第一列：僅標題（圖庫／我的最愛／相簿名等） -->
+      <div class="shrink-0 px-4 pt-3">
+        <h2 class="truncate text-base font-semibold text-foreground">
+          {{ currentTitle }}
+        </h2>
       </div>
-      <!-- 圖面區：僅在「圖庫」時顯示年/月/全部 tab，其餘直接顯示全部 -->
       <Tabs v-model="photoTab" class="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div v-if="activeView === 'library'" class="shrink-0 px-4 pb-2">
-          <TabsList class="w-fit">
+        <!-- 第二列：年/月/全部 tab（僅圖庫）+ 上傳與選取（選取時改為已選數 + ButtonGroup） -->
+        <div class="flex shrink-0 items-center gap-4 px-4 py-2">
+          <TabsList v-if="activeView === 'library'" class="w-fit shrink-0">
             <TabsTrigger value="year">年</TabsTrigger>
             <TabsTrigger value="month">月</TabsTrigger>
             <TabsTrigger value="all">全部</TabsTrigger>
           </TabsList>
+          <div class="min-w-0 flex-1" />
+          <div class="flex shrink-0 items-center gap-2">
+            <input
+              ref="fileInputRef"
+              type="file"
+              class="hidden"
+              accept="image/*"
+              multiple
+              @change="onFileInputChange"
+            />
+            <Button
+              v-if="activeView !== 'favorites' && activeView !== 'library' && activeView !== 'recent'"
+              variant="outline"
+              size="sm"
+              :disabled="!libraryPhotoItems.length || addToAlbumLoading"
+              @click="openAddToAlbum"
+            >
+              從圖庫加入
+            </Button>
+            <template v-if="selectionMode || selectedIds.size > 0">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedIds.size }} 張</span>
+              <ButtonGroup>
+                <Button variant="outline" size="sm" @click="clearSelection">
+                  取消選取
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  :disabled="selectedIds.size === 0"
+                  @click="openDeleteSelected"
+                >
+                  <Trash2 class="mr-1.5 size-4" />
+                  刪除
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  :disabled="selectedIds.size === 0"
+                  @click="openAddSelectedToAlbum"
+                >
+                  <FolderOpen class="mr-1.5 size-4" />
+                  加入相簿
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button
+              v-else
+              variant="outline"
+              size="sm"
+              @click="toggleSelectionMode"
+            >
+              選取
+            </Button>
+            <Button
+              size="sm"
+              :disabled="uploadInProgress || !projectId"
+              @click="triggerUpload"
+            >
+              <Loader2 v-if="uploadInProgress" class="mr-2 size-4 animate-spin" />
+              <Upload v-else class="mr-2 size-4" />
+              上傳照片
+            </Button>
+          </div>
         </div>
         <ScrollArea class="min-h-0 flex-1">
           <div v-if="loadingPhotos" class="flex flex-col items-center justify-center py-24">

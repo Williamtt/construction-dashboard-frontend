@@ -1,6 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, onMounted, computed, h } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -21,12 +32,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import AdminFormTemplatesRowActions from '@/views/admin/AdminFormTemplatesRowActions.vue'
 import {
   listDefaultFormTemplates,
   createDefaultFormTemplate,
@@ -35,26 +42,14 @@ import {
   getFormTemplateBlob,
 } from '@/api/form-templates'
 import type { FormTemplateItem } from '@/api/form-templates'
-import { Upload, Loader2, Trash2, Download, FileText, Pencil, MoreHorizontal } from 'lucide-vue-next'
+import { Upload, Loader2, Trash2, Download, FileText } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const tenantId = computed(() => authStore.user?.tenantId ?? null)
 
 const list = ref<FormTemplateItem[]>([])
 const loading = ref(true)
-const selectedIds = ref<Set<string>>(new Set())
-const isAllSelected = computed(() => list.value.length > 0 && selectedIds.value.size === list.value.length)
-const isSomeSelected = computed(() => selectedIds.value.size > 0)
-function toggleAll(checked: boolean) {
-  if (checked) list.value.forEach((r) => selectedIds.value.add(r.id))
-  else selectedIds.value.clear()
-  selectedIds.value = new Set(selectedIds.value)
-}
-function toggleOne(id: string, checked: boolean) {
-  if (checked) selectedIds.value.add(id)
-  else selectedIds.value.delete(id)
-  selectedIds.value = new Set(selectedIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
@@ -197,15 +192,125 @@ function openBatchDelete() {
 function closeBatchDelete() {
   if (!batchDeleteLoading.value) batchDeleteOpen.value = false
 }
+const sorting = ref<SortingState>([])
+const columns = computed<ColumnDef<FormTemplateItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'name',
+    header: '名稱',
+    cell: ({ row }) =>
+      h('div', { class: 'flex items-center gap-2 font-medium' }, [
+        h(FileText, { class: 'size-4 shrink-0 text-muted-foreground' }),
+        h('span', { class: 'truncate', title: row.original.name }, row.original.name),
+      ]),
+  },
+  {
+    accessorKey: 'description',
+    header: '描述',
+    cell: ({ row }) =>
+      h('div', {
+        class: 'text-muted-foreground max-w-[200px] truncate',
+        title: row.original.description ?? '',
+      }, row.original.description || '—'),
+  },
+  {
+    accessorKey: 'fileSize',
+    header: '檔案大小',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, formatSize(row.original.fileSize ?? 0)),
+  },
+  {
+    accessorKey: 'fileName',
+    header: '檔名',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, row.original.fileName),
+  },
+  {
+    accessorKey: 'updatedAt',
+    header: '更新時間',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.updatedAt)),
+  },
+  {
+    id: 'actions',
+    header: () => h('div', { class: 'w-[80px]' }),
+    cell: ({ row }) =>
+      h('div', { class: 'flex justify-end' }, [
+        h(AdminFormTemplatesRowActions, {
+          row: row.original,
+          onDownload: handleDownload,
+          onEdit: openEdit,
+          onDelete: openDelete,
+        }),
+      ]),
+    enableSorting: false,
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return list.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 10 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
+}
+
 async function confirmBatchDelete() {
-  if (selectedIds.value.size === 0) return
+  const ids = selectedRows.value.map((r) => r.original.id)
+  if (ids.length === 0) return
   batchDeleteLoading.value = true
   try {
-    for (const id of selectedIds.value) {
+    for (const id of ids) {
       await deleteFormTemplate(id)
     }
-    selectedIds.value = new Set()
-    batchDeleteOpen.value = false
+    closeBatchDelete()
+    rowSelection.value = {}
     await fetchList()
   } finally {
     batchDeleteLoading.value = false
@@ -224,19 +329,18 @@ async function confirmBatchDelete() {
 
     <!-- 工具列：已選 + ButtonGroup + 新增 全部靠右（表格上方） -->
     <div class="flex flex-wrap items-center justify-end gap-3">
-      <template v-if="selectedIds.size > 0">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedIds.size }} 項</span>
+      <template v-if="hasSelection">
+        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
         <ButtonGroup>
-          <Button variant="outline" size="sm" @click="selectedIds = new Set()">
+          <Button variant="outline" @click="clearSelection">
             取消選取
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            class="text-destructive hover:text-destructive"
             @click="openBatchDelete"
           >
-            <Trash2 class="mr-1.5 size-4" />
+            <Trash2 class="size-4" />
             批次刪除
           </Button>
         </ButtonGroup>
@@ -247,83 +351,45 @@ async function confirmBatchDelete() {
       </Button>
     </div>
 
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex justify-center py-12">
-        <Loader2 class="size-8 animate-spin text-muted-foreground" />
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <Table v-if="list.length">
+        <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead class="w-10">
-                <Checkbox
-                  :checked="isAllSelected || (isSomeSelected && 'indeterminate')"
-                  aria-label="全選"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleAll(v === true)"
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
                 />
               </TableHead>
-              <TableHead class="w-[22%]">名稱</TableHead>
-              <TableHead class="w-[24%]">描述</TableHead>
-              <TableHead>檔案大小</TableHead>
-              <TableHead class="text-muted-foreground">檔名</TableHead>
-              <TableHead>更新時間</TableHead>
-              <TableHead class="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="row in list" :key="row.id">
-              <TableCell class="w-10">
-                <Checkbox
-                  :checked="selectedIds.has(row.id)"
-                  :aria-label="'選取 ' + row.name"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleOne(row.id, v === true)"
-                />
-              </TableCell>
-              <TableCell class="font-medium">
-                <div class="flex items-center gap-2">
-                  <FileText class="size-4 shrink-0 text-muted-foreground" />
-                  <span class="truncate" :title="row.name">{{ row.name }}</span>
-                </div>
-              </TableCell>
-              <TableCell class="text-muted-foreground max-w-[200px] truncate" :title="row.description ?? ''">
-                {{ row.description || '—' }}
-              </TableCell>
-              <TableCell class="text-muted-foreground text-sm">{{ formatSize(row.fileSize ?? 0) }}</TableCell>
-              <TableCell class="text-muted-foreground text-sm">{{ row.fileName }}</TableCell>
-              <TableCell class="text-muted-foreground text-sm">{{ formatDate(row.updatedAt) }}</TableCell>
-              <TableCell class="w-[80px] text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" size="icon" class="size-8" aria-label="更多">
-                      <MoreHorizontal class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="handleDownload(row)">
-                      <Download class="mr-2 size-4" />
-                      下載
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="openEdit(row)">
-                      <Pencil class="mr-2 size-4" />
-                      編輯
-                    </DropdownMenuItem>
-                    <DropdownMenuItem class="text-destructive focus:text-destructive" @click="openDelete(row)">
-                      <Trash2 class="mr-2 size-4" />
-                      刪除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
+                  尚無預設樣板，點擊「新增預設樣板」上傳
+                </TableCell>
+              </TableRow>
+            </template>
           </TableBody>
         </Table>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground"
-        >
-          <FileText class="mb-2 size-10 opacity-50" />
-          <p class="text-sm">尚無預設樣板，點擊「新增預設樣板」上傳</p>
-        </div>
+        <DataTablePagination :table="table" />
       </template>
     </div>
 
@@ -428,7 +494,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>批次刪除樣板</DialogTitle>
           <DialogDescription>
-            確定要刪除所選的 {{ selectedIds.size }} 個樣板？此操作無法復原。
+            確定要刪除所選的 {{ selectedCount }} 個樣板？此操作無法復原。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

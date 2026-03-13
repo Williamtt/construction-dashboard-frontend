@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, computed, onMounted, h } from 'vue'
+import { valueUpdater } from '@/lib/utils'
 import { apiClient } from '@/api/client'
 import { API_PATH } from '@/constants'
 import {
@@ -30,12 +41,6 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -43,7 +48,9 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Loader2, MoreHorizontal, KeyRound, Users, Trash2 } from 'lucide-vue-next'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import PlatformUsersRowActions from '@/views/platform-admin/PlatformUsersRowActions.vue'
+import { Loader2, Trash2 } from 'lucide-vue-next'
 
 const list = ref<PlatformUserItem[]>([])
 const tenants = ref<TenantItem[]>([])
@@ -57,21 +64,7 @@ const tenantFilter = ref<string>(ALL_TENANTS_VALUE)
 const systemRoleFilter = ref<string>(ALL_ROLE_VALUE)
 const memberTypeFilter = ref<string>(ALL_MEMBER_TYPE_VALUE)
 
-const selectedUserIds = ref<Set<string>>(new Set())
-const isAllSelected = computed(() => list.value.length > 0 && selectedUserIds.value.size === list.value.length)
-const isSomeSelected = computed(() => selectedUserIds.value.size > 0)
-
-function toggleAll(checked: boolean) {
-  if (checked) list.value.forEach((u) => selectedUserIds.value.add(u.id))
-  else selectedUserIds.value.clear()
-  selectedUserIds.value = new Set(selectedUserIds.value)
-}
-
-function toggleOne(id: string, checked: boolean) {
-  if (checked) selectedUserIds.value.add(id)
-  else selectedUserIds.value.delete(id)
-  selectedUserIds.value = new Set(selectedUserIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 
 function formatDate(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -193,8 +186,119 @@ function closeBatchDelete() {
   batchDeleteOpen.value = false
   batchDeleteError.value = ''
 }
+const sorting = ref<SortingState>([])
+const columns = computed<ColumnDef<PlatformUserItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    id: 'nameEmail',
+    header: '姓名 / Email',
+    cell: ({ row }) => {
+      const u = row.original
+      return h('div', { class: 'font-medium text-foreground' }, [
+        h('span', {}, u.name || '—'),
+        h('span', { class: 'block text-xs text-muted-foreground' }, u.email),
+      ])
+    },
+  },
+  {
+    accessorKey: 'systemRole',
+    header: '系統角色',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: row.original.systemRole === 'platform_admin' ? 'default' : 'secondary',
+        class: 'font-normal',
+      }, () => systemRoleLabel(row.original.systemRole)),
+  },
+  {
+    accessorKey: 'memberType',
+    header: '成員類型',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: row.original.memberType === 'external' ? 'secondary' : 'outline',
+        class: 'font-normal',
+      }, () => memberTypeLabel(row.original.memberType)),
+  },
+  {
+    accessorKey: 'tenantName',
+    header: '所屬租戶',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.tenantName ?? '—'),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: '建立日期',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.createdAt)),
+  },
+  {
+    id: 'actions',
+    header: () => h('div', { class: 'w-[80px]' }),
+    cell: ({ row }) =>
+      h('div', { class: 'flex justify-end' }, [
+        h(PlatformUsersRowActions, {
+          row: row.original,
+          onResetPassword: openResetPasswordDialog,
+        }),
+      ]),
+    enableSorting: false,
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return list.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 10 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
+}
+
 async function confirmBatchDelete() {
-  const ids = Array.from(selectedUserIds.value)
+  const ids = selectedRows.value.map((r) => r.original.id)
   if (!ids.length) return
   batchDeleteLoading.value = true
   batchDeleteError.value = ''
@@ -202,8 +306,8 @@ async function confirmBatchDelete() {
     for (const id of ids) {
       await apiClient.delete(`${API_PATH.PLATFORM_USERS}/${id}`)
     }
-    selectedUserIds.value = new Set()
     closeBatchDelete()
+    rowSelection.value = {}
     await loadUsers()
   } catch (err: unknown) {
     const res =
@@ -266,108 +370,64 @@ async function confirmBatchDelete() {
           </SelectContent>
         </Select>
       </div>
-      <div v-if="selectedUserIds.size > 0" class="flex flex-wrap items-center gap-3">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedUserIds.size }} 項</span>
+      <div v-if="hasSelection" class="flex flex-wrap items-center gap-3">
+        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
         <ButtonGroup>
-          <Button
-            variant="outline"
-            size="sm"
-            @click="selectedUserIds = new Set()"
-          >
+          <Button variant="outline" @click="clearSelection">
             取消選取
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            class="text-destructive hover:text-destructive"
             @click="openBatchDelete"
           >
-            <Trash2 class="mr-1.5 size-4" />
+            <Trash2 class="size-4" />
             批次刪除
           </Button>
         </ButtonGroup>
       </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex items-center justify-center py-16">
-          <Loader2 class="size-8 animate-spin text-muted-foreground" />
-        </div>
-        <div v-else-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
-          <Users class="mx-auto mb-2 size-10 opacity-50" />
-          <p>尚無使用者，或目前篩選無結果。</p>
-        </div>
-        <Table v-else>
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
+      </div>
+      <template v-else>
+        <Table>
           <TableHeader>
-            <TableRow class="border-border hover:bg-transparent">
-              <TableHead class="w-10">
-                <Checkbox
-                  :checked="isAllSelected || (isSomeSelected && 'indeterminate')"
-                  aria-label="全選"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleAll(v === true)"
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
                 />
               </TableHead>
-              <TableHead class="text-foreground">姓名 / Email</TableHead>
-              <TableHead class="text-muted-foreground">系統角色</TableHead>
-              <TableHead class="text-muted-foreground">成員類型</TableHead>
-              <TableHead class="text-muted-foreground">所屬租戶</TableHead>
-              <TableHead class="text-muted-foreground">建立日期</TableHead>
-              <TableHead class="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow
-              v-for="u in list"
-              :key="u.id"
-              class="border-border"
-            >
-              <TableCell class="w-10">
-                <Checkbox
-                  :checked="selectedUserIds.has(u.id)"
-                  :aria-label="'選取 ' + (u.name || u.email)"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleOne(u.id, v === true)"
-                />
-              </TableCell>
-              <TableCell class="font-medium text-foreground">
-                <div>
-                  <span>{{ u.name || '—' }}</span>
-                  <span class="block text-xs text-muted-foreground">{{ u.email }}</span>
-                </div>
-              </TableCell>
-              <TableCell>
-                <Badge :variant="u.systemRole === 'platform_admin' ? 'default' : 'secondary'" class="font-normal">
-                  {{ systemRoleLabel(u.systemRole) }}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge :variant="u.memberType === 'external' ? 'secondary' : 'outline'" class="font-normal">
-                  {{ memberTypeLabel(u.memberType) }}
-                </Badge>
-              </TableCell>
-              <TableCell class="text-muted-foreground">
-                {{ u.tenantName ?? '—' }}
-              </TableCell>
-              <TableCell class="text-muted-foreground text-sm">
-                {{ formatDate(u.createdAt) }}
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" size="icon" class="size-8">
-                      <MoreHorizontal class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="openResetPasswordDialog(u)">
-                      <KeyRound class="size-4" />
-                      重設密碼
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
+                  尚無使用者，或目前篩選無結果。
+                </TableCell>
+              </TableRow>
+            </template>
           </TableBody>
         </Table>
+        <DataTablePagination :table="table" />
+      </template>
     </div>
 
     <!-- 重設密碼 Dialog -->
@@ -412,7 +472,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>批次刪除使用者</DialogTitle>
           <DialogDescription>
-            確定要刪除所選的 {{ selectedUserIds.size }} 位使用者？刪除後無法復原。
+            確定要刪除所選的 {{ selectedCount }} 位使用者？刪除後無法復原。
           </DialogDescription>
         </DialogHeader>
         <p v-if="batchDeleteError" class="text-sm text-destructive">{{ batchDeleteError }}</p>

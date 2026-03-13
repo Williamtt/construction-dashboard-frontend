@@ -13,6 +13,7 @@ import { useRoute } from 'vue-router'
 import { valueUpdater } from '@/lib/utils'
 import type { SortingState } from '@tanstack/vue-table'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
@@ -97,10 +98,7 @@ function submitAddCategory() {
   const label = newCategoryLabel.value.trim()
   if (!label) return
   const key = `custom-${Date.now()}`
-  customCategories.value = [
-    ...customCategories.value,
-    { key, label, icon: FileText },
-  ]
+  customCategories.value = [...customCategories.value, { key, label, icon: FileText }]
   newCategoryLabel.value = ''
   addCategoryDialogOpen.value = false
 }
@@ -150,7 +148,10 @@ async function fetchFileList() {
     })
     fileList.value = data.map(toContractRow)
   } catch (e: unknown) {
-    const msg = e && typeof e === 'object' && 'message' in e ? String((e as { message: string }).message) : '無法載入檔案列表'
+    const msg =
+      e && typeof e === 'object' && 'message' in e
+        ? String((e as { message: string }).message)
+        : '無法載入檔案列表'
     listError.value = msg
     fileList.value = []
   } finally {
@@ -236,7 +237,11 @@ const columns = computed<ColumnDef<ContractFileRow, unknown>[]>(() => [
     id: 'select',
     header: ({ table }) =>
       h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected(),
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
         'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
         'aria-label': '全選',
       }),
@@ -262,21 +267,24 @@ const columns = computed<ColumnDef<ContractFileRow, unknown>[]>(() => [
     header: '檔案大小',
     cell: ({ row }) => {
       const bytes = row.getValue('fileSize') as number
-      const str = bytes < 1024 ? `${bytes} B` : bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+      const str =
+        bytes < 1024
+          ? `${bytes} B`
+          : bytes < 1024 * 1024
+            ? `${(bytes / 1024).toFixed(1)} KB`
+            : `${(bytes / (1024 * 1024)).toFixed(1)} MB`
       return h('div', { class: 'text-muted-foreground text-sm' }, str)
     },
   },
   {
     accessorKey: 'uploadDate',
     header: '上傳日期',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.getValue('uploadDate') as string),
+    cell: ({ row }) => h('div', { class: 'text-foreground' }, row.getValue('uploadDate') as string),
   },
   {
     accessorKey: 'uploader',
     header: '上傳者',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.getValue('uploader') as string),
+    cell: ({ row }) => h('div', { class: 'text-foreground' }, row.getValue('uploader') as string),
   },
   {
     id: 'actions',
@@ -347,9 +355,31 @@ const table = useVueTable({
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 
-/** 批次下載（假，之後接 API） */
-function batchDownload() {
-  console.log('批次下載', selectedRows.value.map((r) => r.original))
+/** 批次下載 */
+async function batchDownload() {
+  const rows = selectedRows.value.map((r) => r.original)
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i]
+      const { blob, fileName } = await getFileBlob(row.id, {
+        download: true,
+        fileName: row.fileName,
+      })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // skip failed
+    }
+    if (i < rows.length - 1) await new Promise((r) => setTimeout(r, 300))
+  }
+}
+
+function clearSelection() {
+  rowSelection.value = {}
 }
 
 /** 批次刪除 */
@@ -378,210 +408,205 @@ function onFileSelect(e: Event) {
   <div class="space-y-6">
     <div>
       <h1 class="text-xl font-semibold tracking-tight text-foreground">契約管理</h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        依分類管理契約文件，可上傳、下載與刪除
-      </p>
+      <p class="mt-1 text-sm text-muted-foreground">依分類管理契約文件，可上傳、下載與刪除</p>
     </div>
 
-    <!-- 上方：選擇分類 -->
+    <!-- 選擇分類：獨立一列 -->
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-sm font-medium text-foreground">選擇分類：</span>
-        <Button
-          v-for="c in categories"
-          :key="c.key"
-          :variant="selectedCategory === c.key ? 'secondary' : 'outline'"
-          size="sm"
-          class="gap-2"
-          @click="selectedCategory = c.key"
-        >
-          <component :is="c.icon" class="size-4 shrink-0" />
-          {{ c.label }}
-        </Button>
-        <Dialog v-model:open="addCategoryDialogOpen">
+      <Button
+        v-for="c in categories"
+        :key="c.key"
+        :variant="selectedCategory === c.key ? 'secondary' : 'outline'"
+        class="gap-2"
+        @click="selectedCategory = c.key"
+      >
+        <component :is="c.icon" class="size-4 shrink-0" />
+        {{ c.label }}
+      </Button>
+      <Dialog v-model:open="addCategoryDialogOpen">
+        <DialogTrigger as-child>
+          <Button variant="outline" class="gap-2" aria-label="新增分類">
+            <Plus class="size-4" />
+            新增分類
+          </Button>
+        </DialogTrigger>
+        <DialogContent class="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>新增分類</DialogTitle>
+            <DialogDescription>
+              輸入新分類名稱，將顯示在「全部」與「其他」之間
+            </DialogDescription>
+          </DialogHeader>
+          <div class="grid gap-4 py-4">
+            <div class="grid gap-2">
+              <label class="text-sm font-medium text-foreground">分類名稱</label>
+              <Input
+                v-model="newCategoryLabel"
+                placeholder="例如：保險契約"
+                @keydown.enter.prevent="submitAddCategory"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" @click="closeAddCategoryDialog"> 取消 </Button>
+            <Button :disabled="!newCategoryLabel.trim()" @click="submitAddCategory">
+              新增
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+
+    <!-- 工具列：已選 + ButtonGroup + 上傳，獨立一列 -->
+    <div class="flex flex-wrap items-center justify-end gap-3">
+      <template v-if="hasSelection">
+        <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
+        <ButtonGroup>
+          <Button variant="outline" class="gap-2" @click="clearSelection"> 取消選取 </Button>
+          <Button variant="outline" class="gap-2" @click="batchDownload">
+            <Download class="size-4" />
+            批次下載
+          </Button>
+          <Button
+            variant="outline"
+            class="gap-2 text-destructive hover:text-destructive"
+            @click="batchDelete"
+          >
+            <Trash2 class="size-4" />
+            批次刪除
+          </Button>
+        </ButtonGroup>
+      </template>
+      <Dialog v-model:open="uploadDialogOpen">
           <DialogTrigger as-child>
-            <Button variant="outline" size="sm" class="gap-2" aria-label="新增分類">
-              <Plus class="size-4" />
-              新增分類
+            <Button class="gap-2">
+              <Upload class="size-4" />
+              上傳檔案
             </Button>
           </DialogTrigger>
-          <DialogContent class="sm:max-w-sm">
+          <DialogContent class="sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>新增分類</DialogTitle>
-              <DialogDescription>
-                輸入新分類名稱，將顯示在「全部」與「其他」之間
-              </DialogDescription>
+              <DialogTitle>上傳契約檔案</DialogTitle>
+              <DialogDescription> 選擇分類並選擇要上傳的檔案 </DialogDescription>
             </DialogHeader>
             <div class="grid gap-4 py-4">
               <div class="grid gap-2">
-                <label class="text-sm font-medium text-foreground">分類名稱</label>
-                <Input
-                  v-model="newCategoryLabel"
-                  placeholder="例如：保險契約"
-                  @keydown.enter.prevent="submitAddCategory"
-                />
+                <label class="text-sm font-medium text-foreground">分類</label>
+                <Select v-model="uploadForm.category">
+                  <SelectTrigger>
+                    <SelectValue placeholder="請選擇分類" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="opt in uploadCategoryOptions"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground">檔案（可多選）</label>
+                <div class="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    class="flex-1"
+                    accept=".pdf,.doc,.docx"
+                    multiple
+                    @change="onFileSelect"
+                  />
+                </div>
+                <ul
+                  v-if="uploadForm.files.length"
+                  class="mt-1 space-y-1 rounded-md border border-border bg-muted/30 p-2 max-h-32 overflow-y-auto"
+                >
+                  <li
+                    v-for="(f, idx) in uploadForm.files"
+                    :key="idx"
+                    class="flex items-center justify-between gap-2 text-xs text-foreground"
+                  >
+                    <span class="truncate">{{ f.name }}</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      class="size-6 shrink-0"
+                      aria-label="移除"
+                      @click="removeUploadFile(idx)"
+                    >
+                      <Trash2 class="size-3.5" />
+                    </Button>
+                  </li>
+                </ul>
+                <p v-if="uploadForm.files.length" class="text-xs text-muted-foreground">
+                  已選 {{ uploadForm.files.length }} 個檔案
+                </p>
               </div>
             </div>
+            <p v-if="uploadError" class="text-sm text-destructive">
+              {{ uploadError }}
+            </p>
             <DialogFooter>
-              <Button variant="outline" @click="closeAddCategoryDialog">
-                取消
-              </Button>
-              <Button :disabled="!newCategoryLabel.trim()" @click="submitAddCategory">
-                新增
+              <Button variant="outline" @click="closeUploadDialog"> 取消 </Button>
+              <Button :disabled="!uploadForm.files.length || uploadLoading" @click="submitUpload">
+                {{
+                  uploadLoading
+                    ? '上傳中…'
+                    : uploadForm.files.length
+                      ? `上傳 ${uploadForm.files.length} 個檔案`
+                      : '上傳'
+                }}
               </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
     </div>
 
-    <!-- 下方：列表 + 工具列 -->
-    <p class="text-sm text-muted-foreground">依上方分類篩選，可多選後批次下載或刪除</p>
-    <div class="rounded-lg border border-border bg-card">
-      <div class="flex flex-row flex-wrap items-center justify-between gap-4 p-4 pb-0">
-        <div class="flex flex-wrap items-center gap-2">
-          <!-- 有勾選時顯示：批次下載、批次刪除 -->
-          <template v-if="hasSelection">
-            <Button variant="outline" size="sm" class="gap-2" @click="batchDownload">
-              <Download class="size-4" />
-              批次下載
-            </Button>
-            <Button variant="outline" size="sm" class="gap-2 text-destructive hover:text-destructive" @click="batchDelete">
-              <Trash2 class="size-4" />
-              批次刪除
-            </Button>
-          </template>
-          <!-- 上傳檔案 -->
-          <Dialog v-model:open="uploadDialogOpen">
-            <DialogTrigger as-child>
-              <Button class="gap-2">
-                <Upload class="size-4" />
-                上傳檔案
-              </Button>
-            </DialogTrigger>
-            <DialogContent class="sm:max-w-md">
-              <DialogHeader>
-                <DialogTitle>上傳契約檔案</DialogTitle>
-                <DialogDescription>
-                  選擇分類並選擇要上傳的檔案
-                </DialogDescription>
-              </DialogHeader>
-              <div class="grid gap-4 py-4">
-                <div class="grid gap-2">
-                  <label class="text-sm font-medium text-foreground">分類</label>
-                  <Select v-model="uploadForm.category">
-                    <SelectTrigger>
-                      <SelectValue placeholder="請選擇分類" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem
-                        v-for="opt in uploadCategoryOptions"
-                        :key="opt.value"
-                        :value="opt.value"
-                      >
-                        {{ opt.label }}
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div class="grid gap-2">
-                  <label class="text-sm font-medium text-foreground">檔案（可多選）</label>
-                  <div class="flex items-center gap-2">
-                    <Input
-                      type="file"
-                      class="flex-1"
-                      accept=".pdf,.doc,.docx"
-                      multiple
-                      @change="onFileSelect"
-                    />
-                  </div>
-                  <ul v-if="uploadForm.files.length" class="mt-1 space-y-1 rounded-md border border-border bg-muted/30 p-2 max-h-32 overflow-y-auto">
-                    <li
-                      v-for="(f, idx) in uploadForm.files"
-                      :key="idx"
-                      class="flex items-center justify-between gap-2 text-xs text-foreground"
-                    >
-                      <span class="truncate">{{ f.name }}</span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        class="size-6 shrink-0"
-                        aria-label="移除"
-                        @click="removeUploadFile(idx)"
-                      >
-                        <Trash2 class="size-3.5" />
-                      </Button>
-                    </li>
-                  </ul>
-                  <p v-if="uploadForm.files.length" class="text-xs text-muted-foreground">
-                    已選 {{ uploadForm.files.length }} 個檔案
-                  </p>
-                </div>
-              </div>
-              <p v-if="uploadError" class="text-sm text-destructive">
-                {{ uploadError }}
-              </p>
-              <DialogFooter>
-                <Button variant="outline" @click="closeUploadDialog">
-                  取消
-                </Button>
-                <Button
-                  :disabled="!uploadForm.files.length || uploadLoading"
-                  @click="submitUpload"
-                >
-                  {{ uploadLoading ? '上傳中…' : uploadForm.files.length ? `上傳 ${uploadForm.files.length} 個檔案` : '上傳' }}
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+    <!-- 表格區塊（格式同工期調整：無 Card 包覆，p-4，Table + 空狀態列 + DataTablePagination） -->
+    <div class="rounded-lg border border-border bg-card p-4">
+      <p v-if="listError" class="text-sm text-destructive">{{ listError }}</p>
+      <div v-else-if="listLoading" class="flex items-center justify-center py-12 text-muted-foreground">
+        載入中…
       </div>
-      <div class="space-y-4 p-4">
-        <p v-if="listError" class="text-sm text-destructive">
-          {{ listError }}
-        </p>
-        <p v-if="listLoading" class="text-sm text-muted-foreground">
-          載入中…
-        </p>
-        <div v-else>
-          <Table>
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
-                  <TableRow
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                    :data-state="row.getIsSelected() ? 'selected' : undefined"
-                  >
-                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                      <FlexRender
-                        :render="cell.column.columnDef.cell"
-                        :props="cell.getContext()"
-                      />
-                    </TableCell>
-                  </TableRow>
-                </template>
-                <template v-else>
-                  <TableRow>
-                    <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
-                      尚無資料，請選擇分類或上傳檔案
-                    </TableCell>
-                  </TableRow>
-                </template>
-              </TableBody>
-            </Table>
-          </div>
-          <DataTablePagination :table="table" />
-        </div>
+      <template v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                  尚無資料，請選擇分類或上傳檔案
+                </TableCell>
+              </TableRow>
+            </template>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" />
+      </template>
     </div>
   </div>
 </template>

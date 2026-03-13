@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, computed, onMounted, h } from 'vue'
+import { valueUpdater } from '@/lib/utils'
 import { apiClient } from '@/api/client'
 import { API_PATH } from '@/constants'
 import { fetchPlatformProjects, fetchTenants, type PlatformProjectItem, type TenantItem } from '@/api/platform'
@@ -30,22 +41,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { Loader2, FolderKanban, Trash2 } from 'lucide-vue-next'
 
 const list = ref<PlatformProjectItem[]>([])
-const selectedProjectIds = ref<Set<string>>(new Set())
-const isAllProjectsSelected = computed(() => list.value.length > 0 && selectedProjectIds.value.size === list.value.length)
-const isSomeProjectsSelected = computed(() => selectedProjectIds.value.size > 0)
-function toggleAllProjects(checked: boolean) {
-  if (checked) list.value.forEach((p) => selectedProjectIds.value.add(p.id))
-  else selectedProjectIds.value.clear()
-  selectedProjectIds.value = new Set(selectedProjectIds.value)
-}
-function toggleProject(id: string, checked: boolean) {
-  if (checked) selectedProjectIds.value.add(id)
-  else selectedProjectIds.value.delete(id)
-  selectedProjectIds.value = new Set(selectedProjectIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 const tenants = ref<TenantItem[]>([])
 const loading = ref(true)
 const tenantsLoading = ref(true)
@@ -113,8 +113,105 @@ function closeBatchDelete() {
   batchDeleteOpen.value = false
   batchDeleteError.value = ''
 }
+const sorting = ref<SortingState>([])
+const columns = computed<ColumnDef<PlatformProjectItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'name',
+    header: '專案名稱',
+    cell: ({ row }) => {
+      const p = row.original
+      return h('div', { class: 'font-medium text-foreground' }, [
+        h('span', {}, p.name),
+        p.description
+          ? h('p', { class: 'mt-0.5 truncate text-xs text-muted-foreground', title: p.description }, p.description)
+          : null,
+      ])
+    },
+  },
+  {
+    accessorKey: 'code',
+    header: '代碼',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.code || '—'),
+  },
+  {
+    accessorKey: 'tenantName',
+    header: '所屬租戶',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.tenantName || '—'),
+  },
+  {
+    accessorKey: 'status',
+    header: '狀態',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: row.original.status === 'archived' ? 'secondary' : 'default',
+        class: 'font-normal',
+      }, () => statusLabel(row.original.status)),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: '建立日期',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.createdAt)),
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return list.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 10 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
+}
+
 async function confirmBatchDelete() {
-  const ids = Array.from(selectedProjectIds.value)
+  const ids = selectedRows.value.map((r) => r.original.id)
   if (!ids.length) return
   batchDeleteLoading.value = true
   batchDeleteError.value = ''
@@ -122,8 +219,8 @@ async function confirmBatchDelete() {
     for (const id of ids) {
       await apiClient.delete(`${API_PATH.PLATFORM_PROJECTS}/${id}`)
     }
-    selectedProjectIds.value = new Set()
     closeBatchDelete()
+    rowSelection.value = {}
     await loadProjects()
   } catch (err: unknown) {
     const res = err && typeof err === 'object' && 'response' in err
@@ -168,96 +265,64 @@ async function confirmBatchDelete() {
           </SelectContent>
         </Select>
       </div>
-      <div v-if="selectedProjectIds.size > 0" class="flex flex-wrap items-center gap-3">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedProjectIds.size }} 項</span>
+      <div v-if="hasSelection" class="flex flex-wrap items-center gap-3">
+        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
         <ButtonGroup>
-          <Button
-            variant="outline"
-            size="sm"
-            @click="selectedProjectIds = new Set()"
-          >
+          <Button variant="outline" @click="clearSelection">
             取消選取
           </Button>
           <Button
             variant="outline"
-            size="sm"
-            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+            class="text-destructive hover:text-destructive"
             @click="openBatchDelete"
           >
-            <Trash2 class="mr-1.5 size-4" />
+            <Trash2 class="size-4" />
             批次刪除
           </Button>
         </ButtonGroup>
       </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex items-center justify-center py-16">
-          <Loader2 class="size-8 animate-spin text-muted-foreground" />
-        </div>
-        <div v-else-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
-          <FolderKanban class="mx-auto mb-2 size-10 opacity-50" />
-          <p>尚無專案，或目前篩選無結果。</p>
-        </div>
-        <Table v-else>
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
+      </div>
+      <template v-else>
+        <Table>
           <TableHeader>
-            <TableRow class="border-border hover:bg-transparent">
-              <TableHead class="w-10">
-                <Checkbox
-                  :checked="isAllProjectsSelected || (isSomeProjectsSelected && 'indeterminate')"
-                  aria-label="全選"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleAllProjects(v === true)"
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
                 />
               </TableHead>
-              <TableHead class="text-foreground">專案名稱</TableHead>
-              <TableHead class="text-muted-foreground">代碼</TableHead>
-              <TableHead class="text-muted-foreground">所屬租戶</TableHead>
-              <TableHead class="text-muted-foreground">狀態</TableHead>
-              <TableHead class="text-muted-foreground">建立日期</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow
-              v-for="p in list"
-              :key="p.id"
-              class="border-border"
-            >
-              <TableCell class="w-10">
-                <Checkbox
-                  :checked="selectedProjectIds.has(p.id)"
-                  :aria-label="'選取 ' + p.name"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleProject(p.id, v === true)"
-                />
-              </TableCell>
-              <TableCell class="font-medium text-foreground">
-                <div>
-                  <span>{{ p.name }}</span>
-                  <p
-                    v-if="p.description"
-                    class="mt-0.5 truncate text-xs text-muted-foreground"
-                    :title="p.description"
-                  >
-                    {{ p.description }}
-                  </p>
-                </div>
-              </TableCell>
-              <TableCell class="text-muted-foreground">
-                {{ p.code || '—' }}
-              </TableCell>
-              <TableCell class="text-muted-foreground">
-                {{ p.tenantName || '—' }}
-              </TableCell>
-              <TableCell>
-                <Badge :variant="p.status === 'archived' ? 'secondary' : 'default'" class="font-normal">
-                  {{ statusLabel(p.status) }}
-                </Badge>
-              </TableCell>
-              <TableCell class="text-muted-foreground text-sm">
-                {{ formatDate(p.createdAt) }}
-              </TableCell>
-            </TableRow>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                  尚無專案，或目前篩選無結果。
+                </TableCell>
+              </TableRow>
+            </template>
           </TableBody>
         </Table>
+        <DataTablePagination :table="table" />
+      </template>
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">
@@ -265,7 +330,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>批次刪除專案</DialogTitle>
           <DialogDescription>
-            確定要刪除所選的 {{ selectedProjectIds.size }} 個專案？刪除後無法復原。
+            確定要刪除所選的 {{ selectedCount }} 個專案？刪除後無法復原。
           </DialogDescription>
         </DialogHeader>
         <p v-if="batchDeleteError" class="text-sm text-destructive">{{ batchDeleteError }}</p>

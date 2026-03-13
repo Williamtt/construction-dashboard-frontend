@@ -1,7 +1,19 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, computed, watch, onMounted, h } from 'vue'
 import { useRoute } from 'vue-router'
+import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
+import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Table,
@@ -11,12 +23,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import {
   Dialog,
   DialogContent,
@@ -28,7 +35,8 @@ import {
 import { listProjectFiles, deleteFile, getFileBlob } from '@/api/files'
 import type { AttachmentItem } from '@/api/files'
 import { useUploadQueue } from '@/composables/useUploadQueue'
-import { Upload, Loader2, Trash2, Download, FileIcon, MoreHorizontal } from 'lucide-vue-next'
+import FileManagementRowActions from '@/views/files/FileManagementRowActions.vue'
+import { Upload, Loader2, Trash2, Download, FileIcon } from 'lucide-vue-next'
 
 /** 檔案管理專用 category，與契約分開 */
 const FILE_MANAGEMENT_CATEGORY = 'general'
@@ -39,24 +47,7 @@ const { enqueueAndUpload } = useUploadQueue()
 
 const fileList = ref<AttachmentItem[]>([])
 const loading = ref(true)
-const total = ref(0)
-const page = ref(1)
-const limit = 20
-const selectedIds = ref<Set<string>>(new Set())
-const isAllSelected = computed(
-  () => fileList.value.length > 0 && selectedIds.value.size === fileList.value.length
-)
-const isSomeSelected = computed(() => selectedIds.value.size > 0)
-function toggleAll(checked: boolean) {
-  if (checked) fileList.value.forEach((f) => selectedIds.value.add(f.id))
-  else selectedIds.value.clear()
-  selectedIds.value = new Set(selectedIds.value)
-}
-function toggleOne(id: string, checked: boolean) {
-  if (checked) selectedIds.value.add(id)
-  else selectedIds.value.delete(id)
-  selectedIds.value = new Set(selectedIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 
 const fileInputRef = ref<HTMLInputElement | null>(null)
 const uploadInProgress = ref(false)
@@ -68,14 +59,13 @@ async function fetchList() {
   if (!projectId.value) return
   loading.value = true
   try {
-    const { data, meta } = await listProjectFiles({
+    const { data } = await listProjectFiles({
       projectId: projectId.value,
-      page: page.value,
-      limit,
+      page: 1,
+      limit: 500,
       category: FILE_MANAGEMENT_CATEGORY,
     })
     fileList.value = data
-    total.value = meta.total
   } finally {
     loading.value = false
   }
@@ -100,6 +90,102 @@ function formatDate(iso: string): string {
     hour: '2-digit',
     minute: '2-digit',
   })
+}
+
+const sorting = ref<SortingState>([])
+const columns = computed<ColumnDef<AttachmentItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'fileName',
+    header: '檔名',
+    cell: ({ row }) =>
+      h('div', { class: 'flex items-center gap-2 font-medium' }, [
+        h(FileIcon, { class: 'size-4 shrink-0 text-muted-foreground' }),
+        h('span', { class: 'truncate', title: row.original.fileName }, row.original.fileName),
+      ]),
+  },
+  {
+    accessorKey: 'fileSize',
+    header: '檔案大小',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, formatSize(row.original.fileSize)),
+  },
+  {
+    accessorKey: 'uploaderName',
+    header: '上傳者',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.uploaderName ?? '—'),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: '上傳時間',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, formatDate(row.original.createdAt)),
+  },
+  {
+    id: 'actions',
+    header: () => h('div', { class: 'w-[80px]' }),
+    cell: ({ row }) =>
+      h('div', { class: 'flex justify-end' }, [
+        h(FileManagementRowActions, {
+          row: row.original,
+          onDownload: handleDownload,
+          onDelete: openDeleteDialog,
+        }),
+      ]),
+    enableSorting: false,
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return fileList.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 20 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
 }
 
 function triggerAddFile() {
@@ -165,103 +251,139 @@ async function confirmDelete() {
     deleteLoading.value = false
   }
 }
+
+async function batchDownload() {
+  const rows = selectedRows.value.map((r) => r.original)
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const row = rows[i]
+      const { blob, fileName } = await getFileBlob(row.id, { download: true, fileName: row.fileName })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch {
+      // skip failed
+    }
+    if (i < rows.length - 1) await new Promise((r) => setTimeout(r, 300))
+  }
+}
+
+const batchDeleteOpen = ref(false)
+const batchDeleteLoading = ref(false)
+
+function openBatchDelete() {
+  batchDeleteOpen.value = true
+}
+
+function closeBatchDelete() {
+  batchDeleteOpen.value = false
+}
+
+async function confirmBatchDelete() {
+  const rows = selectedRows.value.map((r) => r.original)
+  if (!rows.length) return
+  batchDeleteLoading.value = true
+  try {
+    for (const row of rows) {
+      await deleteFile(row.id)
+    }
+    closeBatchDelete()
+    rowSelection.value = {}
+    await fetchList()
+  } finally {
+    batchDeleteLoading.value = false
+  }
+}
 </script>
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-      <h1 class="text-xl font-semibold text-foreground">檔案管理</h1>
-      <div class="flex items-center gap-2">
-        <input
-          ref="fileInputRef"
-          type="file"
-          class="hidden"
-          multiple
-          @change="onFileInputChange"
-        />
-        <Button
-          :disabled="uploadInProgress || !projectId"
-          @click="triggerAddFile"
-        >
-          <Loader2 v-if="uploadInProgress" class="mr-2 size-4 animate-spin" />
-          <Upload v-else class="mr-2 size-4" />
-          新增檔案
-        </Button>
-      </div>
+    <div>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">檔案管理</h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        此列表僅顯示「檔案管理」上傳的檔案，與契約附件分開管理。上傳狀態會顯示於右上角「檔案上傳」清單。
+      </p>
     </div>
 
-    <p class="text-sm text-muted-foreground">
-      此列表僅顯示「檔案管理」上傳的檔案，與契約附件分開管理。上傳狀態會顯示於右上角「檔案上傳」清單。
-    </p>
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex items-center justify-center py-12">
-        <Loader2 class="size-8 animate-spin text-muted-foreground" />
+    <!-- 工具列：已選 + ButtonGroup + 新增在右 -->
+    <div class="flex flex-wrap items-center justify-end gap-3">
+      <input
+        ref="fileInputRef"
+        type="file"
+        class="hidden"
+        multiple
+        @change="onFileInputChange"
+      />
+      <template v-if="hasSelection">
+        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+        <ButtonGroup>
+          <Button variant="outline" @click="clearSelection">
+            取消選取
+          </Button>
+          <Button variant="outline" @click="batchDownload">
+            <Download class="size-4" />
+            批次下載
+          </Button>
+          <Button variant="outline" class="text-destructive hover:text-destructive" @click="openBatchDelete">
+            <Trash2 class="size-4" />
+            批次刪除
+          </Button>
+        </ButtonGroup>
+      </template>
+      <Button
+        :disabled="uploadInProgress || !projectId"
+        class="gap-2"
+        @click="triggerAddFile"
+      >
+        <Loader2 v-if="uploadInProgress" class="size-4 animate-spin" />
+        <Upload v-else class="size-4" />
+        新增檔案
+      </Button>
+    </div>
+
+    <!-- 表格區塊（格式同工期調整） -->
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <Table v-if="fileList.length">
+        <Table>
           <TableHeader>
-            <TableRow>
-              <TableHead class="w-10">
-                <Checkbox
-                  :checked="isAllSelected || (isSomeSelected && 'indeterminate')"
-                  aria-label="全選"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleAll(v === true)"
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
                 />
               </TableHead>
-              <TableHead class="w-[40%]">檔名</TableHead>
-              <TableHead>檔案大小</TableHead>
-              <TableHead>上傳者</TableHead>
-              <TableHead>上傳時間</TableHead>
-              <TableHead class="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow v-for="row in fileList" :key="row.id">
-              <TableCell class="w-10">
-                <Checkbox
-                  :checked="selectedIds.has(row.id)"
-                  :aria-label="'選取 ' + row.fileName"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleOne(row.id, v === true)"
-                />
-              </TableCell>
-              <TableCell class="font-medium">
-                <div class="flex items-center gap-2">
-                  <FileIcon class="size-4 shrink-0 text-muted-foreground" />
-                  <span class="truncate" :title="row.fileName">{{ row.fileName }}</span>
-                </div>
-              </TableCell>
-              <TableCell class="text-muted-foreground">{{ formatSize(row.fileSize) }}</TableCell>
-              <TableCell class="text-muted-foreground">{{ row.uploaderName ?? '—' }}</TableCell>
-              <TableCell class="text-muted-foreground">{{ formatDate(row.createdAt) }}</TableCell>
-              <TableCell class="w-[80px] text-right">
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" size="icon" class="size-8" aria-label="更多">
-                      <MoreHorizontal class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="handleDownload(row)">
-                      <Download class="mr-2 size-4" />
-                      下載
-                    </DropdownMenuItem>
-                    <DropdownMenuItem class="text-destructive focus:text-destructive" @click="openDeleteDialog(row)">
-                      <Trash2 class="mr-2 size-4" />
-                      刪除
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                  尚無檔案，點擊「新增檔案」上傳
+                </TableCell>
+              </TableRow>
+            </template>
           </TableBody>
         </Table>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center py-12 text-center text-muted-foreground"
-        >
-          <FileIcon class="mb-2 size-10 opacity-50" />
-          <p class="text-sm">尚無檔案，點擊「新增檔案」上傳</p>
-        </div>
+        <DataTablePagination :table="table" />
       </template>
     </div>
 
@@ -280,6 +402,26 @@ async function confirmDelete() {
           <Button variant="destructive" :disabled="deleteLoading" @click="confirmDelete">
             <Loader2 v-if="deleteLoading" class="mr-2 size-4 animate-spin" />
             刪除
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog :open="batchDeleteOpen" @update:open="(v) => !v && closeBatchDelete()">
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>批次刪除</DialogTitle>
+          <DialogDescription>
+            確定要刪除所選的 {{ selectedCount }} 個檔案？此操作無法復原。
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" :disabled="batchDeleteLoading" @click="closeBatchDelete">
+            取消
+          </Button>
+          <Button variant="destructive" :disabled="batchDeleteLoading" @click="confirmBatchDelete">
+            <Loader2 v-if="batchDeleteLoading" class="mr-2 size-4 animate-spin" />
+            {{ batchDeleteLoading ? '刪除中…' : '確認刪除' }}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, computed, onMounted, h } from 'vue'
+import { valueUpdater } from '@/lib/utils'
 import { apiClient } from '@/api/client'
 import { API_PATH } from '@/constants'
 import { useAuthStore } from '@/stores/auth'
@@ -34,22 +45,10 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import AdminMembersRowActions from '@/views/admin/AdminMembersRowActions.vue'
 import type { AdminUserItem } from '@/types'
-import {
-  Plus,
-  Loader2,
-  Trash2,
-  MoreHorizontal,
-  Eye,
-  PauseCircle,
-  PlayCircle,
-} from 'lucide-vue-next'
+import { Plus, Loader2, Trash2 } from 'lucide-vue-next'
 
 type SystemRoleOption = 'project_user' | 'tenant_admin' | 'platform_admin'
 type MemberTypeOption = 'internal' | 'external'
@@ -57,21 +56,7 @@ type MemberTypeOption = 'internal' | 'external'
 const authStore = useAuthStore()
 const adminStore = useAdminStore()
 const list = ref<AdminUserItem[]>([])
-const selectedMemberIds = ref<Set<string>>(new Set())
-const isAllMembersSelected = computed(
-  () => list.value.length > 0 && selectedMemberIds.value.size === list.value.length
-)
-const isSomeMembersSelected = computed(() => selectedMemberIds.value.size > 0)
-function toggleAllMembers(checked: boolean) {
-  if (checked) list.value.forEach((u) => selectedMemberIds.value.add(u.id))
-  else selectedMemberIds.value.clear()
-  selectedMemberIds.value = new Set(selectedMemberIds.value)
-}
-function toggleMember(id: string, checked: boolean) {
-  if (checked) selectedMemberIds.value.add(id)
-  else selectedMemberIds.value.delete(id)
-  selectedMemberIds.value = new Set(selectedMemberIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 const loading = ref(true)
 const ALL_MEMBERS_VALUE = '__all__'
 const memberTypeFilter = ref<string>(ALL_MEMBERS_VALUE)
@@ -275,8 +260,120 @@ function closeBatchDelete() {
   batchDeleteOpen.value = false
   batchDeleteError.value = ''
 }
+const sorting = ref<SortingState>([])
+const columns = computed<ColumnDef<AdminUserItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    id: 'nameEmail',
+    header: '姓名 / Email',
+    cell: ({ row }) => {
+      const u = row.original
+      return h('div', { class: 'font-medium text-foreground' }, [
+        h('span', {}, u.name || '—'),
+        h('span', { class: 'block text-xs text-muted-foreground' }, u.email),
+      ])
+    },
+  },
+  {
+    accessorKey: 'systemRole',
+    header: '系統角色',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, systemRoleLabel(row.original.systemRole)),
+  },
+  {
+    accessorKey: 'memberType',
+    header: '成員類型',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: row.original.memberType === 'external' ? 'secondary' : 'default',
+        class: 'font-normal',
+      }, () => memberTypeLabel(row.original.memberType)),
+  },
+  {
+    accessorKey: 'status',
+    header: '狀態',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: (row.original.status ?? 'active') === 'suspended' ? 'secondary' : 'default',
+        class: 'font-normal',
+      }, () => statusLabel(row.original.status)),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: '建立日期',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.createdAt)),
+  },
+  {
+    id: 'actions',
+    header: () => h('div', { class: 'w-[80px]' }),
+    cell: ({ row }) =>
+      h('div', { class: 'flex justify-end' }, [
+        h(AdminMembersRowActions, {
+          row: row.original,
+          onView: openViewDialog,
+          onToggleStatus: toggleMemberStatus,
+        }),
+      ]),
+    enableSorting: false,
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return list.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 10 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
+}
+
 async function confirmBatchDelete() {
-  const ids = Array.from(selectedMemberIds.value)
+  const ids = selectedRows.value.map((r) => r.original.id)
   if (!ids.length) return
   batchDeleteLoading.value = true
   batchDeleteError.value = ''
@@ -284,8 +381,8 @@ async function confirmBatchDelete() {
     for (const id of ids) {
       await apiClient.delete(`${API_PATH.ADMIN_USERS}/${id}`)
     }
-    selectedMemberIds.value = new Set()
     closeBatchDelete()
+    rowSelection.value = {}
     await loadMembers()
   } catch (err: unknown) {
     const res =
@@ -322,19 +419,18 @@ async function confirmBatchDelete() {
         </Select>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <template v-if="selectedMemberIds.size > 0">
-          <span class="text-sm text-muted-foreground">已選 {{ selectedMemberIds.size }} 項</span>
+        <template v-if="hasSelection">
+          <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
           <ButtonGroup>
-            <Button variant="outline" size="sm" @click="selectedMemberIds = new Set()">
+            <Button variant="outline" @click="clearSelection">
               取消選取
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              class="text-destructive hover:text-destructive"
               @click="openBatchDelete"
             >
-              <Trash2 class="mr-1.5 size-4" />
+              <Trash2 class="size-4" />
               批次刪除
             </Button>
           </ButtonGroup>
@@ -437,101 +533,46 @@ async function confirmBatchDelete() {
       </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex items-center justify-center py-16">
-        <Loader2 class="size-8 animate-spin text-muted-foreground" />
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
       </div>
-      <div v-else-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
-        尚無成員，或目前篩選無結果。點擊「新增成員」建立第一筆。
-      </div>
-      <Table v-else>
-        <TableHeader>
-          <TableRow class="border-border hover:bg-transparent">
-            <TableHead class="w-10">
-              <Checkbox
-                :checked="isAllMembersSelected || (isSomeMembersSelected && 'indeterminate')"
-                aria-label="全選"
-                @update:checked="(v: boolean | 'indeterminate') => toggleAllMembers(v === true)"
-              />
-            </TableHead>
-            <TableHead class="text-foreground">姓名 / Email</TableHead>
-            <TableHead class="text-muted-foreground">系統角色</TableHead>
-            <TableHead class="text-muted-foreground">成員類型</TableHead>
-            <TableHead class="text-muted-foreground">狀態</TableHead>
-            <TableHead class="text-muted-foreground">建立日期</TableHead>
-            <TableHead class="w-[80px]"></TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          <TableRow v-for="u in list" :key="u.id" class="border-border">
-            <TableCell class="w-10">
-              <Checkbox
-                :checked="selectedMemberIds.has(u.id)"
-                :aria-label="'選取 ' + (u.name || u.email)"
-                @update:checked="(v: boolean | 'indeterminate') => toggleMember(u.id, v === true)"
-              />
-            </TableCell>
-            <TableCell class="font-medium text-foreground">
-              <div>
-                <span>{{ u.name || '—' }}</span>
-                <span class="block text-xs text-muted-foreground">{{ u.email }}</span>
-              </div>
-            </TableCell>
-            <TableCell class="text-muted-foreground">
-              {{ systemRoleLabel(u.systemRole) }}
-            </TableCell>
-            <TableCell>
-              <Badge
-                :variant="u.memberType === 'external' ? 'secondary' : 'default'"
-                class="font-normal"
+      <template v-else>
+        <Table>
+          <TableHeader>
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
+                />
+              </TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
               >
-                {{ memberTypeLabel(u.memberType) }}
-              </Badge>
-            </TableCell>
-            <TableCell>
-              <Badge
-                :variant="(u.status ?? 'active') === 'suspended' ? 'secondary' : 'default'"
-                class="font-normal"
-              >
-                {{ statusLabel(u.status) }}
-              </Badge>
-            </TableCell>
-            <TableCell class="text-muted-foreground text-sm">
-              {{ formatDate(u.createdAt) }}
-            </TableCell>
-            <TableCell class="w-[80px] text-right">
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button variant="ghost" size="icon" class="size-8" aria-label="更多">
-                    <MoreHorizontal class="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="openViewDialog(u)">
-                    <Eye class="mr-2 size-4" />
-                    檢視
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    v-if="(u.status ?? 'active') === 'suspended'"
-                    @click="toggleMemberStatus(u)"
-                  >
-                    <PlayCircle class="mr-2 size-4" />
-                    啟用
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    v-else
-                    class="text-destructive focus:text-destructive"
-                    @click="toggleMemberStatus(u)"
-                  >
-                    <PauseCircle class="mr-2 size-4" />
-                    停用
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-        </TableBody>
-      </Table>
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
+                  尚無成員，或目前篩選無結果。點擊「新增成員」建立第一筆。
+                </TableCell>
+              </TableRow>
+            </template>
+          </TableBody>
+        </Table>
+        <DataTablePagination :table="table" />
+      </template>
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">
@@ -539,7 +580,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>批次刪除成員</DialogTitle>
           <DialogDescription>
-            確定要刪除所選的 {{ selectedMemberIds.size }} 位成員？刪除後無法復原。
+            確定要刪除所選的 {{ selectedCount }} 位成員？刪除後無法復原。
           </DialogDescription>
         </DialogHeader>
         <p v-if="batchDeleteError" class="text-sm text-destructive">{{ batchDeleteError }}</p>

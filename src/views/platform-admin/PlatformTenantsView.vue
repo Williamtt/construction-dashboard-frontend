@@ -1,5 +1,16 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useVueTable,
+} from '@tanstack/vue-table'
+import { FlexRender } from '@tanstack/vue-table'
+import type { SortingState } from '@tanstack/vue-table'
+import { ref, computed, onMounted, h } from 'vue'
+import { valueUpdater } from '@/lib/utils'
 import {
   fetchTenants,
   createTenant,
@@ -36,12 +47,6 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -49,24 +54,14 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import PlatformTenantsRowActions from '@/views/platform-admin/PlatformTenantsRowActions.vue'
 import { buildTenantManagePath } from '@/constants/routes'
-import { Plus, UserPlus, MoreHorizontal, Pencil, PauseCircle, PlayCircle, Loader2, KeyRound, Trash2 } from 'lucide-vue-next'
+import { Plus, UserPlus, Pencil, PauseCircle, PlayCircle, Loader2, KeyRound, Trash2 } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 
 const list = ref<TenantItem[]>([])
-const selectedTenantIds = ref<Set<string>>(new Set())
-const isAllTenantsSelected = computed(() => list.value.length > 0 && selectedTenantIds.value.size === list.value.length)
-const isSomeTenantsSelected = computed(() => selectedTenantIds.value.size > 0)
-function toggleAllTenants(checked: boolean) {
-  if (checked) list.value.forEach((t) => selectedTenantIds.value.add(t.id))
-  else selectedTenantIds.value.clear()
-  selectedTenantIds.value = new Set(selectedTenantIds.value)
-}
-function toggleTenant(id: string, checked: boolean) {
-  if (checked) selectedTenantIds.value.add(id)
-  else selectedTenantIds.value.delete(id)
-  selectedTenantIds.value = new Set(selectedTenantIds.value)
-}
+const rowSelection = ref<Record<string, boolean>>({})
 const loading = ref(true)
 const ALL_STATUS_VALUE = '__all__'
 const statusFilter = ref<string>(ALL_STATUS_VALUE)
@@ -359,8 +354,145 @@ function closeBatchDelete() {
   batchDeleteOpen.value = false
   batchDeleteError.value = ''
 }
+const sorting = ref<SortingState>([])
+function limitsPreview(t: TenantItem): string {
+  const parts: string[] = []
+  if (t.userLimit != null) parts.push(`人員 ${t.userLimit}`)
+  if (t.fileSizeLimitMb != null) parts.push(`單檔 ${t.fileSizeLimitMb} MB`)
+  if (t.storageQuotaMb != null) parts.push(`總量 ${t.storageQuotaMb} MB`)
+  return parts.length ? parts.join(' · ') : '—'
+}
+
+const columns = computed<ColumnDef<TenantItem, unknown>[]>(() => [
+  {
+    id: 'select',
+    header: ({ table }) =>
+      h(Checkbox, {
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+        'aria-label': '全選',
+      }),
+    cell: ({ row }) =>
+      h(Checkbox, {
+        checked: row.getIsSelected(),
+        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+        'aria-label': '選取此列',
+      }),
+    enableSorting: false,
+  },
+  {
+    accessorKey: 'name',
+    header: '租戶名稱',
+    cell: ({ row }) => {
+      const t = row.original
+      return h(RouterLink, {
+        to: buildTenantManagePath(t.id),
+        class: 'font-medium text-primary underline-offset-4 hover:underline',
+      }, () => t.name)
+    },
+  },
+  {
+    accessorKey: 'slug',
+    header: 'Slug',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.slug || '—'),
+  },
+  {
+    id: 'account',
+    header: '帳號',
+    cell: ({ row }) => {
+      const n = row.original._count?.users ?? 0
+      return h(Badge, { variant: n > 0 ? 'default' : 'secondary', class: 'font-normal' }, () => n > 0 ? '已設定' : '未設定')
+    },
+  },
+  {
+    accessorKey: 'status',
+    header: '狀態',
+    cell: ({ row }) =>
+      h(Badge, {
+        variant: row.original.status === 'active' ? 'default' : 'secondary',
+        class: 'font-normal',
+      }, () => row.original.status === 'active' ? '使用中' : '已停用'),
+  },
+  {
+    accessorKey: 'expiresAt',
+    header: '到期日',
+    cell: ({ row }) => {
+      const t = row.original
+      return h('span', {
+        class: isExpired(t.expiresAt) ? 'text-destructive' : 'text-muted-foreground',
+      }, formatDate(t.expiresAt))
+    },
+  },
+  {
+    id: 'usersProjects',
+    header: '人員 / 專案',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground' }, `${row.original._count?.users ?? '—'} / ${row.original._count?.projects ?? '—'}`),
+  },
+  {
+    id: 'limits',
+    header: '限制（預覽）',
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground text-xs' }, limitsPreview(row.original)),
+  },
+  {
+    id: 'actions',
+    header: () => h('div', { class: 'w-[100px] text-muted-foreground' }, '操作'),
+    cell: ({ row }) =>
+      h('div', { class: 'flex' }, [
+        h(PlatformTenantsRowActions, {
+          row: row.original,
+          onEdit: openEditDialog,
+          onAddUser: openAddUserDialog,
+          onResetPassword: openResetPasswordDialog,
+          onToggleStatus: toggleStatus,
+        }),
+      ]),
+    enableSorting: false,
+  },
+])
+
+const table = useVueTable({
+  get data() {
+    return list.value
+  },
+  get columns() {
+    return columns.value
+  },
+  getCoreRowModel: getCoreRowModel(),
+  getPaginationRowModel: getPaginationRowModel(),
+  getSortedRowModel: getSortedRowModel(),
+  getFilteredRowModel: getFilteredRowModel(),
+  onSortingChange: (updater) => valueUpdater(updater, sorting),
+  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  state: {
+    get sorting() {
+      return sorting.value
+    },
+    get rowSelection() {
+      return rowSelection.value
+    },
+  },
+  getRowId: (row) => row.id,
+  initialState: {
+    pagination: { pageSize: 10 },
+  },
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  rowSelection.value = {}
+}
+
 async function confirmBatchDelete() {
-  const ids = Array.from(selectedTenantIds.value)
+  const ids = selectedRows.value.map((r) => r.original.id)
   if (!ids.length) return
   batchDeleteLoading.value = true
   batchDeleteError.value = ''
@@ -368,8 +500,8 @@ async function confirmBatchDelete() {
     for (const id of ids) {
       await apiClient.delete(`${API_PATH.PLATFORM_TENANTS}/${id}`)
     }
-    selectedTenantIds.value = new Set()
     closeBatchDelete()
+    rowSelection.value = {}
     await loadTenants()
   } catch (err: unknown) {
     const res =
@@ -408,23 +540,18 @@ async function confirmBatchDelete() {
         </Select>
       </div>
       <div class="flex flex-wrap items-center gap-3">
-        <template v-if="selectedTenantIds.size > 0">
-          <span class="text-sm text-muted-foreground">已選 {{ selectedTenantIds.size }} 項</span>
+        <template v-if="hasSelection">
+          <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
           <ButtonGroup>
-            <Button
-              variant="outline"
-              size="sm"
-              @click="selectedTenantIds = new Set()"
-            >
+            <Button variant="outline" @click="clearSelection">
               取消選取
             </Button>
             <Button
               variant="outline"
-              size="sm"
-              class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+              class="text-destructive hover:text-destructive"
               @click="openBatchDelete"
             >
-              <Trash2 class="mr-1.5 size-4" />
+              <Trash2 class="size-4" />
               批次刪除
             </Button>
           </ButtonGroup>
@@ -497,112 +624,46 @@ async function confirmBatchDelete() {
     </div>
 
     <!-- Table -->
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="loading" class="flex items-center justify-center py-16">
-          <Loader2 class="size-8 animate-spin text-muted-foreground" />
-        </div>
-        <div v-else-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
-          尚無租戶，或目前篩選無結果。點擊「新增租戶」建立第一筆。
-        </div>
-        <Table v-else>
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
+      </div>
+      <template v-else>
+        <Table>
           <TableHeader>
-            <TableRow class="border-border hover:bg-transparent">
-              <TableHead class="w-10">
-                <Checkbox
-                  :checked="isAllTenantsSelected || (isSomeTenantsSelected && 'indeterminate')"
-                  :aria-label="'全選'"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleAllTenants(v === true)"
+            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+              <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                <FlexRender
+                  v-if="!header.isPlaceholder"
+                  :render="header.column.columnDef.header"
+                  :props="header.getContext()"
                 />
               </TableHead>
-              <TableHead class="text-foreground">租戶名稱</TableHead>
-              <TableHead class="text-muted-foreground">Slug</TableHead>
-              <TableHead class="text-muted-foreground">帳號</TableHead>
-              <TableHead class="text-muted-foreground">狀態</TableHead>
-              <TableHead class="text-muted-foreground">到期日</TableHead>
-              <TableHead class="text-muted-foreground">人員 / 專案</TableHead>
-              <TableHead class="text-muted-foreground">限制（預覽）</TableHead>
-              <TableHead class="w-[100px] text-muted-foreground">操作</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            <TableRow
-              v-for="t in list"
-              :key="t.id"
-              class="border-border"
-            >
-              <TableCell class="w-10">
-                <Checkbox
-                  :checked="selectedTenantIds.has(t.id)"
-                  :aria-label="'選取 ' + t.name"
-                  @update:checked="(v: boolean | 'indeterminate') => toggleTenant(t.id, v === true)"
-                />
-              </TableCell>
-              <TableCell class="font-medium text-foreground">
-                <RouterLink
-                  :to="buildTenantManagePath(t.id)"
-                  class="text-primary underline-offset-4 hover:underline"
-                >
-                  {{ t.name }}
-                </RouterLink>
-              </TableCell>
-              <TableCell class="text-muted-foreground">{{ t.slug || '—' }}</TableCell>
-              <TableCell>
-                <Badge :variant="(t._count?.users ?? 0) > 0 ? 'default' : 'secondary'" class="font-normal">
-                  {{ (t._count?.users ?? 0) > 0 ? '已設定' : '未設定' }}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <Badge :variant="t.status === 'active' ? 'default' : 'secondary'" class="font-normal">
-                  {{ t.status === 'active' ? '使用中' : '已停用' }}
-                </Badge>
-              </TableCell>
-              <TableCell>
-                <span :class="isExpired(t.expiresAt) ? 'text-destructive' : 'text-muted-foreground'">
-                  {{ formatDate(t.expiresAt) }}
-                </span>
-              </TableCell>
-              <TableCell class="text-muted-foreground">
-                {{ t._count?.users ?? '—' }} / {{ t._count?.projects ?? '—' }}
-              </TableCell>
-              <TableCell class="text-muted-foreground text-xs">
-                <template v-if="t.userLimit != null || t.fileSizeLimitMb != null || t.storageQuotaMb != null">
-                  <span v-if="t.userLimit != null">人員 {{ t.userLimit }}</span>
-                  <span v-if="t.fileSizeLimitMb != null">{{ t.userLimit != null ? ' · ' : '' }}單檔 {{ t.fileSizeLimitMb }} MB</span>
-                  <span v-if="t.storageQuotaMb != null">{{ (t.userLimit != null || t.fileSizeLimitMb != null) ? ' · ' : '' }}總量 {{ t.storageQuotaMb }} MB</span>
-                </template>
-                <span v-else>—</span>
-              </TableCell>
-              <TableCell>
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" size="icon" class="size-8">
-                      <MoreHorizontal class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
-                    <DropdownMenuItem @click="openEditDialog(t)">
-                      <Pencil class="size-4" />
-                      編輯
-                    </DropdownMenuItem>
-                    <DropdownMenuItem v-if="(t._count?.users ?? 0) === 0" @click="openAddUserDialog(t)">
-                      <UserPlus class="size-4" />
-                      建立帳號
-                    </DropdownMenuItem>
-                    <DropdownMenuItem v-if="(t._count?.users ?? 0) > 0" @click="openResetPasswordDialog(t)">
-                      <KeyRound class="size-4" />
-                      重設密碼
-                    </DropdownMenuItem>
-                    <DropdownMenuItem @click="toggleStatus(t)">
-                      <PauseCircle v-if="t.status === 'active'" class="size-4" />
-                      <PlayCircle v-else class="size-4" />
-                      {{ t.status === 'active' ? '停用' : '啟用' }}
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
+            <template v-if="table.getRowModel().rows?.length">
+              <TableRow
+                v-for="row in table.getRowModel().rows"
+                :key="row.id"
+                :data-state="row.getIsSelected() ? 'selected' : undefined"
+              >
+                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                </TableCell>
+              </TableRow>
+            </template>
+            <template v-else>
+              <TableRow>
+                <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
+                  尚無租戶，或目前篩選無結果。點擊「新增租戶」建立第一筆。
+                </TableCell>
+              </TableRow>
+            </template>
           </TableBody>
         </Table>
+        <DataTablePagination :table="table" />
+      </template>
     </div>
 
     <!-- Edit dialog -->
@@ -790,7 +851,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>批次刪除租戶</DialogTitle>
           <DialogDescription>
-            確定要刪除所選的 {{ selectedTenantIds.size }} 個租戶？刪除後無法復原。
+            確定要刪除所選的 {{ selectedCount }} 個租戶？刪除後無法復原。
           </DialogDescription>
         </DialogHeader>
         <p v-if="batchDeleteError" class="text-sm text-destructive">{{ batchDeleteError }}</p>
