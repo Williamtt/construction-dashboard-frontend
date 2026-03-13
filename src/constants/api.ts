@@ -14,6 +14,11 @@ export const API_PATH = {
   ADMIN_PROJECTS: `${API_V1}/admin/projects`,
   ADMIN_USERS: `${API_V1}/admin/users`,
   ADMIN_TENANT_INFO: `${API_V1}/admin/tenant-info`,
+  ADMIN_FORM_TEMPLATES: `${API_V1}/admin/form-templates`,
+  /** 專案表單樣板（GET 列表、POST 新增） */
+  PROJECT_FORM_TEMPLATES: (projectId: string) => `${API_V1}/projects/${projectId}/form-templates`,
+  /** 單一表單樣板（GET 下載、PATCH、DELETE） */
+  FORM_TEMPLATE: (id: string) => `${API_V1}/form-templates/${id}`,
   /** 多租後台（需 platform_admin） */
   PLATFORM_TENANTS: `${API_V1}/platform-admin/tenants`,
   PLATFORM_PROJECTS: `${API_V1}/platform-admin/projects`,

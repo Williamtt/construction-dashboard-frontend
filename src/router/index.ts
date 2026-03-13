@@ -91,6 +91,21 @@ const router = createRouter({
           name: ROUTE_NAME.PROJECT_CONTRACT_MANAGEMENT,
           component: () => import('@/views/contract/ContractManagementView.vue'),
         },
+        {
+          path: 'p/:projectId/files',
+          name: ROUTE_NAME.PROJECT_FILES,
+          component: () => import('@/views/files/FileManagementView.vue'),
+        },
+        {
+          path: 'p/:projectId/files/forms',
+          name: ROUTE_NAME.PROJECT_FILES_FORMS,
+          component: () => import('@/views/files/FileFormsView.vue'),
+        },
+        {
+          path: 'p/:projectId/files/photos',
+          name: ROUTE_NAME.PROJECT_FILES_PHOTOS,
+          component: () => import('@/views/files/FilePhotosView.vue'),
+        },
         // 單租後台（共用 DefaultLayout，sidebar 依路由切換為後台選單）
         { path: 'admin', redirect: ROUTE_PATH.ADMIN_PROJECTS },
         {
@@ -107,6 +122,11 @@ const router = createRouter({
           path: 'admin/members',
           name: ROUTE_NAME.ADMIN_MEMBERS,
           component: () => import('@/views/admin/AdminMembersView.vue'),
+        },
+        {
+          path: 'admin/form-templates',
+          name: ROUTE_NAME.ADMIN_FORM_TEMPLATES,
+          component: () => import('@/views/admin/AdminFormTemplatesView.vue'),
         },
         {
           path: 'admin/settings',

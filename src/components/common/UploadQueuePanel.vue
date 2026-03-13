@@ -78,7 +78,7 @@ function statusColor(item: UploadQueueItem): string {
                 <p class="text-xs text-muted-foreground">
                   {{ formatSize(item.fileSize) }}
                   <template v-if="item.source">
-                    · {{ item.source === 'contract' ? '契約' : item.source === 'monitoring' ? '監測' : item.source }}
+                    · {{ item.source === 'contract' ? '契約' : item.source === 'monitoring' ? '監測' : item.source === 'files' ? '檔案' : item.source }}
                   </template>
                   <template v-else-if="item.category">
                     · {{ item.category }}

@@ -9,6 +9,7 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
   '/admin/tenant-info': '租戶資訊',
   '/admin/projects': '專案管理',
   '/admin/members': '成員管理',
+  '/admin/form-templates': '表單樣板',
   '/admin/settings': '公司設定',
   '/platform-admin': '平台管理',
   '/platform-admin/tenants': '租戶管理',
@@ -36,4 +37,7 @@ export const BREADCRUMB_PROJECT_SUFFIX_LABELS: Record<string, string> = {
   '/contract/project-info': '專案資訊',
   '/contract/schedule': '工期調整',
   '/contract/management': '契約管理',
+  '/files': '檔案管理',
+  '/files/forms': '相關表單',
+  '/files/photos': '照片管理',
 }

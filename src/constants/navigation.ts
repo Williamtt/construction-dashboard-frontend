@@ -44,6 +44,15 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
       { id: 'contract-management', label: '契約管理', pathSuffix: '/contract/management', icon: 'FileSignature' },
     ],
   },
+  {
+    id: 'files',
+    label: '檔案',
+    children: [
+      { id: 'files-management', label: '檔案管理', pathSuffix: '/files', icon: 'FolderOpen' },
+      { id: 'files-forms', label: '相關表單', pathSuffix: '/files/forms', icon: 'FileText' },
+      { id: 'files-photos', label: '照片管理', pathSuffix: '/files/photos', icon: 'Image' },
+    ],
+  },
 ]
 
 /** 非專案內（專案列表頁等）顯示的側欄項目；非平台方登入時顯示專案列表 */
@@ -56,6 +65,7 @@ export const ADMIN_SIDEBAR_ENTRIES: NavItem[] = [
   { id: 'admin-tenant-info', label: '租戶資訊', path: '/admin/tenant-info', icon: 'Info' },
   { id: 'admin-projects', label: '專案管理', path: '/admin/projects', icon: 'FolderKanban' },
   { id: 'admin-members', label: '成員管理', path: '/admin/members', icon: 'Users' },
+  { id: 'admin-form-templates', label: '表單樣板', path: '/admin/form-templates', icon: 'FileText' },
   { id: 'admin-settings', label: '公司設定', path: '/admin/settings', icon: 'Settings' },
 ]
 

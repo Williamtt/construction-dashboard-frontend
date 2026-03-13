@@ -5,6 +5,7 @@ import {
   LayoutDashboard,
   LayoutGrid,
   FolderKanban,
+  FolderOpen,
   ClipboardCheck,
   Table2,
   Building2,
@@ -48,6 +49,7 @@ const ICON_MAP: Record<string, LucideIcon> = {
   LayoutDashboard,
   LayoutGrid,
   FolderKanban,
+  FolderOpen,
   ClipboardCheck,
   Table2,
   Activity,
@@ -127,6 +129,11 @@ function isPlatformItemActive(path: string) {
 /** 專案內子項的完整 path */
 function projectChildPath(pathSuffix: string): string {
   return projectId.value ? buildProjectPath(projectId.value, pathSuffix) : '/projects'
+}
+
+/** 專案內子項是否為當前頁（僅精確比對，避免父路徑與子路徑同時亮起，例如 /files 與 /files/photos） */
+function isProjectChildActive(pathSuffix: string): boolean {
+  return route.path === projectChildPath(pathSuffix)
 }
 </script>
 
@@ -344,7 +351,7 @@ function projectChildPath(pathSuffix: string): string {
                         :class="
                           cn(
                             'h-9 w-9 shrink-0 justify-center rounded-md',
-                            isItemActive(projectChildPath(child.pathSuffix)) &&
+                            isProjectChildActive(child.pathSuffix) &&
                               'bg-accent text-accent-foreground'
                           )
                         "
@@ -364,7 +371,7 @@ function projectChildPath(pathSuffix: string): string {
                     :class="
                       cn(
                         'h-9 w-full justify-start gap-3 rounded-md px-3',
-                        isItemActive(projectChildPath(child.pathSuffix)) &&
+                        isProjectChildActive(child.pathSuffix) &&
                           'bg-accent text-accent-foreground'
                       )
                     "
