@@ -7,6 +7,8 @@ export interface User {
   id: string
   email: string
   name?: string | null
+  /** 是否有上傳個人頭貼（無則顯示姓名首字） */
+  hasAvatar?: boolean
   systemRole: SystemRole
   tenantId?: string | null
 }
