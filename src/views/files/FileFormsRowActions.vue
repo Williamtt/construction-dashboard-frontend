@@ -9,7 +9,7 @@ import {
 import { MoreHorizontal, Download, Trash2 } from 'lucide-vue-next'
 import type { FormTemplateItem } from '@/api/form-templates'
 
-const props = defineProps<{
+defineProps<{
   row: FormTemplateItem
   canDelete: (row: FormTemplateItem) => boolean
 }>()

@@ -42,7 +42,7 @@ import {
   getFormTemplateBlob,
 } from '@/api/form-templates'
 import type { FormTemplateItem } from '@/api/form-templates'
-import { Upload, Loader2, Trash2, Download, FileText } from 'lucide-vue-next'
+import { Upload, Loader2, Trash2, FileText } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const tenantId = computed(() => authStore.user?.tenantId ?? null)

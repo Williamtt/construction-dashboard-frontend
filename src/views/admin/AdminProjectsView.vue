@@ -50,7 +50,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import AdminProjectsRowActions from '@/views/admin/AdminProjectsRowActions.vue'
 import type { ProjectItem } from '@/types'
-import { Plus, Loader2, FolderKanban, Trash2 } from 'lucide-vue-next'
+import { Plus, Loader2, Trash2 } from 'lucide-vue-next'
 
 const router = useRouter()
 const authStore = useAuthStore()

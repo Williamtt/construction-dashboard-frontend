@@ -203,7 +203,7 @@ const accentOptions: { value: AccentScheme; label: string }[] = [
           <CardContent class="space-y-4 pt-0">
             <div class="grid gap-2">
               <label class="text-sm font-medium text-foreground">主題模式</label>
-              <Select :model-value="themeStore.mode" @update:model-value="themeStore.setMode">
+              <Select :model-value="themeStore.mode" @update:model-value="(v) => themeStore.setMode(v as ThemeMode)">
                 <SelectTrigger class="w-full bg-background">
                   <SelectValue placeholder="選擇主題" />
                 </SelectTrigger>
@@ -223,7 +223,7 @@ const accentOptions: { value: AccentScheme; label: string }[] = [
             </div>
             <div class="grid gap-2">
               <label class="text-sm font-medium text-foreground">主色（按鈕、連結、強調）</label>
-              <Select :model-value="themeStore.accent" @update:model-value="themeStore.setAccent">
+              <Select :model-value="themeStore.accent" @update:model-value="(v) => themeStore.setAccent(v as AccentScheme)">
                 <SelectTrigger class="w-full bg-background">
                   <SelectValue placeholder="選擇主色" />
                 </SelectTrigger>

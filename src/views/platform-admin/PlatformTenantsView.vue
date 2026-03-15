@@ -57,7 +57,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import PlatformTenantsRowActions from '@/views/platform-admin/PlatformTenantsRowActions.vue'
 import { buildTenantManagePath } from '@/constants/routes'
-import { Plus, UserPlus, Pencil, PauseCircle, PlayCircle, Loader2, KeyRound, Trash2 } from 'lucide-vue-next'
+import { Plus, Loader2, Trash2 } from 'lucide-vue-next'
 import { RouterLink } from 'vue-router'
 
 const list = ref<TenantItem[]>([])

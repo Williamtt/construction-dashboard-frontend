@@ -57,4 +57,25 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/albums/${albumId}/photos`,
   /** 我的最愛（個人） */
   PROJECT_PHOTO_FAVORITES: (projectId: string) => `${API_V1}/projects/${projectId}/photo-favorites`,
+  /** 攝影機（CCTV / go2rtc） */
+  PROJECT_CAMERAS: (projectId: string) => `${API_V1}/projects/${projectId}/cameras`,
+  /** 專案層級一鍵安裝包（zip，含本專案所有攝影機），query os=win|mac */
+  PROJECT_CAMERAS_INSTALL_PACKAGE: (projectId: string, os: 'win' | 'mac') =>
+    `${API_V1}/projects/${projectId}/cameras/install-package?os=${os}`,
+  PROJECT_CAMERA: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}`,
+  /** 手動標示為離線／清除標示 */
+  PROJECT_CAMERA_CONNECTION_STATUS_OVERRIDE: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/connection-status-override`,
+  PROJECT_CAMERA_PLAY_URL: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/play-url`,
+  PROJECT_CAMERA_INSTALL_CONFIG: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/install-config`,
+  PROJECT_CAMERA_INSTALL_CONFIG_DOWNLOAD: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/install-config/download`,
+  /** 單一攝影機一鍵安裝包（zip），query os=win|mac */
+  PROJECT_CAMERA_INSTALL_PACKAGE: (projectId: string, cameraId: string, os: 'win' | 'mac') =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/install-package?os=${os}`,
+  PROJECT_CAMERA_INSTALL: (projectId: string, cameraId: string) =>
+    `${API_V1}/projects/${projectId}/cameras/${cameraId}/install`,
 } as const

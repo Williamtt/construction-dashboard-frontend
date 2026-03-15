@@ -42,7 +42,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
-import { Loader2, FolderKanban, Trash2 } from 'lucide-vue-next'
+import { Loader2, Trash2 } from 'lucide-vue-next'
 
 const list = ref<PlatformProjectItem[]>([])
 const rowSelection = ref<Record<string, boolean>>({})
