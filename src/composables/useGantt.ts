@@ -1,15 +1,12 @@
 import type { Ref } from 'vue'
 import { ref, computed } from 'vue'
 import type { GanttTask, GanttScaleMode, GanttTaskSchedule, GanttScaleTick } from '@/types/gantt'
+import { wbsDurationInclusiveDays } from '@/lib/wbs-schedule-dates'
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000
 
 function parseDate(d: string): number {
   return new Date(d).setHours(0, 0, 0, 0)
-}
-
-function daysBetween(start: number, end: number): number {
-  return Math.round((end - start) / MS_PER_DAY)
 }
 
 /** 要徑：前向計算 ES/EF，後向計算 LS/LF（以「天」為單位），slack = LS - ES，critical = slack <= 0 */
@@ -20,11 +17,8 @@ function computeCriticalPath(
   const byId = new Map(tasks.map((t) => [t.id, t]))
   const schedule = new Map<string, GanttTaskSchedule>()
 
-  const getDurationDays = (t: GanttTask) => {
-    const start = parseDate(t.plannedStart)
-    const end = parseDate(t.plannedEnd)
-    return Math.max(1, daysBetween(start, end))
-  }
+  const getDurationDays = (t: GanttTask) =>
+    wbsDurationInclusiveDays(t.plannedStart, t.plannedEnd)
 
   const toDay = (dateMs: number) => Math.round((dateMs - projectStartDay) / MS_PER_DAY)
 
@@ -113,7 +107,10 @@ export function useGantt(
 
   const projectStartMs = computed(() => dateRange.value.start)
   const criticalPathMap = computed(() =>
-    computeCriticalPath(tasks.value, projectStartMs.value)
+    computeCriticalPath(
+      tasks.value.filter((t) => !t.isRollup),
+      projectStartMs.value
+    )
   )
 
   const totalDays = computed(() => {

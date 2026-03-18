@@ -21,6 +21,8 @@ export interface WbsNode {
   code: string
   /** 項目名稱 */
   name: string
+  /** 專案根（專案名稱層），不可編輯／刪除／拖移 */
+  isProjectRoot?: boolean
   /** 開始日期 YYYY-MM-DD */
   startDate?: string | null
   /** 工期（天） */

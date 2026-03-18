@@ -12,6 +12,8 @@ export type GanttDependencyType = 'FS'
 export interface GanttTask {
   id: string
   name: string
+  /** WBS 編號（如 1, 1.1, 1.1.1），左欄顯示用 */
+  wbsCode?: string
   /** 計劃開始 (ISO date string) */
   plannedStart: string
   /** 計劃結束 (ISO date string) */
@@ -30,6 +32,10 @@ export interface GanttTask {
   dependencies?: string[]
   /** 樹狀深度（用於 WBS 階層縮排，0=根） */
   depth?: number
+  /** 父層彙總列：不可拖曳／編輯排程，時間為子項包絡 */
+  isRollup?: boolean
+  /** 專案根（專案名稱層），不可拖移排序 */
+  isProjectRoot?: boolean
 }
 
 /** 相依關係（用於繪製連線） */

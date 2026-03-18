@@ -15,7 +15,13 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Trash2 } from 'lucide-vue-next'
+import { useDebounceFn } from '@vueuse/core'
 import { listProjectWbs, updateWbsNode, moveWbsNode } from '@/api/wbs'
+import {
+  syncLeafStartDatesToFsConstraints,
+  hasAnyTaskDependencies,
+} from '@/lib/wbs-fs-schedule'
+import { wbsEndDateInclusive, wbsDurationInclusiveDays } from '@/lib/wbs-schedule-dates'
 import { useGantt } from '@/composables/useGantt'
 import type { GanttTask, GanttLeftColumnItem, GanttMilestoneLine, GanttScaleMode } from '@/types/gantt'
 import type { WbsNode } from '@/types/wbs'
@@ -56,35 +62,110 @@ function flattenTree(
 const flattenedList = computed(() => flattenTree(wbsTree.value, expandedIds.value, 0))
 
 const defaultStart = '2025-01-06'
-function nodeToGanttTask(node: WbsNode, depth: number): GanttTask {
+const STORAGE_KEY_DEPS = 'gantt-dependencies'
+
+/** 前置任務對應：taskId -> 前置任務 id 陣列（僅前端儲存，可改存後端） */
+const taskDependencies = ref<Record<string, string[]>>({})
+
+function loadDependenciesFromStorage() {
+  const pid = projectId.value
+  if (!pid) return
+  try {
+    const raw = localStorage.getItem(`${STORAGE_KEY_DEPS}-${pid}`)
+    if (raw) {
+      const parsed = JSON.parse(raw) as Record<string, string[]>
+      if (parsed && typeof parsed === 'object') taskDependencies.value = parsed
+    }
+  } catch {
+    // ignore
+  }
+}
+
+function saveDependenciesToStorage() {
+  const pid = projectId.value
+  if (!pid) return
+  try {
+    localStorage.setItem(`${STORAGE_KEY_DEPS}-${pid}`, JSON.stringify(taskDependencies.value))
+  } catch {
+    // ignore
+  }
+}
+
+function nodeToGanttTask(node: WbsNode, depth: number, leafIds?: Set<string>): GanttTask {
   const start = node.startDate ?? defaultStart
   const dur = node.durationDays ?? 14
-  const end = node.endDate ?? (() => {
-    const d = new Date(start)
-    d.setDate(d.getDate() + dur)
-    return d.toISOString().slice(0, 10)
-  })()
+  const end = node.endDate ?? wbsEndDateInclusive(start, dur)
+  let deps = [...(taskDependencies.value[node.id] ?? [])]
+  if (leafIds) deps = deps.filter((d) => leafIds.has(d))
   return {
     id: node.id,
     name: node.name,
+    wbsCode: node.code,
     plannedStart: start,
     plannedEnd: end,
     progress: 0,
     assignee: node.resources?.[0]?.name,
     depth,
-    dependencies: [],
+    dependencies: deps,
+    isProjectRoot: node.isProjectRoot ?? false,
   }
 }
 
-/** 甘特圖用的任務列表（依收合狀態扁平化） */
-const tasks = computed<GanttTask[]>(() =>
-  flattenedList.value.map((item) => nodeToGanttTask(item.node, item.depth))
+/** 葉節點 id（前置關係僅在葉節點間有效） */
+const leafIdSet = computed(
+  () => new Set(flattenedList.value.filter((i) => !i.hasChildren).map((i) => i.node.id))
 )
 
-/** 左欄列項目（任務 + 收合／拖移用） */
+/** 父層列為子項時間包絡（isRollup）；葉節點排程以 API 儲存為準，不因前置自動改寫顯示 */
+function buildDisplayTask(
+  node: WbsNode,
+  depth: number,
+  memo: Map<string, GanttTask>
+): GanttTask {
+  if (!node.children?.length) {
+    return nodeToGanttTask(node, depth, leafIdSet.value)
+  }
+  if (memo.has(node.id)) {
+    const c = memo.get(node.id)!
+    return { ...c, depth }
+  }
+  const childTasks = node.children!.map((ch) => buildDisplayTask(ch, depth + 1, memo))
+  let minStart = ''
+  let maxEnd = ''
+  for (const ct of childTasks) {
+    if (ct.plannedStart && (!minStart || ct.plannedStart < minStart)) minStart = ct.plannedStart
+    if (ct.plannedEnd && (!maxEnd || ct.plannedEnd > maxEnd)) maxEnd = ct.plannedEnd
+  }
+  if (!minStart) minStart = defaultStart
+  if (!maxEnd) {
+    const d = new Date(minStart)
+    d.setDate(d.getDate() + 1)
+    maxEnd = d.toISOString().slice(0, 10)
+  }
+  const t: GanttTask = {
+    id: node.id,
+    name: node.name,
+    wbsCode: node.code,
+    plannedStart: minStart,
+    plannedEnd: maxEnd,
+    progress: 0,
+    depth,
+    dependencies: [],
+    isRollup: true,
+  }
+  memo.set(node.id, { ...t })
+  return t
+}
+
+const tasks = computed<GanttTask[]>(() => {
+  const memo = new Map<string, GanttTask>()
+  return flattenedList.value.map((item) => buildDisplayTask(item.node, item.depth, memo))
+})
+
+/** 左欄列項目（任務用排程後日期，與圖表一致） */
 const leftColumnItems = computed<GanttLeftColumnItem[]>(() =>
-  flattenedList.value.map((item) => ({
-    task: nodeToGanttTask(item.node, item.depth),
+  flattenedList.value.map((item, i) => ({
+    task: tasks.value[i] ?? nodeToGanttTask(item.node, item.depth),
     hasChildren: item.hasChildren,
     isExpanded: expandedIds.value.has(item.node.id),
     parentId: item.parentId,
@@ -207,6 +288,22 @@ async function moveNodeToFlatIndex(nodeId: string, insertBeforeIndex: number) {
   const flat = flattenedList.value
   const currentIndex = flat.findIndex((it) => it.node.id === nodeId)
   if (currentIndex === -1 || currentIndex === insertBeforeIndex) return
+  if (insertBeforeIndex === 0 && flat[0]?.node.isProjectRoot) {
+    const rootId = flat[0].node.id
+    const nextRow = flat[1]
+    const insertBeforeId =
+      nextRow?.parentId === rootId ? nextRow.node.id : undefined
+    try {
+      const tree = await moveWbsNode(projectId.value, nodeId, {
+        parentId: rootId,
+        insertBeforeId,
+      })
+      wbsTree.value = tree
+    } catch {
+      // ignore
+    }
+    return
+  }
   const refItem = insertBeforeIndex < flat.length ? flat[insertBeforeIndex] : flat[flat.length - 1]
   if (!refItem) return
   try {
@@ -235,19 +332,44 @@ async function fetchWbs() {
   }
 }
 
-onMounted(() => {
-  fetchWbs()
-})
-watch(projectId, (id) => {
-  if (id) fetchWbs()
-})
+async function runFsSyncLeaves() {
+  const id = projectId.value
+  if (!id || !wbsTree.value.length) return
+  await syncLeafStartDatesToFsConstraints(
+    id,
+    wbsTree.value,
+    taskDependencies.value,
+    defaultStart,
+    updateWbsNode,
+    fetchWbs
+  )
+}
 
-/** 重整或載入完成後自動捲動至今天並顯示今日線 */
+/**
+ * 僅在「使用者變更前置關係」時寫回 API：後續開始日 = 前置完成日 +1。
+ * 勿在重整／進頁時跑，否則每次載入 localStorage 都會觸發、日期被一再往後推。
+ */
+const debouncedSyncOnDepsChange = useDebounceFn(runFsSyncLeaves, 500)
+
+onMounted(async () => {
+  loadDependenciesFromStorage()
+  await fetchWbs()
+})
+/** 僅首次載入後捲到今天（每次 fetchWbs 都 goToToday 會像一直重整） */
+const ganttInitialScrollDone = ref(false)
 watch(loading, (isLoading) => {
-  if (!isLoading) {
+  if (!isLoading && wbsTree.value.length > 0 && !ganttInitialScrollDone.value) {
+    ganttInitialScrollDone.value = true
     nextTick(() => goToToday())
   }
-}, { immediate: true })
+})
+watch(projectId, async (id) => {
+  ganttInitialScrollDone.value = false
+  if (id) {
+    loadDependenciesFromStorage()
+    await fetchWbs()
+  }
+})
 
 const chartWidthVal = computed(() => unref(gantt.chartWidth))
 const panXVal = computed(() => unref(gantt.panX))
@@ -283,23 +405,42 @@ function removeMilestoneLine(id: string) {
   milestoneLines.value = milestoneLines.value.filter((m) => m.id !== id)
 }
 
+function updateDependencies(taskId: string, predecessorIds: string[]) {
+  const copy = { ...taskDependencies.value }
+  if (predecessorIds.length === 0) delete copy[taskId]
+  else copy[taskId] = predecessorIds
+  taskDependencies.value = copy
+  saveDependenciesToStorage()
+  debouncedSyncOnDepsChange()
+}
+
+function addDependency(fromTaskId: string, toTaskId: string) {
+  if (fromTaskId === toTaskId) return
+  if (!leafIdSet.value.has(fromTaskId) || !leafIdSet.value.has(toTaskId)) return
+  const current = taskDependencies.value[toTaskId] ?? []
+  if (current.includes(fromTaskId)) return
+  taskDependencies.value = {
+    ...taskDependencies.value,
+    [toTaskId]: [...current, fromTaskId],
+  }
+  saveDependenciesToStorage()
+  debouncedSyncOnDepsChange()
+}
+
 async function updateTask(updated: GanttTask) {
-  const i = tasks.value.findIndex((t) => t.id === updated.id)
-  if (i >= 0) tasks.value[i] = { ...updated }
+  if (updated.isRollup) return
   const id = projectId.value
   if (!id) return
   const startDate = updated.plannedStart
-  const durationDays = Math.max(
-    1,
-    Math.ceil(
-      (new Date(updated.plannedEnd).getTime() - new Date(updated.plannedStart).getTime()) /
-        (24 * 60 * 60 * 1000)
-    )
-  )
+  const durationDays = wbsDurationInclusiveDays(updated.plannedStart, updated.plannedEnd)
   try {
     await updateWbsNode(id, updated.id, { startDate, durationDays })
+    await fetchWbs()
+    if (hasAnyTaskDependencies(taskDependencies.value)) {
+      await runFsSyncLeaves()
+    }
   } catch {
-    // 可選：toast 錯誤，並還原 tasks
+    // 可選：toast 錯誤
   }
 }
 
@@ -364,6 +505,12 @@ function zoomOutAroundCenter() {
     <header class="flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-xl font-semibold text-foreground">甘特圖</h1>
     </header>
+    <p class="text-xs text-muted-foreground max-w-3xl">
+      <strong class="text-foreground">虛線橫條</strong>為父層由子項彙總之區間，不可拖曳或改期；排程與前置請在<strong
+        class="text-foreground"
+        >葉節點</strong
+      >（無子項）操作。
+    </p>
 
     <p v-if="loading" class="text-sm text-muted-foreground">載入 WBS…</p>
 
@@ -421,6 +568,8 @@ function zoomOutAroundCenter() {
         @move-node="moveNodeToFlatIndex"
         @update:left-width="handleLeftWidthChange"
         @update:task="updateTask"
+        @update:dependencies="updateDependencies"
+        @add-dependency="addDependency"
       />
     </div>
 
