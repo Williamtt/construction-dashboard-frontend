@@ -48,7 +48,8 @@ import type {
   IssueRiskWbsTask,
 } from '@/types/issue-risk'
 import type { ProjectMemberItem } from '@/types'
-import { Plus, Loader2, ListTree } from 'lucide-vue-next'
+import { Plus, Loader2, ListTree, AlertCircle, Clock, AlertTriangle } from 'lucide-vue-next'
+import StateCard from '@/components/common/StateCard.vue'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import ManagementRisksRowActions from '@/views/management/ManagementRisksRowActions.vue'
 
@@ -89,6 +90,17 @@ const batchDeleteOpen = ref(false)
 const batchDeleteLoading = ref(false)
 
 const projectId = computed(() => getProjectId())
+
+/** 統計：總數、待處理、處理中、高／緊急 */
+const stats = computed(() => {
+  const items = list.value
+  return {
+    total: items.length,
+    open: items.filter((i) => i.status === 'open').length,
+    inProgress: items.filter((i) => i.status === 'in_progress').length,
+    highUrgency: items.filter((i) => i.urgency === 'high' || i.urgency === 'critical').length,
+  }
+})
 
 const URGENCY_LABELS: Record<IssueRiskUrgency, string> = {
   low: '低',
@@ -450,6 +462,46 @@ watch(projectId, (id) => {
 
 <template>
   <div class="space-y-4">
+    <!-- 統計卡（與儀表板 StateCard 同規範） -->
+    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <StateCard title="總議題數">
+        <template #icon>
+          <ListTree class="size-6 text-muted-foreground" />
+        </template>
+        <p class="text-3xl font-bold tabular-nums text-foreground">
+          {{ stats.total }}
+        </p>
+        <p class="mt-1 text-xs text-muted-foreground">本專案議題與風險總數</p>
+      </StateCard>
+      <StateCard title="待處理">
+        <template #icon>
+          <AlertCircle class="size-6 text-muted-foreground" />
+        </template>
+        <p class="text-3xl font-bold tabular-nums text-foreground">
+          {{ stats.open }}
+        </p>
+        <p class="mt-1 text-xs text-muted-foreground">狀態為待處理</p>
+      </StateCard>
+      <StateCard title="處理中">
+        <template #icon>
+          <Clock class="size-6 text-muted-foreground" />
+        </template>
+        <p class="text-3xl font-bold tabular-nums text-foreground">
+          {{ stats.inProgress }}
+        </p>
+        <p class="mt-1 text-xs text-muted-foreground">狀態為處理中</p>
+      </StateCard>
+      <StateCard title="高／緊急">
+        <template #icon>
+          <AlertTriangle class="size-6 text-muted-foreground" />
+        </template>
+        <p class="text-3xl font-bold tabular-nums text-foreground">
+          {{ stats.highUrgency }}
+        </p>
+        <p class="mt-1 text-xs text-muted-foreground">緊急程度為高或緊急</p>
+      </StateCard>
+    </div>
+
     <p class="text-sm text-muted-foreground">
       管理專案議題與風險，可設定負責人、緊急程度、影像任務（僅能選擇 WBS 葉節點）與狀態。
     </p>
