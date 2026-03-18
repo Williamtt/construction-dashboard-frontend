@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { ref, computed, watch } from 'vue'
-import { VueFlow, ConnectionMode } from '@vue-flow/core'
+import { ref, computed, watch, nextTick } from 'vue'
+import { VueFlow, ConnectionMode, defaultEdgeTypes } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import dagre from 'dagre'
-import type { Node, Edge, Connection, EdgeChange } from '@vue-flow/core'
+import type { Node, Edge, Connection, EdgeChange, EdgeTypesObject } from '@vue-flow/core'
 import type { WbsNode } from '@/types/wbs'
 import WorkPackageNode from '@/components/management/WorkPackageNode.vue'
 import type { WorkPackageData } from '@/components/management/WorkPackageNode.vue'
+import ChannelSmoothStepEdge from '@/components/management/ChannelSmoothStepEdge.vue'
+import { Button } from '@/components/ui/button'
+
+const channelEdgeTypes = {
+  ...defaultEdgeTypes,
+  channelSmoothstep: ChannelSmoothStepEdge,
+} as EdgeTypesObject
+import { LayoutGrid } from 'lucide-vue-next'
 
 /** 與 Node<WorkPackageData> 結構相容的節點型別，避免 Vue Flow 泛型過深觸發 TS2589 */
 type FlowNodeItem = {
@@ -24,7 +32,7 @@ const props = withDefaults(
     wbsTree: WbsNode[]
     workPackageIds: string[]
     taskDependencies: Record<string, string[]>
-    /** 專案 id，有值時會依此儲存／還原工作包節點位置 */
+    /** 專案 id，有值時會依此儲存／還原任務節點位置 */
     projectId?: string
   }>(),
   { projectId: '' }
@@ -79,16 +87,15 @@ export type ScheduleEntry = {
   slack: number
   isCritical: boolean
 }
-/** 要徑與浮時（僅針對工作包），即時依 workPackageIds / taskDependencies / wbsTree 重算 */
+/** 要徑與浮時（僅針對任務），即時依 workPackageIds / taskDependencies / wbsTree 重算 */
 function computeSchedule(): Map<string, ScheduleEntry> {
   const ids = props.workPackageIds
   const deps = props.taskDependencies
   const nodes = ids.map((id) => nodeMap.value.get(id)).filter(Boolean) as WbsNode[]
   if (nodes.length === 0) return new Map()
   const getDuration = (n: WbsNode) => Math.max(1, n.durationDays ?? 0)
-  const projectStart = Math.min(
-    ...nodes.map((n) => (n.startDate ? parseDate(n.startDate) : 0))
-  ) || Date.now()
+  const projectStart =
+    Math.min(...nodes.map((n) => (n.startDate ? parseDate(n.startDate) : 0))) || Date.now()
   const toDay = (ms: number) => Math.round((ms - projectStart) / MS_PER_DAY)
   const schedule = new Map<string, ScheduleEntry>()
   const sorted: WbsNode[] = []
@@ -113,19 +120,14 @@ function computeSchedule(): Map<string, ScheduleEntry> {
     const ef = es + dur
     schedule.set(n.id, { es, ef, ls: 0, lf: 0, slack: 0, isCritical: false })
   }
-  const projectEnd = Math.max(
-    0,
-    ...Array.from(schedule.values()).map((s) => s.ef)
-  )
+  const projectEnd = Math.max(0, ...Array.from(schedule.values()).map((s) => s.ef))
   for (let i = sorted.length - 1; i >= 0; i--) {
     const n = sorted[i]
     const s = schedule.get(n.id)!
     const successors = nodes.filter((x) => (deps[x.id] ?? []).includes(n.id))
     const lf =
       successors.length > 0
-        ? Math.min(
-            ...successors.map((x) => schedule.get(x.id)?.ls ?? projectEnd)
-          )
+        ? Math.min(...successors.map((x) => schedule.get(x.id)?.ls ?? projectEnd))
         : projectEnd
     const dur = getDuration(n)
     const ls = lf - dur
@@ -156,20 +158,10 @@ function gridPositionsForNodes(nodeList: WbsNode[]): Record<string, { x: number;
   return out
 }
 
-function buildGraph() {
+type EdgePair = { v: string; w: string }
+function getNodesAndEdges(): { nodes: WbsNode[]; edgePairs: EdgePair[] } {
   const ids = props.workPackageIds
-  const nodes = ids
-    .map((id) => nodeMap.value.get(id))
-    .filter(Boolean) as WbsNode[]
-  if (nodes.length === 0) {
-    flowNodes.value = []
-    flowEdges.value = []
-    return
-  }
-  const savedPos = loadSavedPositions()
-  const schedule = scheduleMap.value
-
-  type EdgePair = { v: string; w: string }
+  const nodes = ids.map((id) => nodeMap.value.get(id)).filter(Boolean) as WbsNode[]
   const edgePairs: EdgePair[] = []
   const edgeKey = new Set<string>()
   for (const n of nodes) {
@@ -181,17 +173,60 @@ function buildGraph() {
       edgePairs.push({ v: predId, w: n.id })
     }
   }
+  return { nodes, edgePairs }
+}
+
+/** 節點間距：預留間距讓正交連線有空間繞開方框、不穿越圖形元素（參考流程圖正交連線原則） */
+const LAYOUT_H_GAP = 88
+const LAYOUT_V_GAP = 56
+
+/**
+ * 排版邏輯：
+ * - 水平（X）：依開始時間升冪（ES 小→大，左→右）
+ * - 垂直（Y）：依名稱升冪（A→Z，上→下）
+ * 形成網格，搭配預留間距使連線有空間、少壓到方框
+ */
+function computeTimeBasedLayout(
+  nodes: WbsNode[],
+  schedule: Map<string, ScheduleEntry>
+): Record<string, { x: number; y: number }> {
+  if (nodes.length === 0) return {}
+  const byName = [...nodes].sort((a, b) => (a.name ?? '').localeCompare(b.name ?? '', 'zh'))
+  const nameToRow = new Map<string, number>()
+  byName.forEach((n, i) => nameToRow.set(n.id, i))
+  const esValues = [...new Set(nodes.map((n) => schedule.get(n.id)?.es ?? 0))].sort((a, b) => a - b)
+  const esToCol = new Map(esValues.map((es, i) => [es, i]))
+  const posById: Record<string, { x: number; y: number }> = {}
+  for (const n of nodes) {
+    const col = esToCol.get(schedule.get(n.id)?.es ?? 0) ?? 0
+    const row = nameToRow.get(n.id) ?? 0
+    posById[n.id] = {
+      x: col * (NODE_WIDTH + LAYOUT_H_GAP),
+      y: row * (NODE_HEIGHT + LAYOUT_V_GAP),
+    }
+  }
+  return posById
+}
+
+/**
+ * 排版：有排程時依任務時間（ES/EF）排序；否則用 dagre 依依賴關係排版
+ */
+function computeDagreLayout(
+  nodes: WbsNode[],
+  edgePairs: EdgePair[],
+  schedule: Map<string, ScheduleEntry>
+): Record<string, { x: number; y: number }> {
+  if (nodes.length === 0) return {}
+  const hasSchedule = nodes.some((n) => schedule.has(n.id) && schedule.get(n.id) != null)
+  if (hasSchedule) return computeTimeBasedLayout(nodes, schedule)
 
   const g = new dagre.graphlib.Graph()
   g.setGraph({ rankdir: 'LR', ranksep: 48, nodesep: 32 })
-  nodes.forEach((n) => {
-    g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT })
-  })
+  nodes.forEach((n) => g.setNode(n.id, { width: NODE_WIDTH, height: NODE_HEIGHT }))
   edgePairs.forEach((e) => g.setEdge(e.v, e.w))
-
-  let posById: Record<string, { x: number; y: number }> = {}
   try {
     dagre.layout(g)
+    const posById: Record<string, { x: number; y: number }> = {}
     let layoutOk = true
     for (const n of nodes) {
       const meta = g.node(n.id)
@@ -210,10 +245,22 @@ function buildGraph() {
         y: meta.y - NODE_HEIGHT / 2,
       }
     }
-    if (!layoutOk) posById = gridPositionsForNodes(nodes)
+    return layoutOk ? posById : gridPositionsForNodes(nodes)
   } catch {
-    posById = gridPositionsForNodes(nodes)
+    return gridPositionsForNodes(nodes)
   }
+}
+
+function buildGraph() {
+  const { nodes, edgePairs } = getNodesAndEdges()
+  if (nodes.length === 0) {
+    flowNodes.value = []
+    flowEdges.value = []
+    return
+  }
+  const savedPos = loadSavedPositions()
+  const schedule = scheduleMap.value
+  const posById = computeDagreLayout(nodes, edgePairs, schedule)
 
   const list: FlowNodeItem[] = []
   for (const n of nodes) {
@@ -234,27 +281,47 @@ function buildGraph() {
     })
   }
 
+  /** 正交連線、轉彎圓角：垂直段固定在來源節點右側通道（centerX），不穿過任務框 */
   const edges: Edge[] = []
   for (const e of edgePairs) {
     const sourceS = schedule.get(e.v)
     const targetS = schedule.get(e.w)
     const isCriticalEdge =
-      Boolean(sourceS?.isCritical && targetS?.isCritical) &&
-      targetS?.es === sourceS?.ef
+      Boolean(sourceS?.isCritical && targetS?.isCritical) && targetS?.es === sourceS?.ef
+    const srcPos = posById[e.v]
+    const bendX = srcPos ? srcPos.x + NODE_WIDTH + LAYOUT_H_GAP / 2 : undefined
     edges.push({
       id: `e-${e.v}-${e.w}`,
       source: e.v,
       target: e.w,
-      type: 'smoothstep',
-      style: isCriticalEdge
-        ? { stroke: 'var(--destructive)', strokeWidth: 2.5 }
-        : undefined,
+      type: 'channelSmoothstep',
+      pathOptions: bendX != null ? { centerX: bendX, borderRadius: 8 } : { borderRadius: 8 },
+      style: isCriticalEdge ? { stroke: 'var(--destructive)', strokeWidth: 2.5 } : undefined,
       class: isCriticalEdge ? 'critical-edge' : undefined,
-    })
+    } as Edge)
   }
   flowNodes.value = list
   flowEdges.value = edges
 }
+
+/** 一鍵排好：依任務時間（ES）與依賴關係以 dagre 重新排版，寫入位置並儲存 */
+function arrangeLayout() {
+  const { nodes, edgePairs } = getNodesAndEdges()
+  if (nodes.length === 0) return
+  const posById = computeDagreLayout(nodes, edgePairs, scheduleMap.value)
+  flowNodes.value = flowNodes.value.map((n) => ({
+    ...n,
+    position: posById[n.id] ?? n.position,
+  }))
+  savePositionsToStorage()
+  nextTick(() => {
+    vueFlowRef.value?.fitView?.({ padding: 0.2, duration: 200 })
+  })
+}
+
+const vueFlowRef = ref<InstanceType<typeof VueFlow> | null>(null)
+
+defineExpose({ arrangeLayout })
 
 const emit = defineEmits<{
   /** 從 source 拖到 target：target 新增 source 為前置 */
@@ -263,11 +330,10 @@ const emit = defineEmits<{
   'remove-dependency': [sourceNodeId: string, targetNodeId: string]
 }>()
 
-/** 切換工作包／樹變動時 Vue Flow 可能送出 remove，勿當成使用者刪除前置 */
+/** 切換任務／樹變動時 Vue Flow 可能送出 remove，勿當成使用者刪除前置 */
 let ignoreEdgeRemoveUntil = 0
 function scheduleIgnoreEdgeRemoves(ms: number) {
-  ignoreEdgeRemoveUntil =
-    (typeof performance !== 'undefined' ? performance.now() : Date.now()) + ms
+  ignoreEdgeRemoveUntil = (typeof performance !== 'undefined' ? performance.now() : Date.now()) + ms
 }
 
 watch(
@@ -287,9 +353,7 @@ function onNodeDragStop(ev: { node: { id: string; position: { x: number; y: numb
   const { id, position } = ev.node
   const idx = flowNodes.value.findIndex((n) => n.id === id)
   if (idx >= 0) {
-    flowNodes.value = flowNodes.value.map((n, i) =>
-      i === idx ? { ...n, position } : n
-    )
+    flowNodes.value = flowNodes.value.map((n, i) => (i === idx ? { ...n, position } : n))
     savePositionsToStorage()
   }
 }
@@ -313,35 +377,46 @@ function onEdgesChange(changes: EdgeChange[]) {
 }
 </script>
 <template>
-  <div class="relative h-[560px] w-full rounded-lg border border-border bg-muted/30">
-    <template v-if="flowNodes.length > 0">
-      <VueFlow
-        :nodes="flowNodesForFlow"
-        :edges="flowEdgesForFlow"
-        :nodes-draggable="true"
-        :nodes-connectable="true"
-        :connection-mode="ConnectionMode.Strict"
-        :elements-selectable="true"
-        :fit-view-on-init="true"
-        class="rounded-lg"
-        @node-drag-stop="onNodeDragStop"
-        @connect="onConnect"
-        @edges-change="onEdgesChange"
+  <div class="flex w-full flex-col gap-2">
+    <div v-if="flowNodes.length > 0" class="flex items-center justify-end">
+      <Button variant="outline" size="sm" class="gap-1.5" @click="arrangeLayout">
+        <LayoutGrid class="size-4" />
+        一鍵排好
+      </Button>
+    </div>
+    <div class="relative h-[560px] w-full rounded-lg border border-border bg-muted/30">
+      <template v-if="flowNodes.length > 0">
+        <VueFlow
+          ref="vueFlowRef"
+          :nodes="flowNodesForFlow"
+          :edges="flowEdgesForFlow"
+          :edge-types="channelEdgeTypes"
+          :nodes-draggable="true"
+          :nodes-connectable="true"
+          :connection-mode="ConnectionMode.Strict"
+          :elements-selectable="true"
+          :fit-view-on-init="true"
+          class="rounded-lg"
+          @node-drag-stop="onNodeDragStop"
+          @connect="onConnect"
+          @edges-change="onEdgesChange"
+        >
+          <template #node-workPackage="props">
+            <WorkPackageNode v-bind="props" />
+          </template>
+          <Background pattern-color="var(--border)" :gap="16" />
+        </VueFlow>
+      </template>
+      <div
+        v-else
+        class="flex h-full items-center justify-center rounded-lg text-center text-sm text-muted-foreground"
       >
-        <template #node-workPackage="props">
-          <WorkPackageNode v-bind="props" />
-        </template>
-        <Background pattern-color="var(--border)" :gap="16" />
-      </VueFlow>
-    </template>
-    <div
-      v-else
-      class="flex h-full items-center justify-center rounded-lg text-center text-sm text-muted-foreground"
-    >
-      <p>
-        請在「列表」分頁勾選「工作包」，網路圖將只顯示工作包及其前後關係。<br />
-        前置與甘特圖共用；<strong class="text-foreground">點選連線後按 Delete</strong>可移除並會儲存。
-      </p>
+        <p>
+          請在「列表」分頁勾選「任務」，網路圖將只顯示任務及其前後關係。<br />
+          前置與甘特圖共用；<strong class="text-foreground">點選連線後按 Delete</strong
+          >可移除並會儲存。
+        </p>
+      </div>
     </div>
   </div>
 </template>

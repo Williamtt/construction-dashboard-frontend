@@ -32,13 +32,7 @@ import {
 import type { WbsNode, WbsFlatItem } from '@/types/wbs'
 import type { GanttTask } from '@/types/gantt'
 import GanttPredecessorCell from '@/components/management/GanttPredecessorCell.vue'
-import {
-  listProjectWbs,
-  createWbsNode,
-  updateWbsNode,
-  deleteWbsNode,
-  moveWbsNode,
-} from '@/api/wbs'
+import { listProjectWbs, createWbsNode, updateWbsNode, deleteWbsNode, moveWbsNode } from '@/api/wbs'
 import { getAllProjectResources } from '@/api/resources'
 import type { ProjectResourceItem } from '@/types/resource'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -56,22 +50,15 @@ import {
   Network,
 } from 'lucide-vue-next'
 import WbsNetworkDiagram from '@/components/management/WbsNetworkDiagram.vue'
-import {
-  isWbsLeaf,
-  rollupWbsSchedule,
-  rollupResourceLabels,
-} from '@/lib/wbs-rollup'
-import {
-  syncLeafStartDatesToFsConstraints,
-  hasAnyTaskDependencies,
-} from '@/lib/wbs-fs-schedule'
+import { isWbsLeaf, rollupWbsSchedule, rollupResourceLabels } from '@/lib/wbs-rollup'
+import { syncLeafStartDatesToFsConstraints, hasAnyTaskDependencies } from '@/lib/wbs-fs-schedule'
 import { wbsEndDateInclusive } from '@/lib/wbs-schedule-dates'
 
 const STORAGE_KEY_WORK_PACKAGES = 'gantt-work-packages'
 const STORAGE_KEY_DEPS = 'gantt-dependencies'
 const defaultWbsStart = '2025-01-06'
 
-/** 工作包 id 列表（勾選的工項才會在網路圖顯示） */
+/** 任務 id 列表（勾選的工項才會在網路圖顯示） */
 const workPackageIds = ref<string[]>([])
 
 /** 前置任務（與甘特圖共用，key = taskId, value = 前置 id 陣列） */
@@ -95,7 +82,10 @@ function saveWorkPackagesToStorage() {
   const pid = projectId.value
   if (!pid) return
   try {
-    localStorage.setItem(`${STORAGE_KEY_WORK_PACKAGES}-${pid}`, JSON.stringify(workPackageIds.value))
+    localStorage.setItem(
+      `${STORAGE_KEY_WORK_PACKAGES}-${pid}`,
+      JSON.stringify(workPackageIds.value)
+    )
   } catch {
     // ignore
   }
@@ -139,6 +129,7 @@ function setWorkPackageChecked(node: WbsNode, checked: boolean) {
 }
 
 const activeWbsTab = ref('list')
+const networkDiagramRef = ref<InstanceType<typeof WbsNetworkDiagram> | null>(null)
 watch(activeWbsTab, (v) => {
   if (v === 'network') loadDependenciesFromStorage()
 })
@@ -254,7 +245,7 @@ function setNodeDependencies(nodeId: string, predecessorIds: string[]) {
   debouncedSyncOnDepsChange()
 }
 
-/** 網路圖從節點 A 拖到節點 B 連線：B 的前置加入 A */
+/** 網路圖從節點 A 拖到節點 B 連線：B 的前置加入 A；連線後自動重排版面 */
 function onNetworkAddDependency(sourceNodeId: string, targetNodeId: string) {
   if (sourceNodeId === targetNodeId) return
   const current = taskDependencies.value[targetNodeId] ?? []
@@ -265,6 +256,7 @@ function onNetworkAddDependency(sourceNodeId: string, targetNodeId: string) {
   }
   saveDependenciesToStorage()
   debouncedSyncOnDepsChange()
+  nextTick(() => networkDiagramRef.value?.arrangeLayout?.())
 }
 
 /** 網路圖選取連線後按 Delete：從 target 前置移除 source 並寫入 localStorage */
@@ -470,8 +462,7 @@ async function moveNodeToFlatIndex(nodeId: string, insertBeforeIndex: number) {
   if (insertBeforeIndex === 0 && flat[0]?.node.isProjectRoot) {
     const rootId = flat[0].node.id
     const nextRow = flat[1]
-    const insertBeforeId =
-      nextRow?.parentId === rootId ? nextRow.node.id : undefined
+    const insertBeforeId = nextRow?.parentId === rootId ? nextRow.node.id : undefined
     try {
       const tree = await moveWbsNode(projectId.value, nodeId, {
         parentId: rootId,
@@ -616,7 +607,11 @@ async function loadProjectResources() {
 }
 
 const createEndDate = computed(() => {
-  if (!createStartDate.value || createDurationDays.value === '' || Number(createDurationDays.value) < 1)
+  if (
+    !createStartDate.value ||
+    createDurationDays.value === '' ||
+    Number(createDurationDays.value) < 1
+  )
     return ''
   return wbsEndDateInclusive(createStartDate.value, Number(createDurationDays.value))
 })
@@ -687,9 +682,7 @@ function beginWbsInlineEdit(node: WbsNode, field: WbsInlineField) {
   wbsInlineDuration.value = node.durationDays ?? ''
   const key = `${node.id}-${field}`
   nextTick(() => {
-    const el = document.querySelector(`[data-wbs-inline="${key}"]`) as
-      | HTMLInputElement
-      | null
+    const el = document.querySelector(`[data-wbs-inline="${key}"]`) as HTMLInputElement | null
     el?.focus()
     if (field === 'name' && el) el.select()
   })
@@ -886,7 +879,8 @@ watch(projectId, async (id) => {
     <div>
       <h1 class="text-xl font-semibold tracking-tight text-foreground">WBS清單</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        工作分解結構，支援多層樹狀展開／收合、拖移排序。項目名稱欄顯示「編號 ＋ 項目名稱」。拖曳左側把手可調整群組順序。
+        工作分解結構，支援多層樹狀展開／收合、拖移排序。項目名稱欄顯示「編號 ＋
+        項目名稱」。拖曳左側把手可調整群組順序。
       </p>
     </div>
 
@@ -919,18 +913,14 @@ watch(projectId, async (id) => {
             依階層深度設定父層項目的背景色，僅套用於有子節點的列。
           </p>
           <div class="grid gap-4 py-2">
-            <div
-              v-for="d in maxDepth + 1"
-              :key="d - 1"
-              class="flex items-center gap-3"
-            >
+            <div v-for="d in maxDepth + 1" :key="d - 1" class="flex items-center gap-3">
               <Label class="w-24 shrink-0 text-foreground">第 {{ d }} 層</Label>
               <div class="flex items-center gap-2 flex-1">
                 <input
                   :value="levelColors[d - 1]"
                   type="color"
                   class="h-9 w-14 cursor-pointer rounded border border-border bg-background"
-                  @input="setLevelColor(d - 1, (($event.target as HTMLInputElement).value))"
+                  @input="setLevelColor(d - 1, ($event.target as HTMLInputElement).value)"
                 />
                 <span class="text-sm text-muted-foreground">
                   {{ levelColors[d - 1] || '未設定' }}
@@ -964,326 +954,334 @@ watch(projectId, async (id) => {
         </TabsTrigger>
       </TabsList>
       <TabsContent value="list" class="mt-4">
-    <p class="mb-3 text-xs text-muted-foreground max-w-3xl">
-      <strong class="text-foreground">點欄位可內嵌編輯</strong>（類試算表）：可改<strong class="text-foreground">名稱</strong>（專案根除外）；<strong class="text-foreground">開始／工期</strong>僅<strong class="text-foreground">葉節點</strong>；<strong class="text-foreground">結束</strong>由系統推算；<strong class="text-foreground">資源</strong>點欄位開啟編輯視窗。父層開始／工期／結束為子項彙總。
-    </p>
-    <!-- 樹狀表格 -->
-    <div class="rounded-lg border border-border bg-card p-4">
-      <div
-        v-if="loading"
-        class="flex items-center justify-center gap-2 py-12 text-muted-foreground"
-      >
-        <Loader2 class="size-5 animate-spin" />
-        載入中…
-      </div>
-      <p v-else-if="listError" class="py-4 text-center text-sm text-destructive">
-        {{ listError }}
-      </p>
-      <Table v-else>
-        <TableHeader>
-          <TableRow>
-            <TableHead class="w-8 px-1" aria-label="拖移" />
-            <TableHead class="w-10 px-2">
-              <Checkbox
-                :checked="
-                  isHeaderIndeterminate ? 'indeterminate' : isHeaderChecked
-                "
-                aria-label="全選"
-                @update:checked="toggleHeaderSelect"
-              />
-            </TableHead>
-            <TableHead class="text-muted-foreground w-16 text-center">工作包</TableHead>
-            <TableHead>項目名稱</TableHead>
-            <TableHead class="whitespace-nowrap text-muted-foreground">開始</TableHead>
-            <TableHead class="whitespace-nowrap text-muted-foreground">工期(天)</TableHead>
-            <TableHead class="whitespace-nowrap text-muted-foreground">結束</TableHead>
-            <TableHead class="text-muted-foreground min-w-[100px]">前置</TableHead>
-            <TableHead class="text-muted-foreground min-w-[120px]">資源</TableHead>
-            <TableHead class="w-12 px-1" aria-label="操作" />
-          </TableRow>
-        </TableHeader>
-        <TableBody ref="tableBodyRef">
-          <template v-if="flattenedList.length === 0">
-            <TableRow>
-              <TableCell colspan="10" class="text-center text-muted-foreground py-8">
-                尚無 WBS 項目
-              </TableCell>
-            </TableRow>
-          </template>
-          <template v-for="(item, flatIndex) in flattenedList" :key="item.node.id">
-            <!-- 插入線：拖曳時顯示在目標索引上方 -->
-            <tr
-              v-if="dropInsertBeforeIndex === flatIndex"
-              class="pointer-events-none"
-              aria-hidden="true"
-            >
-              <td colspan="10" class="h-0 p-0 align-top">
-                <div
-                  class="mx-2 rounded-full bg-primary/90 h-0.5 min-h-[2px] shadow-sm"
-                  style="margin-top: -1px"
-                />
-              </td>
-            </tr>
-            <TableRow
-              :data-flat-index="flatIndex"
-              class="group transition-colors"
-              :class="{
-                'opacity-40': draggingItem?.node.id === item.node.id,
-              }"
-            >
-              <TableCell class="w-8 p-1 align-middle">
-                <div
-                  v-if="!item.node.isProjectRoot"
-                  role="button"
-                  tabindex="0"
-                  class="flex cursor-grab touch-none items-center justify-center rounded p-1 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
-                  aria-label="拖移排序"
-                  @pointerdown="onDragHandlePointerDown($event, item)"
-                  @keydown.enter.prevent=""
-                  @keydown.space.prevent=""
-                >
-                  <GripVertical class="size-4" />
-                </div>
-                <span v-else class="block size-8" aria-hidden="true" />
-              </TableCell>
-              <TableCell class="w-10">
-              <Checkbox
-                v-if="!item.node.isProjectRoot"
-                :checked="
-                  isRowIndeterminate(item.node)
-                    ? 'indeterminate'
-                    : isRowChecked(item.node)
-                "
-                :aria-label="`勾選 ${item.node.name}`"
-                @update:checked="toggleSelect(item.node)"
-              />
-              <span v-else class="block w-10" aria-hidden="true" />
-            </TableCell>
-            <TableCell class="w-16 text-center">
-              <Checkbox
-                :disabled="item.hasChildren"
-                :checked="workPackageIds.includes(item.node.id)"
-                :aria-label="`設為工作包：${item.node.name}`"
-                :title="item.hasChildren ? '僅葉節點可設為工作包' : undefined"
-                @update:checked="
-                  (v) => {
-                    if (v === true || v === false) setWorkPackageChecked(item.node, v)
-                  }
-                "
-              />
-            </TableCell>
-            <TableCell
-              class="text-foreground p-1 align-middle"
-              :style="getParentLevelStyle(item)"
-            >
-              <div
-                class="flex min-w-0 items-center gap-1"
-                :style="{ paddingLeft: `${item.depth * 20}px` }"
-              >
-                <Button
-                  v-if="item.hasChildren"
-                  variant="ghost"
-                  size="icon"
-                  class="size-6 shrink-0 rounded"
-                  @click.stop="toggleExpand(item.node.id)"
-                >
-                  <ChevronDown
-                    v-if="expandedIds.has(item.node.id)"
-                    class="size-4 text-muted-foreground"
+        <p class="mb-3 text-xs text-muted-foreground max-w-3xl">
+          <strong class="text-foreground">點欄位可內嵌編輯</strong>（類試算表）：可改<strong
+            class="text-foreground"
+            >名稱</strong
+          >（專案根除外）；<strong class="text-foreground">開始／工期</strong>僅<strong
+            class="text-foreground"
+            >葉節點</strong
+          >；<strong class="text-foreground">結束</strong>由系統推算；<strong
+            class="text-foreground"
+            >資源</strong
+          >點欄位開啟編輯視窗。父層開始／工期／結束為子項彙總。
+        </p>
+        <!-- 樹狀表格 -->
+        <div class="rounded-lg border border-border bg-card p-4">
+          <div
+            v-if="loading"
+            class="flex items-center justify-center gap-2 py-12 text-muted-foreground"
+          >
+            <Loader2 class="size-5 animate-spin" />
+            載入中…
+          </div>
+          <p v-else-if="listError" class="py-4 text-center text-sm text-destructive">
+            {{ listError }}
+          </p>
+          <Table v-else>
+            <TableHeader>
+              <TableRow>
+                <TableHead class="w-8 px-1" aria-label="拖移" />
+                <TableHead class="w-10 px-2">
+                  <Checkbox
+                    :checked="isHeaderIndeterminate ? 'indeterminate' : isHeaderChecked"
+                    aria-label="全選"
+                    @update:checked="toggleHeaderSelect"
                   />
-                  <ChevronRight
-                    v-else
-                    class="size-4 text-muted-foreground"
-                  />
-                </Button>
-                <span v-else class="size-6 shrink-0" aria-hidden="true" />
-                <template v-if="item.node.isProjectRoot">
-                  <span class="truncate font-semibold text-primary">
-                    〔專案〕{{ item.node.name }}
-                  </span>
-                </template>
-                <template v-else-if="isWbsInlineEditing(item.node.id, 'name')">
-                  <span
-                    class="shrink-0 tabular-nums text-xs text-muted-foreground"
-                    >{{ item.node.code }}</span
-                  >
-                  <Input
-                    :data-wbs-inline="`${item.node.id}-name`"
-                    v-model="wbsInlineName"
-                    class="h-8 min-w-0 flex-1 text-sm"
-                    placeholder="名稱"
-                    @keydown.enter.prevent="commitWbsInlineEdit"
-                    @keydown.escape.prevent="cancelWbsInlineEdit"
-                    @blur="commitWbsInlineEdit"
-                  />
-                </template>
-                <div
-                  v-else
-                  class="hover:bg-muted/50 -mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5"
-                  title="點擊編輯名稱"
-                  @click.stop="beginWbsInlineEdit(item.node, 'name')"
+                </TableHead>
+                <TableHead class="text-muted-foreground w-16 text-center">任務</TableHead>
+                <TableHead>項目名稱</TableHead>
+                <TableHead class="whitespace-nowrap text-muted-foreground">開始</TableHead>
+                <TableHead class="whitespace-nowrap text-muted-foreground">工期(天)</TableHead>
+                <TableHead class="whitespace-nowrap text-muted-foreground">結束</TableHead>
+                <TableHead class="text-muted-foreground min-w-[100px]">前置</TableHead>
+                <TableHead class="text-muted-foreground min-w-[120px]">資源</TableHead>
+                <TableHead class="w-12 px-1" aria-label="操作" />
+              </TableRow>
+            </TableHeader>
+            <TableBody ref="tableBodyRef">
+              <template v-if="flattenedList.length === 0">
+                <TableRow>
+                  <TableCell colspan="10" class="text-center text-muted-foreground py-8">
+                    尚無 WBS 項目
+                  </TableCell>
+                </TableRow>
+              </template>
+              <template v-for="(item, flatIndex) in flattenedList" :key="item.node.id">
+                <!-- 插入線：拖曳時顯示在目標索引上方 -->
+                <tr
+                  v-if="dropInsertBeforeIndex === flatIndex"
+                  class="pointer-events-none"
+                  aria-hidden="true"
                 >
-                  <span class="shrink-0 tabular-nums text-xs text-muted-foreground">{{
-                    item.node.code
-                  }}</span>
-                  <span
-                    class="min-w-0 truncate text-sm"
-                    :class="{ 'font-semibold': item.hasChildren }"
-                    >{{ item.node.name }}</span
-                  >
-                </div>
-              </div>
-            </TableCell>
-            <TableCell
-              class="p-1 align-middle whitespace-nowrap text-sm"
-              :class="
-                canWbsInlineEditSchedule(item.node)
-                  ? 'cursor-pointer text-foreground'
-                  : 'text-muted-foreground'
-              "
-            >
-              <template v-if="item.hasChildren">
-                {{ rollupWbsSchedule(item.node).startDate ?? '—' }}
-                <span class="ml-0.5 text-[10px] text-muted-foreground/80">彙總</span>
-              </template>
-              <template v-else-if="isWbsInlineEditing(item.node.id, 'startDate')">
-                <Input
-                  :data-wbs-inline="`${item.node.id}-startDate`"
-                  v-model="wbsInlineStart"
-                  type="date"
-                  class="h-8 w-[9.5rem] text-xs"
-                  @keydown.enter.prevent="commitWbsInlineEdit"
-                  @keydown.escape.prevent="cancelWbsInlineEdit"
-                  @blur="commitWbsInlineEdit"
-                />
-              </template>
-              <div
-                v-else-if="canWbsInlineEditSchedule(item.node)"
-                class="hover:bg-muted/50 rounded px-1 py-1 tabular-nums"
-                title="點擊編輯開始日"
-                @click.stop="beginWbsInlineEdit(item.node, 'startDate')"
-              >
-                {{ item.node.startDate ?? '—' }}
-              </div>
-              <template v-else>{{ item.node.startDate ?? '—' }}</template>
-            </TableCell>
-            <TableCell
-              class="p-1 align-middle whitespace-nowrap text-sm tabular-nums"
-              :class="
-                canWbsInlineEditSchedule(item.node)
-                  ? 'cursor-pointer text-foreground'
-                  : 'text-muted-foreground'
-              "
-            >
-              <template v-if="item.hasChildren">
-                {{ rollupWbsSchedule(item.node).durationDays ?? '—' }}
-                <span class="ml-0.5 text-[10px] text-muted-foreground/80">彙總</span>
-              </template>
-              <template v-else-if="isWbsInlineEditing(item.node.id, 'durationDays')">
-                <Input
-                  :data-wbs-inline="`${item.node.id}-durationDays`"
-                  v-model.number="wbsInlineDuration"
-                  type="number"
-                  min="1"
-                  class="h-8 w-16 text-right text-xs"
-                  @keydown.enter.prevent="commitWbsInlineEdit"
-                  @keydown.escape.prevent="cancelWbsInlineEdit"
-                  @blur="commitWbsInlineEdit"
-                />
-              </template>
-              <div
-                v-else-if="canWbsInlineEditSchedule(item.node)"
-                class="hover:bg-muted/50 rounded px-1 py-1"
-                title="點擊編輯工期（天）"
-                @click.stop="beginWbsInlineEdit(item.node, 'durationDays')"
-              >
-                {{ item.node.durationDays != null ? item.node.durationDays : '—' }}
-              </div>
-              <template v-else>{{
-                item.node.durationDays != null ? item.node.durationDays : '—'
-              }}</template>
-            </TableCell>
-            <TableCell class="whitespace-nowrap text-muted-foreground text-sm">
-              {{
-                (item.hasChildren
-                  ? rollupWbsSchedule(item.node).endDate
-                  : item.node.endDate) ?? '—'
-              }}
-              <span v-if="item.hasChildren" class="ml-0.5 text-[10px] text-muted-foreground/80"
-                >彙總</span
-              >
-            </TableCell>
-            <TableCell class="min-w-[100px] p-1 align-middle">
-              <GanttPredecessorCell
-                v-if="isWbsLeaf(item.node)"
-                :task="wbsAsGanttTasks[flatIndex]"
-                :all-tasks="wbsAllLeavesAsGanttTasks"
-                :lookup-tasks="wbsAllNodesAsGanttTasks"
-                @update:dependencies="(ids) => setNodeDependencies(item.node.id, ids)"
-              />
-              <span
-                v-else
-                class="text-xs text-muted-foreground"
-                title="前置任務僅適用於葉節點"
-                >—</span
-              >
-            </TableCell>
-            <TableCell
-              class="max-w-[180px] truncate p-1 align-middle text-sm text-muted-foreground"
-              :class="
-                isWbsLeaf(item.node) && !item.node.isProjectRoot
-                  ? 'hover:bg-muted/50 cursor-pointer'
-                  : ''
-              "
-              :title="
-                isWbsLeaf(item.node) && !item.node.isProjectRoot ? '點擊編輯資源' : undefined
-              "
-              @click.stop="onWbsResourceCellClick(item.node)"
-            >
-              <template v-if="item.hasChildren">
-                {{ rollupResourceLabels(item.node) || '—' }}
-                <span class="text-[10px] text-muted-foreground/80">（子項）</span>
-              </template>
-              <template v-else>
-                {{ item.node.resources?.length ? item.node.resources.map((r) => r.name).join('、') : '—' }}
-              </template>
-            </TableCell>
-            <TableCell class="w-12 p-1">
-              <DropdownMenu>
-                <DropdownMenuTrigger as-child>
-                  <Button variant="ghost" size="icon" class="size-8" aria-label="操作">
-                    <MoreHorizontal class="size-4" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem @click="openCreateChild(item.node)">
-                    <Plus class="size-4" />
-                    新增子節點
-                  </DropdownMenuItem>
-                  <template v-if="!item.node.isProjectRoot">
-                    <DropdownMenuItem @click="openEdit(item.node)">
-                      <Pencil class="size-4" />
-                      編輯
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      class="text-destructive focus:text-destructive"
-                      @click="openDelete(item.node)"
+                  <td colspan="10" class="h-0 p-0 align-top">
+                    <div
+                      class="mx-2 rounded-full bg-primary/90 h-0.5 min-h-[2px] shadow-sm"
+                      style="margin-top: -1px"
+                    />
+                  </td>
+                </tr>
+                <TableRow
+                  :data-flat-index="flatIndex"
+                  class="group transition-colors"
+                  :class="{
+                    'opacity-40': draggingItem?.node.id === item.node.id,
+                  }"
+                >
+                  <TableCell class="w-8 p-1 align-middle">
+                    <div
+                      v-if="!item.node.isProjectRoot"
+                      role="button"
+                      tabindex="0"
+                      class="flex cursor-grab touch-none items-center justify-center rounded p-1 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
+                      aria-label="拖移排序"
+                      @pointerdown="onDragHandlePointerDown($event, item)"
+                      @keydown.enter.prevent=""
+                      @keydown.space.prevent=""
                     >
-                      <Trash2 class="size-4" />
-                      刪除
-                    </DropdownMenuItem>
-                  </template>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </TableCell>
-          </TableRow>
-          </template>
-        </TableBody>
-      </Table>
-    </div>
+                      <GripVertical class="size-4" />
+                    </div>
+                    <span v-else class="block size-8" aria-hidden="true" />
+                  </TableCell>
+                  <TableCell class="w-10">
+                    <Checkbox
+                      v-if="!item.node.isProjectRoot"
+                      :checked="
+                        isRowIndeterminate(item.node) ? 'indeterminate' : isRowChecked(item.node)
+                      "
+                      :aria-label="`勾選 ${item.node.name}`"
+                      @update:checked="toggleSelect(item.node)"
+                    />
+                    <span v-else class="block w-10" aria-hidden="true" />
+                  </TableCell>
+                  <TableCell class="w-16 text-center">
+                    <Checkbox
+                      :disabled="item.hasChildren"
+                      :checked="workPackageIds.includes(item.node.id)"
+                      :aria-label="`設為任務：${item.node.name}`"
+                      :title="item.hasChildren ? '僅葉節點可設為任務' : undefined"
+                      @update:checked="
+                        (v) => {
+                          if (v === true || v === false) setWorkPackageChecked(item.node, v)
+                        }
+                      "
+                    />
+                  </TableCell>
+                  <TableCell
+                    class="text-foreground p-1 align-middle"
+                    :style="getParentLevelStyle(item)"
+                  >
+                    <div
+                      class="flex min-w-0 items-center gap-1"
+                      :style="{ paddingLeft: `${item.depth * 20}px` }"
+                    >
+                      <Button
+                        v-if="item.hasChildren"
+                        variant="ghost"
+                        size="icon"
+                        class="size-6 shrink-0 rounded"
+                        @click.stop="toggleExpand(item.node.id)"
+                      >
+                        <ChevronDown
+                          v-if="expandedIds.has(item.node.id)"
+                          class="size-4 text-muted-foreground"
+                        />
+                        <ChevronRight v-else class="size-4 text-muted-foreground" />
+                      </Button>
+                      <span v-else class="size-6 shrink-0" aria-hidden="true" />
+                      <template v-if="item.node.isProjectRoot">
+                        <span class="truncate font-semibold text-primary">
+                          〔專案〕{{ item.node.name }}
+                        </span>
+                      </template>
+                      <template v-else-if="isWbsInlineEditing(item.node.id, 'name')">
+                        <span class="shrink-0 tabular-nums text-xs text-muted-foreground">{{
+                          item.node.code
+                        }}</span>
+                        <Input
+                          :data-wbs-inline="`${item.node.id}-name`"
+                          v-model="wbsInlineName"
+                          class="h-8 min-w-0 flex-1 text-sm"
+                          placeholder="名稱"
+                          @keydown.enter.prevent="commitWbsInlineEdit"
+                          @keydown.escape.prevent="cancelWbsInlineEdit"
+                          @blur="commitWbsInlineEdit"
+                        />
+                      </template>
+                      <div
+                        v-else
+                        class="hover:bg-muted/50 -mx-1 flex min-w-0 flex-1 cursor-pointer items-center gap-1.5 rounded px-1 py-0.5"
+                        title="點擊編輯名稱"
+                        @click.stop="beginWbsInlineEdit(item.node, 'name')"
+                      >
+                        <span class="shrink-0 tabular-nums text-xs text-muted-foreground">{{
+                          item.node.code
+                        }}</span>
+                        <span
+                          class="min-w-0 truncate text-sm"
+                          :class="{ 'font-semibold': item.hasChildren }"
+                          >{{ item.node.name }}</span
+                        >
+                      </div>
+                    </div>
+                  </TableCell>
+                  <TableCell
+                    class="p-1 align-middle whitespace-nowrap text-sm"
+                    :class="
+                      canWbsInlineEditSchedule(item.node)
+                        ? 'cursor-pointer text-foreground'
+                        : 'text-muted-foreground'
+                    "
+                  >
+                    <template v-if="item.hasChildren">
+                      {{ rollupWbsSchedule(item.node).startDate ?? '—' }}
+                      <span class="ml-0.5 text-[10px] text-muted-foreground/80">彙總</span>
+                    </template>
+                    <template v-else-if="isWbsInlineEditing(item.node.id, 'startDate')">
+                      <Input
+                        :data-wbs-inline="`${item.node.id}-startDate`"
+                        v-model="wbsInlineStart"
+                        type="date"
+                        class="h-8 w-[9.5rem] text-xs"
+                        @keydown.enter.prevent="commitWbsInlineEdit"
+                        @keydown.escape.prevent="cancelWbsInlineEdit"
+                        @blur="commitWbsInlineEdit"
+                      />
+                    </template>
+                    <div
+                      v-else-if="canWbsInlineEditSchedule(item.node)"
+                      class="hover:bg-muted/50 rounded px-1 py-1 tabular-nums"
+                      title="點擊編輯開始日"
+                      @click.stop="beginWbsInlineEdit(item.node, 'startDate')"
+                    >
+                      {{ item.node.startDate ?? '—' }}
+                    </div>
+                    <template v-else>{{ item.node.startDate ?? '—' }}</template>
+                  </TableCell>
+                  <TableCell
+                    class="p-1 align-middle whitespace-nowrap text-sm tabular-nums"
+                    :class="
+                      canWbsInlineEditSchedule(item.node)
+                        ? 'cursor-pointer text-foreground'
+                        : 'text-muted-foreground'
+                    "
+                  >
+                    <template v-if="item.hasChildren">
+                      {{ rollupWbsSchedule(item.node).durationDays ?? '—' }}
+                      <span class="ml-0.5 text-[10px] text-muted-foreground/80">彙總</span>
+                    </template>
+                    <template v-else-if="isWbsInlineEditing(item.node.id, 'durationDays')">
+                      <Input
+                        :data-wbs-inline="`${item.node.id}-durationDays`"
+                        v-model.number="wbsInlineDuration"
+                        type="number"
+                        min="1"
+                        class="h-8 w-16 text-right text-xs"
+                        @keydown.enter.prevent="commitWbsInlineEdit"
+                        @keydown.escape.prevent="cancelWbsInlineEdit"
+                        @blur="commitWbsInlineEdit"
+                      />
+                    </template>
+                    <div
+                      v-else-if="canWbsInlineEditSchedule(item.node)"
+                      class="hover:bg-muted/50 rounded px-1 py-1"
+                      title="點擊編輯工期（天）"
+                      @click.stop="beginWbsInlineEdit(item.node, 'durationDays')"
+                    >
+                      {{ item.node.durationDays != null ? item.node.durationDays : '—' }}
+                    </div>
+                    <template v-else>{{
+                      item.node.durationDays != null ? item.node.durationDays : '—'
+                    }}</template>
+                  </TableCell>
+                  <TableCell class="whitespace-nowrap text-muted-foreground text-sm">
+                    {{
+                      (item.hasChildren
+                        ? rollupWbsSchedule(item.node).endDate
+                        : item.node.endDate) ?? '—'
+                    }}
+                    <span
+                      v-if="item.hasChildren"
+                      class="ml-0.5 text-[10px] text-muted-foreground/80"
+                      >彙總</span
+                    >
+                  </TableCell>
+                  <TableCell class="min-w-[100px] p-1 align-middle">
+                    <GanttPredecessorCell
+                      v-if="isWbsLeaf(item.node)"
+                      :task="wbsAsGanttTasks[flatIndex]"
+                      :all-tasks="wbsAllLeavesAsGanttTasks"
+                      :lookup-tasks="wbsAllNodesAsGanttTasks"
+                      @update:dependencies="(ids) => setNodeDependencies(item.node.id, ids)"
+                    />
+                    <span
+                      v-else
+                      class="text-xs text-muted-foreground"
+                      title="前置任務僅適用於葉節點"
+                      >—</span
+                    >
+                  </TableCell>
+                  <TableCell
+                    class="max-w-[180px] truncate p-1 align-middle text-sm text-muted-foreground"
+                    :class="
+                      isWbsLeaf(item.node) && !item.node.isProjectRoot
+                        ? 'hover:bg-muted/50 cursor-pointer'
+                        : ''
+                    "
+                    :title="
+                      isWbsLeaf(item.node) && !item.node.isProjectRoot ? '點擊編輯資源' : undefined
+                    "
+                    @click.stop="onWbsResourceCellClick(item.node)"
+                  >
+                    <template v-if="item.hasChildren">
+                      {{ rollupResourceLabels(item.node) || '—' }}
+                      <span class="text-[10px] text-muted-foreground/80">（子項）</span>
+                    </template>
+                    <template v-else>
+                      {{
+                        item.node.resources?.length
+                          ? item.node.resources.map((r) => r.name).join('、')
+                          : '—'
+                      }}
+                    </template>
+                  </TableCell>
+                  <TableCell class="w-12 p-1">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger as-child>
+                        <Button variant="ghost" size="icon" class="size-8" aria-label="操作">
+                          <MoreHorizontal class="size-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem @click="openCreateChild(item.node)">
+                          <Plus class="size-4" />
+                          新增子節點
+                        </DropdownMenuItem>
+                        <template v-if="!item.node.isProjectRoot">
+                          <DropdownMenuItem @click="openEdit(item.node)">
+                            <Pencil class="size-4" />
+                            編輯
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            class="text-destructive focus:text-destructive"
+                            @click="openDelete(item.node)"
+                          >
+                            <Trash2 class="size-4" />
+                            刪除
+                          </DropdownMenuItem>
+                        </template>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              </template>
+            </TableBody>
+          </Table>
+        </div>
       </TabsContent>
       <TabsContent value="network" class="mt-4">
         <WbsNetworkDiagram
+          ref="networkDiagramRef"
           :wbs-tree="wbsTree"
           :work-package-ids="workPackageIds"
           :task-dependencies="taskDependencies"
@@ -1329,7 +1327,9 @@ watch(projectId, async (id) => {
           </div>
           <div v-if="createEndDate" class="grid gap-2">
             <Label>結束日期</Label>
-            <span class="text-sm text-muted-foreground">{{ createEndDate }}（依開始+工期推算）</span>
+            <span class="text-sm text-muted-foreground"
+              >{{ createEndDate }}（依開始+工期推算）</span
+            >
           </div>
           <div class="grid gap-2">
             <Label>資源（多選）</Label>
@@ -1346,7 +1346,9 @@ watch(projectId, async (id) => {
                 <span>{{ res.name }}</span>
                 <span class="text-muted-foreground text-xs">({{ res.type }})</span>
               </label>
-              <p v-if="!projectResources.length" class="text-muted-foreground text-xs">尚無資源，請至資源庫新增。</p>
+              <p v-if="!projectResources.length" class="text-muted-foreground text-xs">
+                尚無資源，請至資源庫新增。
+              </p>
             </div>
           </div>
           <p v-if="createError" class="text-sm text-destructive">{{ createError }}</p>
@@ -1402,7 +1404,9 @@ watch(projectId, async (id) => {
             </div>
             <div v-if="editEndDate" class="grid gap-2">
               <Label>結束日期</Label>
-              <span class="text-sm text-muted-foreground">{{ editEndDate }}（依開始+工期推算）</span>
+              <span class="text-sm text-muted-foreground"
+                >{{ editEndDate }}（依開始+工期推算）</span
+              >
             </div>
             <div class="grid gap-2">
               <Label>資源（多選）</Label>
@@ -1419,11 +1423,16 @@ watch(projectId, async (id) => {
                   <span>{{ res.name }}</span>
                   <span class="text-muted-foreground text-xs">({{ res.type }})</span>
                 </label>
-                <p v-if="!projectResources.length" class="text-muted-foreground text-xs">尚無資源，請至資源庫新增。</p>
+                <p v-if="!projectResources.length" class="text-muted-foreground text-xs">
+                  尚無資源，請至資源庫新增。
+                </p>
               </div>
             </div>
           </template>
-          <div v-else class="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+          <div
+            v-else
+            class="rounded-md border border-border bg-muted/30 px-3 py-2 text-sm text-muted-foreground"
+          >
             開始／工期／結束／資源請在各<strong class="text-foreground">子節點</strong>編輯。
           </div>
           <p v-if="editError" class="text-sm text-destructive">{{ editError }}</p>
@@ -1444,7 +1453,8 @@ watch(projectId, async (id) => {
         <DialogHeader>
           <DialogTitle>刪除項目</DialogTitle>
           <DialogDescription>
-            確定要刪除「{{ deleteNode?.code }} {{ deleteNode?.name }}」嗎？若有子節點將一併刪除，此操作無法復原。
+            確定要刪除「{{ deleteNode?.code }}
+            {{ deleteNode?.name }}」嗎？若有子節點將一併刪除，此操作無法復原。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -1471,10 +1481,7 @@ watch(projectId, async (id) => {
         >
           <div class="flex items-center gap-2">
             <GripVertical class="size-4 shrink-0 text-muted-foreground" />
-            <span
-              class="truncate text-sm"
-              :class="{ 'font-semibold': draggingItem.hasChildren }"
-            >
+            <span class="truncate text-sm" :class="{ 'font-semibold': draggingItem.hasChildren }">
               {{ draggingItem.node.code }} {{ draggingItem.node.name }}
             </span>
           </div>
@@ -1487,7 +1494,9 @@ watch(projectId, async (id) => {
 <style scoped>
 .ghost-enter-active,
 .ghost-leave-active {
-  transition: opacity 0.12s ease, transform 0.12s ease;
+  transition:
+    opacity 0.12s ease,
+    transform 0.12s ease;
 }
 .ghost-enter-from,
 .ghost-leave-to {

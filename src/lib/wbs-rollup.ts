@@ -7,7 +7,7 @@ function parseYmd(s: string): number {
   return new Date(s + 'T12:00:00').getTime()
 }
 
-/** 是否為葉節點（無子項）；排程／前置／工作包僅適用於葉節點 */
+/** 是否為葉節點（無子項）；排程／前置／任務僅適用於葉節點 */
 export function isWbsLeaf(node: WbsNode): boolean {
   return !node.children?.length
 }
@@ -38,10 +38,7 @@ export function rollupWbsSchedule(node: WbsNode): WbsRollupSchedule {
     const end = leafEffectiveEnd(node)
     let dur = node.durationDays ?? null
     if (start && end) {
-      const span = Math.max(
-        1,
-        Math.ceil((parseYmd(end) - parseYmd(start)) / MS_PER_DAY) + 1
-      )
+      const span = Math.max(1, Math.ceil((parseYmd(end) - parseYmd(start)) / MS_PER_DAY) + 1)
       if (dur == null || dur < 1) dur = span
     }
     return { startDate: start, endDate: end, durationDays: dur }
@@ -57,10 +54,7 @@ export function rollupWbsSchedule(node: WbsNode): WbsRollupSchedule {
     ? ends.reduce((a, b) => (parseYmd(a) >= parseYmd(b) ? a : b))
     : minStart
   /** 包絡工期：最早開始～最晚結束之**含首尾**日數，非 Σ 子項 durationDays */
-  const dur = Math.max(
-    1,
-    Math.ceil((parseYmd(maxEnd) - parseYmd(minStart)) / MS_PER_DAY) + 1
-  )
+  const dur = Math.max(1, Math.ceil((parseYmd(maxEnd) - parseYmd(minStart)) / MS_PER_DAY) + 1)
   return { startDate: minStart, endDate: maxEnd, durationDays: dur }
 }
 

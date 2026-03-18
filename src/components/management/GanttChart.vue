@@ -28,6 +28,12 @@ import {
 } from '@/components/ui/select'
 import { Input } from '@/components/ui/input'
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import {
   ChevronRight,
   ChevronDown,
   GripVertical,
@@ -37,7 +43,6 @@ import {
   ChevronLeft,
   Flag,
   Pencil,
-  Link2,
   Check,
   X,
 } from 'lucide-vue-next'
@@ -319,6 +324,28 @@ function formatDateShort(iso: string): string {
   return `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`
 }
 
+/** 工具提示：3月18日星期三（對齊 MS Project 風格） */
+function formatDateLongZh(iso: string): string {
+  const d = new Date(iso)
+  const w = ['日', '一', '二', '三', '四', '五', '六'][d.getDay()] ?? ''
+  return `${d.getMonth() + 1}月${d.getDate()}日星期${w}`
+}
+
+function ganttBarTooltipLines(task: GanttTask): string[] {
+  const start = task.actualStart ?? task.plannedStart
+  const end = task.actualEnd ?? task.plannedEnd
+  const lines = [
+    task.isMilestone ? '里程碑' : '任務',
+    `任務：${task.name}`,
+    `開始：${formatDateLongZh(start)}`,
+    `完成：${formatDateLongZh(end)}`,
+  ]
+  if (!task.isMilestone) {
+    lines.push(`工期：${durationDays(task)}d`)
+  }
+  return lines
+}
+
 /** 表格內編輯：正在編輯的任務 id，非空時該列顯示輸入框 */
 const editingTaskId = ref<string | null>(null)
 const editPlannedStart = ref('')
@@ -440,36 +467,20 @@ function dependencyBarXRange(task: GanttTask): { L: number; R: number } {
   return { L, R }
 }
 
-/** 自 x 垂直貫穿兩列之間時是否會切過中間列任務條 */
-function dependencyVerticalHitsBar(
-  x: number,
-  list: GanttTask[],
-  fromIdx: number,
-  toIdx: number
-): boolean {
-  const lo = Math.min(fromIdx, toIdx)
-  const hi = Math.max(fromIdx, toIdx)
-  for (let k = lo + 1; k < hi; k++) {
-    const { L, R } = dependencyBarXRange(list[k])
-    if (x >= L - 0.5 && x <= R + 0.5) return true
-  }
-  return false
-}
-
 /**
- * 垂直通道 x：預設在前置右緣外，若會穿過中間列任務條則逐步右移（必要時左繞）
+ * 垂直通道 x：列 rowLo～rowHi 之間的垂直母線不可穿過中間列長條
  */
-function computeDependencyLaneX(
+function computeDependencyLaneXBetweenRows(
   list: GanttTask[],
-  fromIdx: number,
-  toIdx: number,
+  rowLo: number,
+  rowHi: number,
   fromEndX: number,
   chartW: number
 ): number {
-  const lo = Math.min(fromIdx, toIdx)
-  const hi = Math.max(fromIdx, toIdx)
+  const lo = Math.min(rowLo, rowHi)
+  const hi = Math.max(rowLo, rowHi)
   const base = fromEndX + 26
-  if (hi - lo <= 1) return base
+  if (hi - lo <= 1) return Math.max(base, fromEndX + 10)
 
   function blocked(lane: number): boolean {
     for (let k = lo + 1; k < hi; k++) {
@@ -491,58 +502,91 @@ function computeDependencyLaneX(
     lane = next
   }
 
-  let dodgeLeft = false
-  if (lane > chartW + 400) {
-    dodgeLeft = true
-    lane = Math.min(fromEndX - 20, base - 40)
-    for (let g = 0; g < 120 && blocked(lane); g++) {
-      let next = lane
-      for (let k = lo + 1; k < hi; k++) {
-        const { L, R } = dependencyBarXRange(list[k])
-        if (lane >= L - 0.5 && lane <= R + 0.5) {
-          next = Math.min(next, L - DEP_LANE_MARGIN)
-        }
-      }
-      lane = next
+  if (lane < fromEndX + 8) lane = fromEndX + 8
+  if (lane > chartW + 380) {
+    lane = Math.min(chartW - 12, fromEndX + 120)
+    for (let g = 0; g < 80 && blocked(lane); g++) {
+      lane = Math.min(lane + DEP_LANE_MARGIN, chartW + 240)
     }
-    lane = Math.max(12, lane)
   }
 
-  return dodgeLeft ? lane : Math.max(lane, fromEndX + 10)
+  return Math.max(lane, fromEndX + 10)
 }
 
-/** 近距：歐幾里得距離與列距閾值（近＝貝茲短路徑；遠＝正交繞行） */
-const DEP_NEAR_MAX_PX = 195
-const DEP_NEAR_ROW1_MAX_PX = 400
-const DEP_NEAR_ROW2_MAX_PX = 265
-const DEP_FAR_MIN_PX = 320
-const DEP_FAR_MIN_ROWS = 4
-
-function shouldUseShortDependencyPath(
-  fromX: number,
-  fromY: number,
-  tipX: number,
-  toY: number,
+function computeDependencyLaneX(
+  list: GanttTask[],
   fromIdx: number,
-  toIdx: number
-): boolean {
-  const dx = tipX - fromX
-  const dy = toY - fromY
-  const eu = Math.hypot(dx, dy)
-  const rowGap = Math.abs(toIdx - fromIdx)
+  toIdx: number,
+  fromEndX: number,
+  chartW: number
+): number {
+  return computeDependencyLaneXBetweenRows(list, fromIdx, toIdx, fromEndX, chartW)
+}
 
-  if (rowGap >= DEP_FAR_MIN_ROWS || eu >= DEP_FAR_MIN_PX * 1.15) return false
-  if (rowGap >= 3 && eu > 170) return false
-  if (eu < DEP_NEAR_MAX_PX) return true
-  if (rowGap <= 1 && eu < DEP_NEAR_ROW1_MAX_PX) return true
-  if (rowGap === 2 && eu < DEP_NEAR_ROW2_MAX_PX) return true
-  return false
+/** 後續開始日是否為前置「結束日（含）」的日曆隔天 → 依賴線改為沿前置右緣垂直落下 */
+function isSuccessorStartNextCalendarDayAfterPredecessorEnd(
+  predPlannedEnd: string,
+  succPlannedStart: string
+): boolean {
+  const endKey = predPlannedEnd.slice(0, 10)
+  const startKey = succPlannedStart.slice(0, 10)
+  return startKey === addCalendarDays(endKey, 1)
+}
+
+/** 僅在「線在任務尾端右外」時繞路，且繞任務條上方；其餘一律水平＋垂直直接接頭，不繞。 */
+const DETOUR_ABOVE_PX = 16
+
+/**
+ * 接進後續任務「頭」：
+ * - 平常不繞：垂直下來後直接水平接到頭（L headX rowY）。
+ * - 僅當線在任務「尾端右外」時才繞，且繞任務條上方。
+ */
+function pathFinishIntoTaskHead(
+  fromXAtRow: number,
+  rowY: number,
+  succBarLeftX: number,
+  succBarRightX: number
+): string {
+  const headX = succBarLeftX + 5
+  const stubLeft = succBarLeftX - 14
+  const xTailOut = succBarRightX + 4
+  const yAbove = rowY - DETOUR_ABOVE_PX
+
+  if (fromXAtRow > xTailOut - 0.5) {
+    return (
+      `L ${xTailOut} ${rowY} L ${xTailOut} ${yAbove} L ${stubLeft} ${yAbove} L ${stubLeft} ${rowY} L ${headX} ${rowY}`
+    )
+  }
+  if (fromXAtRow <= stubLeft) {
+    return `L ${stubLeft} ${rowY} L ${headX} ${rowY}`
+  }
+  return `L ${headX} ${rowY}`
+}
+
+function pathSameRowIntoTaskHead(
+  fromX: number,
+  y: number,
+  succBarLeftX: number,
+  succBarRightX: number
+): string {
+  const headX = succBarLeftX + 5
+  const stubLeft = succBarLeftX - 14
+  const xTailOut = succBarRightX + 4
+  const yAbove = y - DETOUR_ABOVE_PX
+
+  if (fromX > xTailOut - 0.5) {
+    return `M ${fromX} ${y} L ${xTailOut} ${y} L ${xTailOut} ${yAbove} L ${stubLeft} ${yAbove} L ${stubLeft} ${y} L ${headX} ${y}`
+  }
+  if (fromX <= stubLeft) {
+    return `M ${fromX} ${y} L ${stubLeft} ${y} L ${headX} ${y}`
+  }
+  return `M ${fromX} ${y} L ${headX} ${y}`
 }
 
 /**
  * FS 依賴線：
- * - 近距：單段貝茲（類黃線最短視感），箭頭仍水平指進任務頭
- * - 遠距／多列：先垂直（沿前置右緣 x）到後續列再橫向進頭；若垂直會穿條則短橫進通道再垂直到列再橫
+ * - 未來時間（toX >= fromX）：水平走到「要接的任務的開始時間」再往下，垂直在任務左側，線從左邊來。
+ * - 過去時間（toX < fromX）：用右側通道 legX 垂直到列，再接頭（必要時繞上方）。
  */
 function buildDependencyPathD(
   fromX: number,
@@ -550,92 +594,181 @@ function buildDependencyPathD(
   toX: number,
   toY: number,
   laneX: number,
-  fromIdx?: number,
-  toIdx?: number,
-  list?: GanttTask[]
+  succBarRightX: number,
+  straightVerticalNextDay?: boolean
 ): string {
   const dy = toY - fromY
   const ady = Math.abs(dy)
-  const rr = Math.min(14, Math.max(5, ady / 4))
-  const tipX = Math.max(4, toX - 3)
-  let preX = tipX - 12
-  if (preX >= tipX) preX = tipX - 8
-  preX = Math.max(2, preX)
 
   if (ady < 3) {
-    return `M ${fromX} ${fromY} L ${preX} ${fromY} L ${tipX} ${fromY}`
+    return pathSameRowIntoTaskHead(fromX, fromY, toX, succBarRightX)
   }
 
-  const idxOk = fromIdx != null && toIdx != null
-  if (
-    idxOk &&
-    shouldUseShortDependencyPath(fromX, fromY, tipX, toY, fromIdx!, toIdx!)
-  ) {
-    const dx = tipX - fromX
-    const eu = Math.hypot(dx, dy)
-    const c1x = fromX + dx * 0.34
-    const c1y = fromY + dy * 0.2
-    const pull = Math.min(36, Math.max(10, eu * 0.14))
-    const c2x = tipX - pull
-    const c2y = toY
-    return `M ${fromX} ${fromY} C ${c1x} ${c1y} ${c2x} ${c2y} ${tipX} ${toY}`
+  if (straightVerticalNextDay) {
+    return (
+      `M ${fromX} ${fromY} L ${fromX} ${toY}` + pathFinishIntoTaskHead(fromX, toY, toX, succBarRightX)
+    )
   }
 
-  const down = dy > 0
-  const vyTurn = down ? fromY + rr : fromY - rr
-  const parts: string[] = [`M ${fromX} ${fromY}`]
-
-  const hitsBar =
-    list &&
-    fromIdx != null &&
-    toIdx != null &&
-    dependencyVerticalHitsBar(fromX, list, fromIdx, toIdx)
-
-  if (!hitsBar) {
-    parts.push(`L ${fromX} ${toY}`)
-  } else {
-    if (laneX >= fromX) {
-      parts.push(`L ${Math.max(fromX, laneX - rr)} ${fromY}`)
-      parts.push(`Q ${laneX} ${fromY} ${laneX} ${vyTurn}`)
-    } else {
-      parts.push(`L ${Math.min(fromX, laneX + rr)} ${fromY}`)
-      parts.push(`Q ${laneX} ${fromY} ${laneX} ${vyTurn}`)
-    }
-    parts.push(`L ${laneX} ${toY}`)
+  const isFuture = toX >= fromX
+  if (isFuture) {
+    return (
+      `M ${fromX} ${fromY} L ${toX} ${fromY} L ${toX} ${toY}` +
+      pathFinishIntoTaskHead(toX, toY, toX, succBarRightX)
+    )
   }
 
-  const hx = hitsBar ? laneX : fromX
-  if (Math.abs(hx - preX) > 0.01) {
-    parts.push(`L ${preX} ${toY}`)
-  }
-  if (Math.abs(preX - tipX) > 0.01) {
-    parts.push(`L ${tipX} ${toY}`)
-  }
-
-  return parts.join(' ')
+  const legX = Math.max(laneX, fromX + 8)
+  return (
+    `M ${fromX} ${fromY} L ${legX} ${fromY} L ${legX} ${toY}` +
+    pathFinishIntoTaskHead(legX, toY, toX, succBarRightX)
+  )
 }
 
-const dependencyPaths = computed(() => {
+/** 單條依賴 path；arrow=false 為共用主幹（無箭頭） */
+type DependencyPathSeg = { pathD: string; arrow: boolean; key: string }
+
+const dependencyPaths = computed((): DependencyPathSeg[] => {
   const list = displayedTasks.value
   const cw = chartWidthVal.value
-  const paths: { fromX: number; fromY: number; toX: number; toY: number; pathD: string }[] = []
   const taskIndex = new Map(list.map((t, i) => [t.id, i]))
+
+  type SuccEdge = {
+    toTask: GanttTask
+    toIdx: number
+    toStart: number
+    toY: number
+    succRight: number
+    nextDay: boolean
+  }
+  const byPred = new Map<string, SuccEdge[]>()
+
   for (const task of list) {
-    const toIdx = taskIndex.get(task.id) ?? 0
-    const toStart = toPx(parseDate(task.plannedStart))
-    const toY = toIdx * ROW_HEIGHT + ROW_HEIGHT / 2
     for (const depId of task.dependencies ?? []) {
-      const fromIdx = taskIndex.get(depId)
-      if (fromIdx === undefined) continue
-      const fromTask = list[fromIdx]
-      const fromEnd = inclusiveBarRightPx(fromTask.plannedEnd)
-      const fromY = fromIdx * ROW_HEIGHT + ROW_HEIGHT / 2
-      const laneX = computeDependencyLaneX(list, fromIdx, toIdx, fromEnd, cw)
-      const pathD = buildDependencyPathD(fromEnd, fromY, toStart, toY, laneX, fromIdx, toIdx, list)
-      paths.push({ fromX: fromEnd, fromY, toX: toStart, toY, pathD })
+      if (taskIndex.get(depId) === undefined) continue
+      const toIdx = taskIndex.get(task.id) ?? 0
+      const fromTask = list[taskIndex.get(depId)!]
+      if (!byPred.has(depId)) byPred.set(depId, [])
+      byPred.get(depId)!.push({
+        toTask: task,
+        toIdx,
+        toStart: toPx(parseDate(task.plannedStart)),
+        toY: toIdx * ROW_HEIGHT + ROW_HEIGHT / 2,
+        succRight: inclusiveBarRightPx(task.plannedEnd),
+        nextDay: isSuccessorStartNextCalendarDayAfterPredecessorEnd(
+          fromTask.plannedEnd,
+          task.plannedStart
+        ),
+      })
     }
   }
-  return paths
+
+  const out: DependencyPathSeg[] = []
+  const predIds = [...byPred.keys()].sort()
+
+  for (const predId of predIds) {
+    const group = byPred.get(predId)!
+    const fromIdx = taskIndex.get(predId)!
+    const fromTask = list[fromIdx]
+    const fromEnd = inclusiveBarRightPx(fromTask.plannedEnd)
+    const fromY = fromIdx * ROW_HEIGHT + ROW_HEIGHT / 2
+
+    if (group.length === 1) {
+      const g = group[0]!
+      const laneX = computeDependencyLaneX(list, fromIdx, g.toIdx, fromEnd, cw)
+      out.push({
+        key: `e-${predId}-${g.toTask.id}`,
+        pathD: buildDependencyPathD(
+          fromEnd,
+          fromY,
+          g.toStart,
+          g.toY,
+          laneX,
+          g.succRight,
+          g.nextDay
+        ),
+        arrow: true,
+      })
+      continue
+    }
+
+    const toIdxs = group.map((g) => g.toIdx)
+    const allBelow = toIdxs.every((t) => t > fromIdx)
+    const allAbove = toIdxs.every((t) => t < fromIdx)
+    const allPast = group.every((g) => g.toStart < fromEnd)
+    const allNextDay = group.every((g) => g.nextDay)
+    const tMin = Math.min(...toIdxs)
+    const tMax = Math.max(...toIdxs)
+
+    if (!allBelow && !allAbove) {
+      for (const g of group) {
+        const laneX = computeDependencyLaneX(list, fromIdx, g.toIdx, fromEnd, cw)
+        out.push({
+          key: `e-${predId}-${g.toTask.id}`,
+          pathD: buildDependencyPathD(
+            fromEnd,
+            fromY,
+            g.toStart,
+            g.toY,
+            laneX,
+            g.succRight,
+            g.nextDay
+          ),
+          arrow: true,
+        })
+      }
+      continue
+    }
+
+    if (!allPast) {
+      for (const g of group) {
+        const laneX = computeDependencyLaneX(list, fromIdx, g.toIdx, fromEnd, cw)
+        out.push({
+          key: `e-${predId}-${g.toTask.id}`,
+          pathD: buildDependencyPathD(
+            fromEnd,
+            fromY,
+            g.toStart,
+            g.toY,
+            laneX,
+            g.succRight,
+            g.nextDay
+          ),
+          arrow: true,
+        })
+      }
+      continue
+    }
+
+    const rowSpanLo = Math.min(fromIdx, tMin)
+    const rowSpanHi = Math.max(fromIdx, tMax)
+    const laneBase = allNextDay
+      ? fromEnd
+      : computeDependencyLaneXBetweenRows(list, rowSpanLo, rowSpanHi, fromEnd, cw)
+    const legX = allNextDay ? fromEnd : Math.max(laneBase, fromEnd + 8)
+    const yBusEnd = allBelow
+      ? Math.max(...group.map((g) => g.toY))
+      : Math.min(...group.map((g) => g.toY))
+
+    const trunk =
+      allNextDay && legX === fromEnd
+        ? `M ${fromEnd} ${fromY} L ${fromEnd} ${yBusEnd}`
+        : `M ${fromEnd} ${fromY} L ${legX} ${fromY} L ${legX} ${yBusEnd}`
+    out.push({ key: `t-${predId}`, pathD: trunk, arrow: false })
+
+    const sorted = [...group].sort((a, b) => a.toIdx - b.toIdx)
+    for (const g of sorted) {
+      const spurD =
+        `M ${legX} ${g.toY}` + pathFinishIntoTaskHead(legX, g.toY, g.toStart, g.succRight)
+      out.push({
+        key: `s-${predId}-${g.toTask.id}`,
+        pathD: spurD,
+        arrow: true,
+      })
+    }
+  }
+
+  return out
 })
 
 /** 拖曳依賴時預覽線 path */
@@ -653,7 +786,17 @@ const dependencyPreviewPathD = computed(() => {
     Math.max(0, Math.floor(to.y / ROW_HEIGHT))
   )
   const laneX = computeDependencyLaneX(list, idx, toIdx, fromEnd, chartWidthVal.value)
-  return buildDependencyPathD(fromEnd, fromY, to.x, to.y, laneX, idx, toIdx, list)
+  const targetTask = list[toIdx]
+  const nextDay =
+    targetTask &&
+    isSuccessorStartNextCalendarDayAfterPredecessorEnd(from.plannedEnd, targetTask.plannedStart)
+  const succLeft = targetTask
+    ? toPx(parseDate(targetTask.plannedStart))
+    : Math.max(4, to.x - 6)
+  const succRight = targetTask
+    ? inclusiveBarRightPx(targetTask.plannedEnd)
+    : succLeft + 120
+  return buildDependencyPathD(fromEnd, fromY, succLeft, to.y, laneX, succRight, !!nextDay)
 })
 
 function toPx(dateMs: number): number {
@@ -670,9 +813,9 @@ function inclusiveBarWidthPx(startYmd: string, endYmd: string): number {
   return Math.max(4, inclusiveBarRightPx(endYmd) - toPx(parseDate(startYmd)))
 }
 
-/** 左／右緣「調整時程」拖曳區寬度（px），拖動時以 1 天為單位 */
-const BAR_RESIZE_EDGE_PX = 12
-const BAR_DEPENDENCY_HANDLE_PX = 20
+/** 左／右緣「調整時程」拖曳區（px）；最右緣為結束日，其內側為拉關聯線（參考 MS Project） */
+const BAR_RESIZE_EDGE_PX = 14
+const BAR_DEPENDENCY_HANDLE_PX = 24
 
 // 拖曳任務條：移動 / 左緣改開始 / 右緣改工期 / 尾巴拉依賴線
 const draggingTask = ref<GanttTask | null>(null)
@@ -694,12 +837,27 @@ function barHitZone(
 ): 'left' | 'move' | 'right' | 'dependency' {
   const rect = barEl.getBoundingClientRect()
   const x = clientX - rect.left
-  const w = rect.width
-  // 最右 20px 為「連線」、其左 12px 為「調整結束日」
-  if (x >= w - BAR_DEPENDENCY_HANDLE_PX) return 'dependency'
-  if (x >= w - BAR_DEPENDENCY_HANDLE_PX - BAR_RESIZE_EDGE_PX && x < w - BAR_DEPENDENCY_HANDLE_PX)
-    return 'right'
-  if (x < BAR_RESIZE_EDGE_PX) return 'left'
+  const w = Math.max(rect.width, 1)
+  const edge = BAR_RESIZE_EDGE_PX
+  const dep = BAR_DEPENDENCY_HANDLE_PX
+  const minFull = edge * 2 + dep
+  let leftW = edge
+  let rightW = edge
+  let depW = dep
+  if (w < minFull) {
+    leftW = Math.max(5, Math.floor((edge / minFull) * w))
+    rightW = Math.max(5, Math.floor((edge / minFull) * w))
+    depW = Math.max(8, w - leftW - rightW - 2)
+    if (leftW + rightW + depW > w) {
+      const s = w / (leftW + rightW + depW)
+      leftW = Math.max(4, Math.floor(leftW * s))
+      rightW = Math.max(4, Math.floor(rightW * s))
+      depW = Math.max(6, w - leftW - rightW)
+    }
+  }
+  if (x >= w - rightW) return 'right'
+  if (x >= w - rightW - depW) return 'dependency'
+  if (x < leftW) return 'left'
   return 'move'
 }
 
@@ -965,6 +1123,7 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
 </script>
 
 <template>
+  <TooltipProvider :delay-duration="350">
   <!-- 固定寬度容器：表頭固定，僅下方資料列＋圖表區一起垂直捲動 -->
   <div class="flex flex-col rounded-lg border border-border bg-card min-w-0 overflow-hidden">
     <div class="flex flex-col min-h-0 max-h-[536px]">
@@ -1083,11 +1242,11 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
                 transform: `translate3d(${-scrollLeftVal}px, 0, 0)`,
               }"
             >
-              <div class="relative flex shrink-0 items-end justify-center overflow-hidden border-b border-border bg-background/50" :style="{ height: MILESTONE_ROW_HEIGHT + 'px' }">
+              <div class="relative z-10 flex shrink-0 items-end justify-center overflow-visible border-b border-border bg-background/50" :style="{ height: MILESTONE_ROW_HEIGHT + 'px' }">
                 <template v-if="showMilestoneLines">
                   <template v-for="ml in milestoneLines" :key="'mh-' + ml.id">
                     <div class="pointer-events-none absolute top-0 bottom-0 w-px" :style="{ left: toPx(new Date(ml.date).setHours(0, 0, 0, 0)) + 'px', backgroundColor: ml.color ?? 'var(--chart-3)' }" />
-                    <div class="absolute flex items-center gap-0.5 rounded-md border border-border bg-card px-1.5 py-0.5 shadow-sm" :style="{ left: toPx(new Date(ml.date).setHours(0, 0, 0, 0)) + 'px', transform: 'translateX(-50%)', top: '2px' }" :title="ml.label">
+                    <div class="absolute z-[1] flex items-center gap-0.5 rounded-md border border-border bg-card px-1.5 py-0.5 shadow-md" :style="{ left: toPx(new Date(ml.date).setHours(0, 0, 0, 0)) + 'px', transform: 'translateX(-50%)', top: '2px' }" :title="ml.label">
                       <Flag class="size-3 text-muted-foreground" />
                       <span class="max-w-[4rem] truncate text-[10px] font-medium text-foreground">{{ ml.label }}</span>
                     </div>
@@ -1583,20 +1742,6 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
               title="今日"
             />
 
-              <!-- 使用者里程碑線（圖表區段：整條垂直線貫穿） -->
-              <template v-if="showMilestoneLines">
-                <div
-                  v-for="ml in milestoneLines"
-                  :key="ml.id"
-                  class="pointer-events-none absolute top-0 bottom-0 w-px"
-                  :style="{
-                    left: toPx(new Date(ml.date).setHours(0, 0, 0, 0)) + 'px',
-                    backgroundColor: ml.color ?? 'var(--chart-3)',
-                  }"
-                  :title="ml.label"
-                />
-              </template>
-
               <!-- 任務條（依賴線畫在上方，箭頭與線段才不會被擋） -->
               <div
                 v-for="(task, idx) in displayedTasks"
@@ -1626,58 +1771,85 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
                   }"
                   @mousedown.stop
                 />
-                <!-- 實際／計劃條（主條）：左緣縮放開始、右緣縮放工期、尾巴拉依賴 -->
-                <div
-                  data-gantt-bar
-                  class="absolute h-6 rounded-md border border-border select-none"
-                  :class="[
-                    task.isRollup
-                      ? 'cursor-default border-dashed bg-muted/50'
-                      : showCriticalPath && criticalPathMapVal.get(task.id)?.isCritical
-                        ? 'bg-destructive'
-                        : 'bg-primary',
-                    !task.isRollup &&
-                      (task.isMilestone
-                        ? 'cursor-grab active:cursor-grabbing'
-                        : 'cursor-grab active:cursor-grabbing'),
-                  ]"
-                  :style="{
-                    left: toPx(parseDate(task.actualStart ?? task.plannedStart)) + 'px',
-                    width:
-                      (task.isMilestone
-                        ? 0
-                        : inclusiveBarWidthPx(
-                            task.actualStart ?? task.plannedStart,
-                            task.actualEnd ?? task.plannedEnd
-                          )) + 'px',
-                  }"
-                  @mousedown="(e: MouseEvent) => onBarPointerDown(e, task, (e.currentTarget as HTMLElement))"
-                >
-                  <!-- 左緣：拖曳調整開始日（12px，以 1 天為單位） -->
+                <!-- 實際／計劃條（主條）：左／右緣調整時程；右側內緣拉關聯線（MS Project 式） -->
+                <Tooltip>
+                  <TooltipTrigger as-child>
+                    <div
+                      data-gantt-bar
+                      class="group absolute h-6 rounded-md border border-border select-none outline-none"
+                      :class="[
+                        task.isRollup
+                          ? 'cursor-default border-dashed bg-muted/50'
+                          : showCriticalPath && criticalPathMapVal.get(task.id)?.isCritical
+                            ? 'bg-destructive'
+                            : 'bg-primary',
+                        !task.isRollup &&
+                          (task.isMilestone
+                            ? 'cursor-grab active:cursor-grabbing'
+                            : 'cursor-grab active:cursor-grabbing'),
+                      ]"
+                      :style="{
+                        left: toPx(parseDate(task.actualStart ?? task.plannedStart)) + 'px',
+                        width:
+                          (task.isMilestone
+                            ? 0
+                            : inclusiveBarWidthPx(
+                                task.actualStart ?? task.plannedStart,
+                                task.actualEnd ?? task.plannedEnd
+                              )) + 'px',
+                        minWidth: task.isMilestone ? '14px' : undefined,
+                      }"
+                      @mousedown="
+                        (e: MouseEvent) => onBarPointerDown(e, task, (e.currentTarget as HTMLElement))
+                      "
+                    >
+                  <!-- 左緣：調整開始日 -->
                   <span
                     v-if="!task.isMilestone && !task.isRollup"
-                    class="absolute left-0 top-0 bottom-0 w-3 cursor-ew-resize rounded-l-md hover:bg-primary-foreground/20"
-                    style="min-width: 12px"
-                    title="拖曳調整開始日（以 1 天為單位）"
+                    class="absolute left-0 top-0 bottom-0 z-[1] w-[14px] min-w-[14px] cursor-ew-resize rounded-l-md ring-inset hover:bg-primary-foreground/25"
+                    title="拖曳左緣調整開始日"
                     aria-label="調整開始日"
                   />
-                  <!-- 右緣：拖曳調整結束日（12px）＋ 依賴連線（最右 20px） -->
+                  <!-- 右側內緣：由此拖出關聯線至其他任務 -->
                   <span
                     v-if="!task.isMilestone && !task.isRollup"
-                    class="absolute top-0 bottom-0 w-3 cursor-ew-resize hover:bg-primary-foreground/20"
-                    style="right: 20px; min-width: 12px"
-                    title="拖曳調整結束日（以 1 天為單位）"
-                    aria-label="調整結束日"
-                  />
-                  <span
-                    v-if="!task.isMilestone && !task.isRollup"
-                    class="absolute right-0 top-0 bottom-0 flex w-5 cursor-crosshair items-center justify-center rounded-r-md hover:bg-primary-foreground/25"
-                    style="min-width: 20px"
-                    title="拖曳至其他任務列以建立前置關係"
+                    class="absolute top-0 bottom-0 z-[1] w-6 min-w-[24px] cursor-crosshair hover:bg-primary-foreground/20"
+                    style="right: 14px"
+                    title="由此拖曳至其他任務列以建立前置關係"
                     aria-label="建立前置連線"
+                  />
+                  <!-- 最右緣：調整完成日 -->
+                  <span
+                    v-if="!task.isMilestone && !task.isRollup"
+                    class="absolute right-0 top-0 bottom-0 z-[1] w-[14px] min-w-[14px] cursor-ew-resize rounded-r-md ring-inset hover:bg-primary-foreground/25"
+                    title="拖曳右緣調整完成日"
+                    aria-label="調整完成日"
+                  />
+                  <!-- Hover 時顯示連接線箭頭（參考 MS Project） -->
+                  <div
+                    v-if="!task.isMilestone && !task.isRollup"
+                    class="pointer-events-none absolute top-1/2 z-0 flex -translate-y-1/2 items-center opacity-0 transition-opacity group-hover:opacity-100"
+                    style="right: 26px"
+                    aria-hidden="true"
                   >
-                    <Link2 class="size-4 shrink-0 text-primary-foreground/90" />
-                  </span>
+                    <svg
+                      width="20"
+                      height="10"
+                      class="text-foreground drop-shadow-sm"
+                      viewBox="0 0 20 10"
+                    >
+                      <line
+                        x1="0"
+                        y1="5"
+                        x2="11"
+                        y2="5"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                      />
+                      <path d="M11 1.5 L18 5 L11 8.5 Z" fill="currentColor" />
+                    </svg>
+                  </div>
                   <!-- 里程碑：菱形點 -->
                   <template v-if="task.isMilestone">
                     <div
@@ -1696,7 +1868,24 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
                       :style="{ width: task.progress + '%' }"
                     />
                   </template>
-                </div>
+                    </div>
+                  </TooltipTrigger>
+                  <TooltipContent
+                    side="top"
+                    class="max-w-xs border-border bg-popover px-3 py-2 text-popover-foreground shadow-md"
+                    :side-offset="6"
+                  >
+                    <div class="space-y-0.5 text-left text-xs">
+                      <p
+                        v-for="(line, li) in ganttBarTooltipLines(task)"
+                        :key="li"
+                        :class="li === 0 ? 'text-[10px] font-medium text-muted-foreground' : ''"
+                      >
+                        {{ line }}
+                      </p>
+                    </div>
+                  </TooltipContent>
+                </Tooltip>
               </div>
 
               <svg
@@ -1729,16 +1918,16 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
                   </marker>
                 </defs>
                 <path
-                  v-for="(path, i) in dependencyPaths"
-                  :key="'dep-' + i"
-                  :d="path.pathD"
+                  v-for="seg in dependencyPaths"
+                  :key="seg.key"
+                  :d="seg.pathD"
                   fill="none"
                   stroke="var(--muted-foreground)"
                   stroke-width="1.75"
                   stroke-dasharray="5 3"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  marker-end="url(#gantt-arrow)"
+                  stroke-linecap="square"
+                  stroke-linejoin="miter"
+                  :marker-end="seg.arrow ? 'url(#gantt-arrow)' : 'none'"
                 />
                 <path
                   v-if="dependencyPreviewPathD"
@@ -1747,14 +1936,28 @@ function onDragHandlePointerDown(e: PointerEvent, item: GanttLeftColumnItem) {
                   stroke="var(--primary)"
                   stroke-width="2"
                   stroke-dasharray="6 3"
-                  stroke-linecap="round"
+                  stroke-linecap="square"
                   marker-end="url(#gantt-arrow-preview)"
                 />
               </svg>
+              <!-- 使用者里程碑線＋標籤：最上層，不被任務條／依賴線蓋住 -->
+              <template v-if="showMilestoneLines">
+                <div
+                  v-for="ml in milestoneLines"
+                  :key="'chart-ml-' + ml.id"
+                  class="pointer-events-none absolute inset-y-0 z-30 w-px"
+                  :style="{
+                    left: toPx(new Date(ml.date).setHours(0, 0, 0, 0)) + 'px',
+                    backgroundColor: ml.color ?? 'var(--chart-3)',
+                  }"
+                  :title="ml.label"
+                />
+              </template>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+  </TooltipProvider>
 </template>
