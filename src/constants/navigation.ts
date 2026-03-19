@@ -108,7 +108,7 @@ export const LAYER3_PROJECT_MGMT: NavItemProject[] = [
   },
 ]
 
-/** Layer 3-B：施工管理（監測、上傳、設備、自主檢查、施工日誌、缺失改善、報表、照片） */
+/** Layer 3-B：施工管理（監測、上傳、設備、自主檢查、施工日誌、缺失改善、圖說管理、報表、照片） */
 export const LAYER3_CONSTRUCTION: NavItemProject[] = [
   {
     id: 'monitoring-history',
@@ -135,6 +135,12 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
     label: '缺失改善',
     pathSuffix: '/construction/defects',
     icon: 'AlertCircle',
+  },
+  {
+    id: 'construction-drawings',
+    label: '圖說管理',
+    pathSuffix: '/construction/drawings',
+    icon: 'DraftingCompass',
   },
   { id: 'monitoring-reports', label: '報表', pathSuffix: '/monitoring/reports', icon: 'FileText' },
   { id: 'files-photos', label: '照片管理', pathSuffix: '/files/photos', icon: 'Image' },

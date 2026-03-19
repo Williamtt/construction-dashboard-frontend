@@ -41,6 +41,24 @@ const router = createRouter({
           }),
         },
         {
+          path: 'p/:projectId/inspection/:templateId/records/:recordId',
+          name: ROUTE_NAME.MOBILE_INSPECTION_RECORD_DETAIL,
+          component: () =>
+            import('@/views/mobile/inspection/MobileSelfInspectionRecordDetailView.vue'),
+        },
+        {
+          path: 'p/:projectId/inspection/:templateId/new',
+          name: ROUTE_NAME.MOBILE_INSPECTION_RECORD_NEW,
+          component: () =>
+            import('@/views/mobile/inspection/MobileSelfInspectionRecordNewView.vue'),
+        },
+        {
+          path: 'p/:projectId/inspection/:templateId',
+          name: ROUTE_NAME.MOBILE_INSPECTION_TEMPLATE,
+          component: () =>
+            import('@/views/mobile/inspection/MobileSelfInspectionTemplateView.vue'),
+        },
+        {
           path: 'p/:projectId/inspection',
           name: ROUTE_NAME.MOBILE_INSPECTION,
           component: () => import('@/views/mobile/MobileInspectionView.vue'),
@@ -267,6 +285,11 @@ const router = createRouter({
           path: 'p/:projectId/construction/diary',
           name: ROUTE_NAME.PROJECT_CONSTRUCTION_DIARY,
           component: () => import('@/views/construction/ConstructionDiaryView.vue'),
+        },
+        {
+          path: 'p/:projectId/construction/drawings',
+          name: ROUTE_NAME.PROJECT_CONSTRUCTION_DRAWINGS,
+          component: () => import('@/views/construction/ConstructionDrawingsView.vue'),
         },
         {
           path: 'p/:projectId/construction/defects/:defectId',

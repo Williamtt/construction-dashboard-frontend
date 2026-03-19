@@ -32,6 +32,10 @@ export const ROUTE_PATH = {
   /** 手機版（PWA／現場查驗） */
   MOBILE: '/mobile',
   MOBILE_INSPECTION: 'inspection',
+  /** 手機：已匯入樣板之查驗紀錄列表（含 FAB） */
+  MOBILE_INSPECTION_TEMPLATE: 'inspection/:templateId',
+  MOBILE_INSPECTION_RECORD_NEW: 'inspection/:templateId/new',
+  MOBILE_INSPECTION_RECORD_DETAIL: 'inspection/:templateId/records/:recordId',
   MOBILE_DIARY: 'diary',
   MOBILE_DEFECTS: 'defects',
   MOBILE_DEFECT_NEW: 'defects/new',
@@ -72,12 +76,13 @@ export const ROUTE_PATH = {
   PROJECT_MANAGEMENT_GANTT: '/management/gantt',
   PROJECT_MANAGEMENT_OVERVIEW: '/management/overview',
 
-  /** 施工管理：自主檢查、施工日誌、缺失改善 */
+  /** 施工管理：自主檢查、施工日誌、缺失改善、圖說管理 */
   PROJECT_CONSTRUCTION_SELF_CHECK: '/construction/self-check',
   PROJECT_CONSTRUCTION_SELF_CHECK_TEMPLATE: '/construction/self-check/:templateId',
   PROJECT_CONSTRUCTION_SELF_CHECK_NEW: '/construction/self-check/:templateId/new',
   PROJECT_CONSTRUCTION_SELF_CHECK_RECORD: '/construction/self-check/:templateId/records/:recordId',
   PROJECT_CONSTRUCTION_DIARY: '/construction/diary',
+  PROJECT_CONSTRUCTION_DRAWINGS: '/construction/drawings',
   PROJECT_CONSTRUCTION_DEFECTS: '/construction/defects',
   PROJECT_CONSTRUCTION_DEFECT_DETAIL: '/construction/defects/:defectId',
   /** 報修管理 */
@@ -117,6 +122,9 @@ export const ROUTE_NAME = {
   MOBILE: 'mobile',
   MOBILE_PROJECT_PICKER: 'mobile-project-picker',
   MOBILE_INSPECTION: 'mobile-inspection',
+  MOBILE_INSPECTION_TEMPLATE: 'mobile-inspection-template',
+  MOBILE_INSPECTION_RECORD_NEW: 'mobile-inspection-record-new',
+  MOBILE_INSPECTION_RECORD_DETAIL: 'mobile-inspection-record-detail',
   MOBILE_DIARY: 'mobile-diary',
   MOBILE_DEFECTS: 'mobile-defects',
   MOBILE_DEFECT_NEW: 'mobile-defect-new',
@@ -157,6 +165,7 @@ export const ROUTE_NAME = {
   PROJECT_CONSTRUCTION_SELF_CHECK_NEW: 'project-construction-self-check-new',
   PROJECT_CONSTRUCTION_SELF_CHECK_RECORD: 'project-construction-self-check-record',
   PROJECT_CONSTRUCTION_DIARY: 'project-construction-diary',
+  PROJECT_CONSTRUCTION_DRAWINGS: 'project-construction-drawings',
   PROJECT_CONSTRUCTION_DEFECTS: 'project-construction-defects',
   PROJECT_CONSTRUCTION_DEFECT_DETAIL: 'project-construction-defect-detail',
   PROJECT_REPAIR_OVERVIEW: 'project-repair-overview',

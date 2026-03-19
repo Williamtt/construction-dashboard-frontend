@@ -3,12 +3,14 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ROUTE_NAME, ROUTE_PATH } from '@/constants/routes'
 import { useAppPreferenceStore } from '@/stores/appPreference'
+import { useMobileSelfInspectionNavStore } from '@/stores/mobileSelfInspectionNav'
 import MobileNavTabs from '@/views/mobile/components/MobileNavTabs.vue'
 import MobileHeader from '@/views/mobile/components/MobileHeader.vue'
 
 const route = useRoute()
 const router = useRouter()
 const appPreference = useAppPreferenceStore()
+const mobileSelfInspectionNav = useMobileSelfInspectionNavStore()
 const mainRef = ref<HTMLElement | null>(null)
 
 function goBack() {
@@ -97,7 +99,14 @@ const canGoBack = computed(() => {
 const pageTitle = computed(() => {
   const name = route.name as string | undefined
   if (name === ROUTE_NAME.MOBILE_PROJECT_PICKER) return '選擇專案'
-  if (route.path.includes('/inspection')) return '自主檢查'
+  if (route.path.includes('/inspection')) {
+    if (route.name === ROUTE_NAME.MOBILE_INSPECTION_RECORD_NEW) return '新增查驗紀錄'
+    if (route.name === ROUTE_NAME.MOBILE_INSPECTION_RECORD_DETAIL) return '查驗紀錄'
+    if (route.name === ROUTE_NAME.MOBILE_INSPECTION_TEMPLATE) {
+      return mobileSelfInspectionNav.templateTitle || '查驗紀錄'
+    }
+    return '自主檢查'
+  }
   if (route.path.includes('/diary')) return '施工日誌'
   if (route.path.includes('/defects')) {
     if (route.name === ROUTE_NAME.MOBILE_DEFECT_RECORD_NEW) return '新增執行紀錄'

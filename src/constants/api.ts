@@ -97,6 +97,14 @@ export const API_PATH = {
   /** 專案成員（列表、可加入名單、新增、移除） */
   PROJECT_MEMBERS: (projectId: string) => `${API_V1}/projects/${projectId}/members`,
   PROJECT_MEMBERS_AVAILABLE: (projectId: string) => `${API_V1}/projects/${projectId}/members/available`,
+  /** 圖說管理（樹狀分類／圖說項） */
+  PROJECT_DRAWING_NODES: (projectId: string) => `${API_V1}/projects/${projectId}/drawing-nodes`,
+  PROJECT_DRAWING_NODE: (projectId: string, nodeId: string) =>
+    `${API_V1}/projects/${projectId}/drawing-nodes/${nodeId}`,
+  PROJECT_DRAWING_NODE_MOVE: (projectId: string, nodeId: string) =>
+    `${API_V1}/projects/${projectId}/drawing-nodes/${nodeId}/move`,
+  PROJECT_DRAWING_NODE_REVISIONS: (projectId: string, nodeId: string) =>
+    `${API_V1}/projects/${projectId}/drawing-nodes/${nodeId}/revisions`,
   /** WBS 工作分解結構（樹狀） */
   PROJECT_WBS: (projectId: string) => `${API_V1}/projects/${projectId}/wbs`,
   PROJECT_WBS_NODE: (projectId: string, nodeId: string) => `${API_V1}/projects/${projectId}/wbs/${nodeId}`,
