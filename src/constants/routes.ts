@@ -13,11 +13,28 @@ export function buildProjectPath(projectId: string, subPath: string): string {
   return path === '/' ? base : `${base}${path}`
 }
 
+/** 手機版路徑前綴 */
+export const MOBILE_PATH_PREFIX = '/mobile'
+
+/** 組出手機版專案內路徑（/mobile/p/:projectId/...） */
+export function buildMobileProjectPath(projectId: string, subPath: string): string {
+  const base = `${MOBILE_PATH_PREFIX}/p/${encodeURIComponent(projectId)}`
+  const path = subPath.startsWith('/') ? subPath.slice(1) : subPath
+  return path ? `${base}/${path}` : base
+}
+
 export const ROUTE_PATH = {
   HOME: '/',
   LOGIN: '/login',
   /** 專案列表（獨立入口，選專案後進入 /p/:projectId/dashboard） */
   PROJECTS: '/projects',
+
+  /** 手機版（PWA／現場查驗） */
+  MOBILE: '/mobile',
+  MOBILE_INSPECTION: 'inspection',
+  MOBILE_DIARY: 'diary',
+  MOBILE_DEFECTS: 'defects',
+  MOBILE_REPAIR: 'repair',
 
   /** 以下為專案內路徑「樣板」，實際連結請用 buildProjectPath(projectId, subPath) */
   PROJECT_DASHBOARD: '/dashboard',
@@ -71,6 +88,12 @@ export const ROUTE_NAME = {
   HOME: 'home',
   LOGIN: 'login',
   PROJECTS: 'projects',
+  MOBILE: 'mobile',
+  MOBILE_PROJECT_PICKER: 'mobile-project-picker',
+  MOBILE_INSPECTION: 'mobile-inspection',
+  MOBILE_DIARY: 'mobile-diary',
+  MOBILE_DEFECTS: 'mobile-defects',
+  MOBILE_REPAIR: 'mobile-repair',
   PROJECT_DASHBOARD: 'project-dashboard',
   PROJECT_OVERVIEW_EVENTS: 'project-overview-events',
   PROJECT_OVERVIEW_MILESTONES: 'project-overview-milestones',

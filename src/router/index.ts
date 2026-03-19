@@ -1,7 +1,9 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { DefaultLayout, AuthLayout } from '@/layouts'
-import { ROUTE_NAME, ROUTE_PATH } from '@/constants'
+import { DefaultLayout, AuthLayout, MobileLayout } from '@/layouts'
+import { ROUTE_NAME, ROUTE_PATH, buildMobileProjectPath } from '@/constants'
 import { useAuthStore } from '@/stores/auth'
+import { useDevice } from '@/composables/useDevice'
+import { useAppPreferenceStore } from '@/stores/appPreference'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -14,6 +16,44 @@ const router = createRouter({
           path: '',
           name: ROUTE_NAME.LOGIN,
           component: () => import('@/views/LoginView.vue'),
+        },
+      ],
+    },
+    // 手機版（PWA／現場查驗）— 完全獨立路由與 Layout
+    {
+      path: ROUTE_PATH.MOBILE,
+      component: MobileLayout,
+      children: [
+        {
+          path: '',
+          name: ROUTE_NAME.MOBILE_PROJECT_PICKER,
+          component: () => import('@/views/mobile/MobileProjectPickerView.vue'),
+        },
+        {
+          path: 'p/:projectId',
+          redirect: (to) => ({
+            path: buildMobileProjectPath(to.params.projectId as string, ROUTE_PATH.MOBILE_INSPECTION),
+          }),
+        },
+        {
+          path: 'p/:projectId/inspection',
+          name: ROUTE_NAME.MOBILE_INSPECTION,
+          component: () => import('@/views/mobile/MobileInspectionView.vue'),
+        },
+        {
+          path: 'p/:projectId/diary',
+          name: ROUTE_NAME.MOBILE_DIARY,
+          component: () => import('@/views/mobile/MobileDiaryView.vue'),
+        },
+        {
+          path: 'p/:projectId/defects',
+          name: ROUTE_NAME.MOBILE_DEFECTS,
+          component: () => import('@/views/mobile/MobileDefectsView.vue'),
+        },
+        {
+          path: 'p/:projectId/repair',
+          name: ROUTE_NAME.MOBILE_REPAIR,
+          component: () => import('@/views/mobile/MobileRepairView.vue'),
         },
       ],
     },
@@ -239,10 +279,16 @@ const router = createRouter({
 
 router.beforeEach((to, _from, next) => {
   const auth = useAuthStore()
+  const { isMobileApp } = useDevice()
+  const appPreference = useAppPreferenceStore()
 
   if (to.path === ROUTE_PATH.LOGIN) {
     if (auth.isAuthenticated) {
-      next(auth.isPlatformAdmin ? ROUTE_PATH.PLATFORM_ADMIN_TENANTS : ROUTE_PATH.PROJECTS)
+      if (isMobileApp.value && !appPreference.preferDesktopOnMobile) {
+        next(ROUTE_PATH.MOBILE)
+      } else {
+        next(auth.isPlatformAdmin ? ROUTE_PATH.PLATFORM_ADMIN_TENANTS : ROUTE_PATH.PROJECTS)
+      }
     } else {
       next()
     }
@@ -250,6 +296,20 @@ router.beforeEach((to, _from, next) => {
   }
   if (!auth.isAuthenticated) {
     next(ROUTE_PATH.LOGIN)
+    return
+  }
+  // 手機版路由：桌面裝置誤入則導回專案列表
+  if (to.path.startsWith(ROUTE_PATH.MOBILE)) {
+    if (!isMobileApp.value) {
+      next(ROUTE_PATH.PROJECTS)
+      return
+    }
+    next()
+    return
+  }
+  // 手機／PWA 且未選擇「使用桌面版」→ 導向手機版
+  if (isMobileApp.value && !appPreference.preferDesktopOnMobile) {
+    next(ROUTE_PATH.MOBILE)
     return
   }
   if (to.path.startsWith('/admin')) {
