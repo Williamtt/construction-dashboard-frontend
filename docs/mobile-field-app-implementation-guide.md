@@ -112,7 +112,7 @@
 ## 6. 區網與開發環境
 
 - **`VITE_API_URL`**（`.env`）須與手機／模擬器實際連線之**後端 host** 一致；換 IP（例如 `192.168.x.x`）後要改並**重啟** dev server。
-- **`vite.config.ts`**：`server.host: '0.0.0.0'`；`hmr.host` 使用 **`getNetworkHost()`**（取第一個非內部 IPv4）。若瀏覽器用另一張網卡的 IP 開頁，HMR 可能異常，可改為環境變數指定 HMR host（見專案內 `docs/local-network-access.md` 若已補充）。
+- **`vite.config.ts`**：`server.host: '0.0.0.0'`；`hmr.host` 使用 **`getNetworkHost()`**（取第一個非內部 IPv4）。若瀏覽器用另一張網卡的 IP 開頁，HMR 可能異常，可改為以環境變數指定 HMR host（後端 repo 有 **`docs/local-network-access.md`** 可一併參考區網設定）。
 
 ---
 

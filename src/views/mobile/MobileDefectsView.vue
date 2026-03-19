@@ -101,11 +101,15 @@ async function fetchList() {
   }
 }
 
-watch(projectId, async () => {
-  if (!projectId.value) return
-  await fetchCounts()
-  fetchList()
-}, { immediate: true })
+watch(
+  projectId,
+  async () => {
+    if (!projectId.value) return
+    await fetchCounts()
+    fetchList()
+  },
+  { immediate: true }
+)
 watch(statusTab, fetchList)
 
 function goDetail(defect: DefectItem) {
@@ -253,12 +257,7 @@ async function confirmDelete(defect: DefectItem, e: Event) {
         @touchstart="onTabContentTouchStart"
         @touchend="onTabContentTouchEnd"
       >
-        <TabsContent
-          v-for="tab in statusTabs"
-          :key="tab.value"
-          :value="tab.value"
-          class="mt-0"
-        >
+        <TabsContent v-for="tab in statusTabs" :key="tab.value" :value="tab.value" class="mt-0">
           <div v-if="loading" class="flex flex-col items-center justify-center py-12">
             <Loader2 class="size-8 animate-spin text-muted-foreground" aria-hidden />
             <p class="mt-2 text-sm text-muted-foreground">載入中...</p>
@@ -304,7 +303,9 @@ async function confirmDelete(defect: DefectItem, e: Event) {
                 @touchend="onSwipeEnd(defect.id)"
                 @click="onCardClick(defect)"
               >
-                <div class="flex cursor-pointer items-start justify-between gap-2 active:bg-muted/50">
+                <div
+                  class="flex cursor-pointer items-start justify-between gap-2 active:bg-muted/50"
+                >
                   <p class="line-clamp-2 flex-1 text-sm font-medium text-foreground">
                     {{ defect.description }}
                   </p>
@@ -371,7 +372,9 @@ async function confirmDelete(defect: DefectItem, e: Event) {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .fab:active {
@@ -382,7 +385,9 @@ async function confirmDelete(defect: DefectItem, e: Event) {
 /* 捲動時 FAB 顯示／隱藏動畫 */
 .fab-enter-active,
 .fab-leave-active {
-  transition: opacity 0.2s ease, transform 0.2s ease;
+  transition:
+    opacity 0.2s ease,
+    transform 0.2s ease;
 }
 
 .fab-enter-from,
