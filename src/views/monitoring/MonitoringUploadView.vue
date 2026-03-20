@@ -21,6 +21,8 @@ const projectId = computed(() => (route.params.projectId as string) ?? '')
 const uploadPerm = useProjectModuleActions(projectId, 'construction.upload')
 const { enqueueAndRun } = useUploadQueue()
 
+/** 步驟二上傳區：僅 canCreate 顯示，不採常駐＋toast（見 docs/project-module-frontend-ui-gating.md） */
+
 /** 選定的檔案（待上傳，可多選） */
 const selectedFiles = ref<File[]>([])
 /** 是否正在上傳 */
@@ -87,7 +89,6 @@ function removeSelectedFile(index: number) {
 
 /** 上傳：多檔並行，經由統一上傳佇列，進度顯示於 Header「檔案上傳進度」 */
 async function handleUpload() {
-  if (!uploadPerm.canCreate.value) return
   const files = selectedFiles.value
   if (!files.length || !projectId.value) return
   isUploading.value = true
@@ -144,7 +145,9 @@ function goToMetrics() {
     <div>
       <h1 class="text-xl font-semibold text-foreground">監測數據上傳</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        以「日」為單位填寫各監測項目，下載 Excel 樣板後填寫再上傳，系統將更新歷史數據。
+        以「日」為單位填寫各監測項目，
+        <template v-if="uploadPerm.canCreate">下載 Excel 樣板後填寫再上傳，系統將更新歷史數據。</template>
+        <template v-else>可下載 Excel 樣板備用；上傳與更新歷史數據需具建立權限。</template>
       </p>
     </div>
 
@@ -317,7 +320,8 @@ function goToMetrics() {
       <CardContent>
         <ul class="list-inside list-disc space-y-1 text-sm text-muted-foreground">
           <li>溫度（°C）、濕度（%）、PM2.5（µg/m³）、風速（m/s）、雨量（mm）、水位（m）等分頁請依實際需求填寫。</li>
-          <li>上傳後系統會更新歷史數據，您可在「歷史數據」頁面檢視圖表與列表。</li>
+          <li v-if="uploadPerm.canCreate">上傳後系統會更新歷史數據，您可在「歷史數據」頁面檢視圖表與列表。</li>
+          <li v-else>具建立權限者上傳後會更新歷史數據；您仍可在「歷史數據」頁面檢視圖表與列表。</li>
         </ul>
       </CardContent>
     </Card>

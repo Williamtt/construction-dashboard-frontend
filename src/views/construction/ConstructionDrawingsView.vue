@@ -310,7 +310,7 @@ function onDragHandlePointerDown(e: PointerEvent, item: DrawingFlatItem) {
   handleEl.addEventListener('pointercancel', onUp as EventListener)
 }
 
-/** ----- 新增 ----- */
+/** ----- 新增（僅 canCreate 顯示入口，不採常駐＋toast；見 docs/project-module-frontend-ui-gating.md）----- */
 const createOpen = ref(false)
 const createParentId = ref<string | null>(null)
 const createKind = ref<'folder' | 'leaf'>('folder')
@@ -552,7 +552,7 @@ const colCount = 5
       </ButtonGroup>
       <Button
         v-if="drawingsPerm.canCreate"
-        variant="outline"
+        variant="secondary"
         size="sm"
         @click="openCreate(null, 'folder')"
       >
@@ -560,7 +560,6 @@ const colCount = 5
       </Button>
       <Button
         v-if="drawingsPerm.canCreate"
-        variant="outline"
         size="sm"
         @click="openCreate(null, 'leaf')"
       >
@@ -602,7 +601,8 @@ const colCount = 5
           <template v-if="flattenedList.length === 0">
             <TableRow>
               <TableCell :colspan="colCount" class="py-8 text-center text-muted-foreground">
-                尚無圖說項目，請新增分類或圖說。
+                <template v-if="drawingsPerm.canCreate">尚無圖說項目，請新增分類或圖說。</template>
+                <template v-else>尚無圖說項目。</template>
               </TableCell>
             </TableRow>
           </template>

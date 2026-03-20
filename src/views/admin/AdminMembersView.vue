@@ -770,58 +770,60 @@ async function confirmBatchDelete() {
     <!-- 租戶權限範本（新進專案時複製） -->
     <Dialog :open="permDialogOpen" @update:open="(v: boolean) => !v && closePermissionTemplateDialog()">
       <DialogContent
-        class="max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-7xl sm:w-full"
+        class="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col gap-4 overflow-hidden sm:max-w-7xl sm:w-full"
       >
-        <DialogHeader>
+        <DialogHeader class="shrink-0">
           <DialogTitle>權限範本 — {{ permMember?.name || permMember?.email || '成員' }}</DialogTitle>
           <DialogDescription>
-            此矩陣為「加入專案時」複製到該成員的預設模組權限；不影響已存在專案內已覆寫的權限。
+            此矩陣為「加入專案時」複製到該成員的預設模組權限；不影響已存在專案內已覆寫的權限。表頭勾選可全選／取消該欄（略過不可編輯的儲存格）。
           </DialogDescription>
         </DialogHeader>
-        <div v-if="permLoading" class="flex justify-center py-12">
+        <div v-if="permLoading" class="flex shrink-0 justify-center py-12">
           <Loader2 class="size-8 animate-spin text-muted-foreground" />
         </div>
         <template v-else>
-          <div class="flex flex-wrap items-end gap-3 border-b border-border pb-4">
-            <div class="grid gap-2">
-              <label class="text-sm font-medium text-foreground">一鍵套用預設</label>
-              <Select v-model="permPresetKey">
-                <SelectTrigger class="w-[220px] bg-background">
-                  <SelectValue placeholder="選擇預設角色" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem
-                    v-for="opt in PERMISSION_PRESET_OPTIONS"
-                    :key="opt.value"
-                    :value="opt.value"
-                  >
-                    {{ opt.label }}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
+          <div class="flex min-h-0 flex-1 flex-col gap-4">
+            <div class="flex shrink-0 flex-wrap items-end gap-3 border-b border-border pb-4">
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground">一鍵套用預設</label>
+                <Select v-model="permPresetKey">
+                  <SelectTrigger class="w-[220px] bg-background">
+                    <SelectValue placeholder="選擇預設角色" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem
+                      v-for="opt in PERMISSION_PRESET_OPTIONS"
+                      :key="opt.value"
+                      :value="opt.value"
+                    >
+                      {{ opt.label }}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button
+                variant="outline"
+                :disabled="!permPresetKey || permPresetLoading"
+                @click="applyPermissionPreset"
+              >
+                <Loader2 v-if="permPresetLoading" class="mr-2 size-4 animate-spin" />
+                套用至表單
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              :disabled="!permPresetKey || permPresetLoading"
-              @click="applyPermissionPreset"
-            >
-              <Loader2 v-if="permPresetLoading" class="mr-2 size-4 animate-spin" />
-              套用至表單
-            </Button>
+            <div class="min-h-0 flex-1 overflow-hidden">
+              <PermissionMatrixForm v-model="permModules" class="min-h-[200px]" />
+            </div>
+            <p v-if="permError" class="shrink-0 text-sm text-destructive">{{ permError }}</p>
+            <DialogFooter class="shrink-0 border-t border-border pt-4">
+              <Button variant="outline" :disabled="permSaving" @click="closePermissionTemplateDialog">
+                取消
+              </Button>
+              <Button :disabled="permSaving" @click="savePermissionTemplate">
+                <Loader2 v-if="permSaving" class="mr-2 size-4 animate-spin" />
+                儲存
+              </Button>
+            </DialogFooter>
           </div>
-          <div class="py-4">
-            <PermissionMatrixForm v-model="permModules" />
-          </div>
-          <p v-if="permError" class="text-sm text-destructive">{{ permError }}</p>
-          <DialogFooter>
-            <Button variant="outline" :disabled="permSaving" @click="closePermissionTemplateDialog">
-              取消
-            </Button>
-            <Button :disabled="permSaving" @click="savePermissionTemplate">
-              <Loader2 v-if="permSaving" class="mr-2 size-4 animate-spin" />
-              儲存
-            </Button>
-          </DialogFooter>
         </template>
       </DialogContent>
     </Dialog>

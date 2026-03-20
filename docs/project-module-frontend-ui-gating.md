@@ -11,6 +11,14 @@
   - `kind`: `'create'`（新增類）、`'read'`（檢視／下載類）、`'change'`（需 `update` 但非「編輯」選單項本身，例如契約「新增分類」、表單儲存）。
 - 實作輔助：`src/lib/permission-toast.ts` 的 `ensureProjectPermission`、`toastPermissionDenied`。
 
+#### 刻意維持舊行為（create 不採「常駐＋toast」）
+
+- **圖說管理** `ConstructionDrawingsView.vue`：所有需 `drawingsPerm.canCreate` 的操作——**新增頂層分類／圖說**、資料夾內**新增子分類／圖說項目**、葉節點**上傳新版本**——仍**只以 `v-if="drawingsPerm.canCreate"` 顯示**，無建立權限時按鈕／選單項不出現（**不**改為按鈕常駐再 `ensureProjectPermission(..., 'create')`）。
+- **設備管理** `MonitoringDevicesView.vue`：**新增攝影機**及後續新增 Dialog／現場安裝精靈等建立流程，**只以 `v-if="equipmentPerm.canCreate"` 顯示入口**；無建立權限者不顯示按鈕（**不**採常駐＋toast）。`MonitoringDeviceDetailView.vue` 僅編輯／刪除等，無新增入口。
+- **監測數據上傳** `MonitoringUploadView.vue`（`construction.upload`）：**步驟二**（拖曳／選檔、已選清單、上傳按鈕）**僅在 `uploadPerm.canCreate` 時顯示**；無建立權限時僅簡短說明，**不**改為上傳區常駐再 toast。`MonitoringMetricsView.vue` 導向「上傳數據」的連結同樣 **`v-if="uploadPerm.canCreate"`**。
+
+與「其餘操作點擊 toast」規則並存時，**以上頁面之 create 類入口以本段為準**。
+
 ---
 
 ## 已接上 UI 控管的頁面（階段一）

@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, FileText, Clock, CheckCircle, ListChecks } from 'lucide-vue-next'
+import { Loader2, FileText, Clock, CheckCircle, ListChecks, Plus } from 'lucide-vue-next'
 import StateCard from '@/components/common/StateCard.vue'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { listRepairRequests, deleteRepairRequest } from '@/api/repair-requests'
@@ -140,6 +140,14 @@ function goView(row: RepairRequestItem) {
   router.push({
     name: ROUTE_NAME.PROJECT_REPAIR_RECORD_DETAIL,
     params: { projectId: projectId.value, repairId: row.id },
+  })
+}
+
+function goNewRepair() {
+  if (!ensureProjectPermission(repairRecordPerm.canCreate.value, 'create')) return
+  router.push({
+    name: ROUTE_NAME.MOBILE_REPAIR_NEW,
+    params: { projectId: projectId.value },
   })
 }
 
@@ -358,7 +366,7 @@ watch(statusFilter, () => {
     <div>
       <h1 class="text-2xl font-semibold tracking-tight text-foreground">報修紀錄表</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        檢視專案報修單與處理狀態；新增與現場填報請使用手機版報修功能。
+        檢視專案報修單與處理狀態；可點「新增報修」建立單據，現場亦可用手機版報修填報。
       </p>
     </div>
 
@@ -435,6 +443,10 @@ watch(statusFilter, () => {
             </Button>
           </ButtonGroup>
         </template>
+        <Button class="gap-2" @click="goNewRepair">
+          <Plus class="size-4" />
+          新增報修
+        </Button>
       </div>
     </div>
 
@@ -488,7 +500,9 @@ watch(statusFilter, () => {
         >
           <ListChecks class="size-10 opacity-50" />
           <p class="text-sm">尚無報修紀錄</p>
-          <p class="text-xs">可至手機版「報修管理」新增報修單</p>
+          <p class="text-xs text-muted-foreground">
+            可點上方「新增報修」，或使用手機版報修管理現場填報。
+          </p>
         </div>
       </template>
     </div>

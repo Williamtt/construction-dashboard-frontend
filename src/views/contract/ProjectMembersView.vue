@@ -734,14 +734,14 @@ watch(projectId, (id) => {
     <!-- 專案成員模組權限覆寫 -->
     <Dialog :open="projectPermDialogOpen" @update:open="(v: boolean) => !v && closeProjectPermDialog()">
       <DialogContent
-        class="max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-7xl sm:w-full"
+        class="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col gap-4 overflow-hidden sm:max-w-7xl sm:w-full"
       >
-        <DialogHeader>
+        <DialogHeader class="shrink-0">
           <DialogTitle>
             專案權限 — {{ projectPermMember?.user.name || projectPermMember?.user.email || '成員' }}
           </DialogTitle>
           <DialogDescription>
-            僅影響此成員在本專案的模組權限。「重設為租戶範本」會依該成員目前的租戶權限範本重新寫入本專案，不影響其他專案。
+            僅影響此成員在本專案的模組權限。「重設為租戶範本」會依該成員目前的租戶權限範本重新寫入本專案，不影響其他專案。表頭勾選可全選／取消該欄；「專案成員」列之新增／更新／刪除不可調整，僅「讀取」有效。
             <span
               v-if="projectPermHighlightModuleIds.length > 0 && !projectPermLoading"
               class="mt-2 block text-foreground"
@@ -750,38 +750,43 @@ watch(projectId, (id) => {
             </span>
           </DialogDescription>
         </DialogHeader>
-        <div v-if="projectPermLoading" class="flex justify-center py-12">
+        <div v-if="projectPermLoading" class="flex shrink-0 justify-center py-12">
           <Loader2 class="size-8 animate-spin text-muted-foreground" />
         </div>
         <template v-else>
-          <div class="py-4">
-            <PermissionMatrixForm
-              v-model="projectPermModules"
-              :highlight-module-ids="projectPermHighlightModuleIds"
-            />
+          <div class="flex min-h-0 flex-1 flex-col gap-4">
+            <div class="min-h-0 flex-1 overflow-hidden">
+              <PermissionMatrixForm
+                v-model="projectPermModules"
+                class="min-h-[200px]"
+                :highlight-module-ids="projectPermHighlightModuleIds"
+              />
+            </div>
+            <p v-if="projectPermError" class="shrink-0 text-sm text-destructive">{{ projectPermError }}</p>
+            <DialogFooter
+              class="shrink-0 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"
+            >
+              <Button
+                variant="outline"
+                :disabled="projectPermSaving || projectPermResetting"
+                @click="closeProjectPermDialog"
+              >
+                取消
+              </Button>
+              <Button
+                variant="outline"
+                :disabled="projectPermSaving || projectPermResetting"
+                @click="resetProjectPermOverrides"
+              >
+                <Loader2 v-if="projectPermResetting" class="mr-2 size-4 animate-spin" />
+                重設為租戶範本
+              </Button>
+              <Button :disabled="projectPermSaving || projectPermResetting" @click="saveProjectPermOverrides">
+                <Loader2 v-if="projectPermSaving" class="mr-2 size-4 animate-spin" />
+                儲存
+              </Button>
+            </DialogFooter>
           </div>
-          <p v-if="projectPermError" class="text-sm text-destructive">{{ projectPermError }}</p>
-          <DialogFooter class="flex flex-col gap-2 sm:flex-row sm:justify-end">
-            <Button
-              variant="outline"
-              :disabled="projectPermSaving || projectPermResetting"
-              @click="closeProjectPermDialog"
-            >
-              取消
-            </Button>
-            <Button
-              variant="outline"
-              :disabled="projectPermSaving || projectPermResetting"
-              @click="resetProjectPermOverrides"
-            >
-              <Loader2 v-if="projectPermResetting" class="mr-2 size-4 animate-spin" />
-              重設為租戶範本
-            </Button>
-            <Button :disabled="projectPermSaving || projectPermResetting" @click="saveProjectPermOverrides">
-              <Loader2 v-if="projectPermSaving" class="mr-2 size-4 animate-spin" />
-              儲存
-            </Button>
-          </DialogFooter>
         </template>
       </DialogContent>
     </Dialog>

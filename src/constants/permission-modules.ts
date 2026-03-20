@@ -24,6 +24,15 @@ export const PERMISSION_MODULES = [
 
 export type PermissionModuleId = (typeof PERMISSION_MODULES)[number]
 
+/** 權限矩陣勾選器中不可變更的欄位（仍顯示目前值）；專案成員僅以「讀取」控制側欄／可見性，成員 CRUD 另依後端規則 */
+export type PermissionMatrixFlagKey = 'canCreate' | 'canRead' | 'canUpdate' | 'canDelete'
+
+export const PERMISSION_MATRIX_UI_DISABLED: Partial<
+  Record<PermissionModuleId, Partial<Record<PermissionMatrixFlagKey, true>>>
+> = {
+  'project.members': { canCreate: true, canUpdate: true, canDelete: true },
+}
+
 export type PermissionAction = 'create' | 'read' | 'update' | 'delete'
 
 /** 專案內 pathSuffix（如 `/dashboard`）→ 以 read 判斷側欄是否顯示 */

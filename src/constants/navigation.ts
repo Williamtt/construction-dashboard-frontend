@@ -211,7 +211,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
     children: [
       {
         id: 'contract-project-info',
-        label: '專案資訊',
+        label: '專案資料',
         pathSuffix: '/contract/project-info',
         icon: 'ClipboardList',
       },

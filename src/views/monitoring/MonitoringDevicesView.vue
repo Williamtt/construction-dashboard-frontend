@@ -44,6 +44,7 @@ const cameras = ref<CameraItem[]>([])
 const loading = ref(true)
 const listError = ref<string | null>(null)
 
+/** 新增攝影機／安裝精靈：僅 canCreate 顯示入口，不採常駐＋toast（見 docs/project-module-frontend-ui-gating.md） */
 const addDialogOpen = ref(false)
 const addForm = ref<CreateCameraPayload>({ name: '', sourceUrl: '' })
 const addSubmitting = ref(false)
@@ -92,7 +93,6 @@ function goToDevice(cameraId: string) {
 }
 
 function openAddDialog() {
-  if (!equipmentPerm.canCreate.value) return
   addForm.value = { name: '', sourceUrl: '' }
   addError.value = null
   createdCamera.value = null
@@ -372,7 +372,13 @@ async function handleClearOverride(cam: CameraItem) {
       </div>
 
       <p class="text-sm text-muted-foreground">
-        攝影機需在工地現場安裝 go2rtc 並設定推流後，方可在此收看即時畫面。請先「新增攝影機」，再依本區「更多」下載<strong>專案安裝包</strong>（內含本專案所有攝影機設定）。解壓後：Windows 雙擊 <code class="rounded bg-muted px-1">run.bat</code>；Mac 雙擊 <code class="rounded bg-muted px-1">run.command</code>（若被系統阻擋，請打開壓縮檔內的 <strong>Mac安裝說明.txt</strong> 依終端機步驟執行）。
+        攝影機需在工地現場安裝 go2rtc 並設定推流後，方可在此收看即時畫面。
+        <template v-if="equipmentPerm.canCreate">請先「新增攝影機」，</template>
+        <template v-else>請由具建立權限者新增攝影機後，</template>
+        再依本區「更多」下載<strong>專案安裝包</strong>（內含本專案所有攝影機設定）。解壓後：Windows 雙擊
+        <code class="rounded bg-muted px-1">run.bat</code>；Mac 雙擊
+        <code class="rounded bg-muted px-1">run.command</code>（若被系統阻擋，請打開壓縮檔內的
+        <strong>Mac安裝說明.txt</strong> 依終端機步驟執行）。
       </p>
 
       <div
