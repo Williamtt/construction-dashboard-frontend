@@ -1,0 +1,111 @@
+/**
+ * 與後端 `src/constants/permission-modules.ts` 對齊（專案內 RBAC 模組 id）
+ */
+export const PERMISSION_MODULES = [
+  'project.overview',
+  'project.wbs',
+  'project.gantt',
+  'project.resource',
+  'project.schedule',
+  'project.risk',
+  'project.duration',
+  'project.drawings',
+  'construction.monitor',
+  'construction.upload',
+  'construction.equipment',
+  'construction.inspection',
+  'construction.diary',
+  'construction.defect',
+  'construction.photo',
+  'repair.overview',
+  'repair.record',
+] as const
+
+export type PermissionModuleId = (typeof PERMISSION_MODULES)[number]
+
+export type PermissionAction = 'create' | 'read' | 'update' | 'delete'
+
+/** 專案內 pathSuffix（如 `/dashboard`）→ 以 read 判斷側欄是否顯示 */
+export const NAV_PATH_PERMISSION_MODULE: Record<string, PermissionModuleId> = {
+  '/dashboard': 'project.overview',
+  '/contract/project-info': 'project.overview',
+  '/contract/management': 'project.overview',
+  '/contract/members': 'project.overview',
+  '/files': 'construction.upload',
+  '/files/forms': 'construction.upload',
+  '/files/photos': 'construction.photo',
+  '/overview/events': 'project.overview',
+  '/overview/milestones': 'project.overview',
+  '/management/overview': 'project.overview',
+  '/management/wbs': 'project.wbs',
+  '/management/gantt': 'project.gantt',
+  '/management/resources': 'project.resource',
+  '/management/schedule': 'project.schedule',
+  '/management/risks': 'project.risk',
+  '/contract/schedule': 'project.duration',
+  '/monitoring/history': 'construction.monitor',
+  '/monitoring/upload': 'construction.upload',
+  '/monitoring/devices': 'construction.equipment',
+  '/monitoring/reports': 'construction.monitor',
+  '/construction/self-check': 'construction.inspection',
+  '/construction/diary': 'construction.diary',
+  '/construction/defects': 'construction.defect',
+  '/construction/drawings': 'project.drawings',
+  '/repair/overview': 'repair.overview',
+  '/repair/records': 'repair.record',
+}
+
+export function permissionModuleForProjectPath(pathSuffix: string): PermissionModuleId {
+  const key = pathSuffix.startsWith('/') ? pathSuffix : `/${pathSuffix}`
+  return NAV_PATH_PERMISSION_MODULE[key] ?? 'project.overview'
+}
+
+/** 從完整網址路徑（含 `/p/:projectId`）取得用於權限比對的 pathSuffix */
+export function navPathSuffixFromFullPath(fullPath: string): string {
+  const m = fullPath.match(/^\/p\/[^/]+(\/.*)?$/)
+  let suffix = m?.[1] ?? '/dashboard'
+  if (!suffix || suffix === '') suffix = '/dashboard'
+  return suffix
+}
+
+/**
+ * 子路徑（如設備詳情）向上尋找最接近的側欄路徑鍵，再對應模組
+ */
+export function resolvePermissionPathSuffix(fullPath: string): string {
+  let p = navPathSuffixFromFullPath(fullPath)
+  for (;;) {
+    if (NAV_PATH_PERMISSION_MODULE[p]) return p
+    if (!p.includes('/')) break
+    const idx = p.lastIndexOf('/')
+    p = idx <= 0 ? '/dashboard' : p.slice(0, idx)
+  }
+  return '/dashboard'
+}
+
+/** 矩陣／文件顯示用 */
+export const PERMISSION_MODULE_LABELS: Record<PermissionModuleId, string> = {
+  'project.overview': '專案總覽、契約、成員',
+  'project.wbs': 'WBS 清單',
+  'project.gantt': '甘特圖',
+  'project.resource': '資源庫',
+  'project.schedule': '排班表',
+  'project.risk': '風險與議題',
+  'project.duration': '工期調整',
+  'project.drawings': '圖說管理',
+  'construction.monitor': '監測數據／報表／警報',
+  'construction.upload': '數據上傳、檔案／表單',
+  'construction.equipment': '設備／攝影機',
+  'construction.inspection': '自主檢查',
+  'construction.diary': '施工日誌',
+  'construction.defect': '缺失改善',
+  'construction.photo': '照片管理',
+  'repair.overview': '報修總覽',
+  'repair.record': '報修紀錄',
+}
+
+export const PERMISSION_PRESET_OPTIONS = [
+  { value: 'owner_viewer' as const, label: '業主檢視（僅讀）' },
+  { value: 'project_engineer' as const, label: '專案工程師（全模組）' },
+  { value: 'site_supervisor' as const, label: '工地主任（讀＋檢查／缺失／日誌／照片）' },
+  { value: 'equipment_manager' as const, label: '設備管理（設備與報修）' },
+]

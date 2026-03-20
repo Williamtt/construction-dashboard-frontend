@@ -7,17 +7,25 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { MoreHorizontal, Trash2, PauseCircle, PlayCircle, Loader2 } from 'lucide-vue-next'
+import { MoreHorizontal, Trash2, PauseCircle, PlayCircle, Loader2, Shield } from 'lucide-vue-next'
 import type { ProjectMemberItem } from '@/types'
 
-defineProps<{
-  row: ProjectMemberItem
-  togglingStatusId: string | null
-}>()
+withDefaults(
+  defineProps<{
+    row: ProjectMemberItem
+    togglingStatusId: string | null
+    /** 可停用／啟用、移除專案成員 */
+    canManageMembership?: boolean
+    /** 租戶／平台管理員可編輯該成員在本專案的模組覆寫（平台管理員帳號不顯示） */
+    canEditPermissions?: boolean
+  }>(),
+  { canManageMembership: false, canEditPermissions: false }
+)
 
 const emit = defineEmits<{
   toggleStatus: [row: ProjectMemberItem]
   remove: [row: ProjectMemberItem]
+  editPermissions: [row: ProjectMemberItem]
 }>()
 </script>
 
@@ -28,9 +36,18 @@ const emit = defineEmits<{
         <MoreHorizontal class="size-4" />
       </Button>
     </DropdownMenuTrigger>
-    <DropdownMenuContent align="end" class="w-[10rem]">
+    <DropdownMenuContent align="end" class="w-[11rem]">
       <DropdownMenuItem
-        v-if="row.status === 'active'"
+        v-if="canEditPermissions"
+        class="gap-2 cursor-pointer"
+        @click="emit('editPermissions', row)"
+      >
+        <Shield class="size-4" />
+        專案權限
+      </DropdownMenuItem>
+      <DropdownMenuSeparator v-if="canEditPermissions && canManageMembership" />
+      <DropdownMenuItem
+        v-if="canManageMembership && row.status === 'active'"
         class="gap-2 cursor-pointer"
         :disabled="togglingStatusId === row.id"
         @click="emit('toggleStatus', row)"
@@ -40,7 +57,7 @@ const emit = defineEmits<{
         停用
       </DropdownMenuItem>
       <DropdownMenuItem
-        v-else
+        v-else-if="canManageMembership"
         class="gap-2 cursor-pointer"
         :disabled="togglingStatusId === row.id"
         @click="emit('toggleStatus', row)"
@@ -49,8 +66,9 @@ const emit = defineEmits<{
         <PlayCircle v-else class="size-4" />
         啟用
       </DropdownMenuItem>
-      <DropdownMenuSeparator />
+      <DropdownMenuSeparator v-if="canManageMembership" />
       <DropdownMenuItem
+        v-if="canManageMembership"
         class="gap-2 cursor-pointer text-destructive focus:text-destructive"
         @click="emit('remove', row)"
       >

@@ -47,8 +47,18 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import AdminMembersRowActions from '@/views/admin/AdminMembersRowActions.vue'
+import PermissionMatrixForm from '@/components/common/PermissionMatrixForm.vue'
 import type { AdminUserItem } from '@/types'
 import { Plus, Loader2, Trash2 } from 'lucide-vue-next'
+import {
+  fetchTenantPermissionTemplate,
+  replaceTenantPermissionTemplate,
+  applyTenantPermissionPreset,
+  toFullModulesPayload,
+  type ModulesMap,
+  type PresetKey,
+} from '@/api/project-permissions'
+import { PERMISSION_PRESET_OPTIONS } from '@/constants/permission-modules'
 
 type SystemRoleOption = 'project_user' | 'tenant_admin' | 'platform_admin'
 type MemberTypeOption = 'internal' | 'external'
@@ -75,6 +85,12 @@ const tenantIdParam = computed(() => {
   if (authStore.isPlatformAdmin && adminStore.selectedTenantId)
     return { tenantId: adminStore.selectedTenantId }
   return {}
+})
+
+/** 權限範本 API 用的租戶 id（平台方須已選租戶） */
+const tenantIdForPermissionTemplate = computed((): string | undefined => {
+  if (authStore.isPlatformAdmin) return adminStore.selectedTenantId ?? undefined
+  return authStore.user?.tenantId ?? undefined
 })
 
 const systemRoleOptions = computed<{ value: SystemRoleOption; label: string }[]>(() => {
@@ -329,8 +345,10 @@ const columns = computed<ColumnDef<AdminUserItem, unknown>[]>(() => [
       h('div', { class: 'flex justify-end' }, [
         h(AdminMembersRowActions, {
           row: row.original,
+          showPermissionTemplate: row.original.systemRole !== 'platform_admin',
           onView: openViewDialog,
           onToggleStatus: toggleMemberStatus,
+          onPermissionTemplate: openPermissionTemplateDialog,
         }),
       ]),
     enableSorting: false,
@@ -372,6 +390,85 @@ function clearSelection() {
   rowSelection.value = {}
 }
 
+const permDialogOpen = ref(false)
+const permMember = ref<AdminUserItem | null>(null)
+const permModules = ref<ModulesMap>({})
+const permLoading = ref(false)
+const permSaving = ref(false)
+const permPresetLoading = ref(false)
+const permError = ref('')
+const permPresetKey = ref<PresetKey | ''>('')
+
+async function openPermissionTemplateDialog(member: AdminUserItem) {
+  permMember.value = member
+  permError.value = ''
+  permPresetKey.value = ''
+  permDialogOpen.value = true
+  permLoading.value = true
+  const tid = tenantIdForPermissionTemplate.value
+  if (authStore.isPlatformAdmin && !tid) {
+    permError.value = '請先於後台頂部選擇租戶，再編輯權限範本'
+    permLoading.value = false
+    return
+  }
+  try {
+    permModules.value = await fetchTenantPermissionTemplate(member.id, tid)
+  } catch {
+    permError.value = '無法載入權限範本'
+    permModules.value = {}
+  } finally {
+    permLoading.value = false
+  }
+}
+
+function closePermissionTemplateDialog() {
+  permDialogOpen.value = false
+  permMember.value = null
+  permError.value = ''
+  permModules.value = {}
+}
+
+async function applyPermissionPreset() {
+  const member = permMember.value
+  const key = permPresetKey.value
+  const tid = tenantIdForPermissionTemplate.value
+  if (!member || !key) return
+  permPresetLoading.value = true
+  permError.value = ''
+  try {
+    permModules.value = await applyTenantPermissionPreset(member.id, key, tid)
+  } catch (e: unknown) {
+    const res =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+        : null
+    permError.value = res?.message ?? '套用預設失敗'
+  } finally {
+    permPresetLoading.value = false
+  }
+}
+
+async function savePermissionTemplate() {
+  const member = permMember.value
+  const tid = tenantIdForPermissionTemplate.value
+  if (!member) return
+  permSaving.value = true
+  permError.value = ''
+  try {
+    const payload = toFullModulesPayload(permModules.value)
+    permModules.value = await replaceTenantPermissionTemplate(member.id, payload, tid)
+    closePermissionTemplateDialog()
+  } catch (e: unknown) {
+    const res =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+        : null
+    permError.value = res?.message ?? '儲存失敗'
+  } finally {
+    permSaving.value = false
+  }
+}
+
 async function confirmBatchDelete() {
   const ids = selectedRows.value.map((r) => r.original.id)
   if (!ids.length) return
@@ -401,7 +498,7 @@ async function confirmBatchDelete() {
     <div class="flex flex-col gap-1">
       <h1 class="text-2xl font-semibold tracking-tight text-foreground">成員管理</h1>
       <p class="text-sm text-muted-foreground">
-        管理本租戶使用者：區分內部成員與外部成員，邀請、指派專案與角色。權限細節於進入專案後再設定。
+        管理本租戶使用者：區分內部／外部成員。可於「權限範本」設定加入專案時複製的模組權限；專案內亦可由租戶／平台管理員覆寫單一成員。
       </p>
     </div>
 
@@ -667,6 +764,65 @@ async function confirmBatchDelete() {
         <p v-else-if="viewMemberError" class="py-4 text-sm text-destructive">
           {{ viewMemberError }}
         </p>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 租戶權限範本（新進專案時複製） -->
+    <Dialog :open="permDialogOpen" @update:open="(v: boolean) => !v && closePermissionTemplateDialog()">
+      <DialogContent
+        class="max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] overflow-y-auto sm:max-w-7xl sm:w-full"
+      >
+        <DialogHeader>
+          <DialogTitle>權限範本 — {{ permMember?.name || permMember?.email || '成員' }}</DialogTitle>
+          <DialogDescription>
+            此矩陣為「加入專案時」複製到該成員的預設模組權限；不影響已存在專案內已覆寫的權限。
+          </DialogDescription>
+        </DialogHeader>
+        <div v-if="permLoading" class="flex justify-center py-12">
+          <Loader2 class="size-8 animate-spin text-muted-foreground" />
+        </div>
+        <template v-else>
+          <div class="flex flex-wrap items-end gap-3 border-b border-border pb-4">
+            <div class="grid gap-2">
+              <label class="text-sm font-medium text-foreground">一鍵套用預設</label>
+              <Select v-model="permPresetKey">
+                <SelectTrigger class="w-[220px] bg-background">
+                  <SelectValue placeholder="選擇預設角色" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem
+                    v-for="opt in PERMISSION_PRESET_OPTIONS"
+                    :key="opt.value"
+                    :value="opt.value"
+                  >
+                    {{ opt.label }}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              :disabled="!permPresetKey || permPresetLoading"
+              @click="applyPermissionPreset"
+            >
+              <Loader2 v-if="permPresetLoading" class="mr-2 size-4 animate-spin" />
+              套用至表單
+            </Button>
+          </div>
+          <div class="py-4">
+            <PermissionMatrixForm v-model="permModules" />
+          </div>
+          <p v-if="permError" class="text-sm text-destructive">{{ permError }}</p>
+          <DialogFooter>
+            <Button variant="outline" :disabled="permSaving" @click="closePermissionTemplateDialog">
+              取消
+            </Button>
+            <Button :disabled="permSaving" @click="savePermissionTemplate">
+              <Loader2 v-if="permSaving" class="mr-2 size-4 animate-spin" />
+              儲存
+            </Button>
+          </DialogFooter>
+        </template>
       </DialogContent>
     </Dialog>
   </div>

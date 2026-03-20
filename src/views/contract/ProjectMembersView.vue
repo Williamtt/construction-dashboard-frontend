@@ -49,8 +49,22 @@ import type { ProjectMemberItem, ProjectMemberAvailableItem } from '@/types'
 import { Plus, Loader2 } from 'lucide-vue-next'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import ProjectMembersRowActions from '@/views/contract/ProjectMembersRowActions.vue'
+import PermissionMatrixForm from '@/components/common/PermissionMatrixForm.vue'
+import {
+  fetchProjectMemberPermissionOverrides,
+  replaceProjectMemberPermissionOverrides,
+  resetProjectMemberPermissionOverrides,
+  toFullModulesPayload,
+  type ModulesMap,
+} from '@/api/project-permissions'
+import { useAuthStore } from '@/stores/auth'
+import { useProjectPermissionsStore } from '@/stores/projectPermissions'
 
 const route = useRoute()
+const authStore = useAuthStore()
+const projectPermissionsStore = useProjectPermissionsStore()
+
+const canManageMembers = computed(() => authStore.canAccessAdmin)
 
 function getProjectId(): string {
   return (route.params.projectId as string) ?? ''
@@ -192,82 +206,174 @@ async function confirmRemove() {
   }
 }
 
-const columns = computed<ColumnDef<ProjectMemberItem, unknown>[]>(() => [
-  {
-    id: 'select',
-    header: ({ table }) =>
-      h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected()
-          ? true
-          : table.getIsSomePageRowsSelected()
-            ? 'indeterminate'
-            : false,
-        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
-        'aria-label': '全選',
-      }),
-    cell: ({ row }) =>
-      h(Checkbox, {
-        checked: row.getIsSelected(),
-        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
-        'aria-label': '選取此列',
-      }),
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'user.name',
-    id: 'name',
-    header: () => '姓名',
-    cell: ({ row }) =>
-      h('div', { class: 'font-medium text-foreground' }, row.original.user.name || '—'),
-  },
-  {
-    accessorKey: 'user.email',
-    id: 'email',
-    header: () => 'Email',
-    cell: ({ row }) =>
-      h('div', { class: 'text-muted-foreground' }, row.original.user.email),
-  },
-  {
-    accessorKey: 'user.systemRole',
-    id: 'systemRole',
-    header: () => '系統角色',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, systemRoleLabel(row.original.user.systemRole)),
-  },
-  {
-    accessorKey: 'user.memberType',
-    id: 'memberType',
-    header: () => '成員類型',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, memberTypeLabel(row.original.user.memberType)),
-  },
-  {
-    accessorKey: 'user.status',
-    id: 'accountStatus',
-    header: () => '帳號狀態',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, statusLabel(row.original.user.status)),
-  },
-  {
-    accessorKey: 'status',
-    id: 'projectStatus',
-    header: () => '專案狀態',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, projectStatusLabel(row.original.status)),
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[4rem]' }),
-    cell: ({ row }) =>
-      h(ProjectMembersRowActions, {
-        row: row.original,
-        togglingStatusId: togglingStatusId.value,
-        onToggleStatus: (r) => toggleMemberStatus(r),
-        onRemove: (r) => openRemoveDialog(r),
-      }),
-    enableSorting: false,
-  },
-])
+const projectPermDialogOpen = ref(false)
+const projectPermMember = ref<ProjectMemberItem | null>(null)
+const projectPermModules = ref<ModulesMap>({})
+const projectPermLoading = ref(false)
+const projectPermSaving = ref(false)
+const projectPermResetting = ref(false)
+const projectPermError = ref('')
+
+async function openProjectPermDialog(member: ProjectMemberItem) {
+  const pid = getProjectId()
+  if (!pid) return
+  projectPermMember.value = member
+  projectPermError.value = ''
+  projectPermDialogOpen.value = true
+  projectPermLoading.value = true
+  try {
+    projectPermModules.value = await fetchProjectMemberPermissionOverrides(pid, member.userId)
+  } catch {
+    projectPermError.value = '無法載入專案權限'
+    projectPermModules.value = {}
+  } finally {
+    projectPermLoading.value = false
+  }
+}
+
+function closeProjectPermDialog() {
+  projectPermDialogOpen.value = false
+  projectPermMember.value = null
+  projectPermError.value = ''
+  projectPermModules.value = {}
+}
+
+async function saveProjectPermOverrides() {
+  const member = projectPermMember.value
+  const pid = getProjectId()
+  if (!member || !pid) return
+  projectPermSaving.value = true
+  projectPermError.value = ''
+  try {
+    const payload = toFullModulesPayload(projectPermModules.value)
+    projectPermModules.value = await replaceProjectMemberPermissionOverrides(pid, member.userId, payload)
+    if (authStore.user?.id === member.userId) {
+      projectPermissionsStore.invalidateProject(pid)
+    }
+    closeProjectPermDialog()
+  } catch (e: unknown) {
+    const res =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+        : null
+    projectPermError.value = res?.message ?? '儲存失敗'
+  } finally {
+    projectPermSaving.value = false
+  }
+}
+
+async function resetProjectPermOverrides() {
+  const member = projectPermMember.value
+  const pid = getProjectId()
+  if (!member || !pid) return
+  projectPermResetting.value = true
+  projectPermError.value = ''
+  try {
+    projectPermModules.value = await resetProjectMemberPermissionOverrides(pid, member.userId)
+    if (authStore.user?.id === member.userId) {
+      projectPermissionsStore.invalidateProject(pid)
+    }
+  } catch (e: unknown) {
+    const res =
+      e && typeof e === 'object' && 'response' in e
+        ? (e as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+        : null
+    projectPermError.value = res?.message ?? '重設失敗'
+  } finally {
+    projectPermResetting.value = false
+  }
+}
+
+const selectColumn: ColumnDef<ProjectMemberItem, unknown> = {
+  id: 'select',
+  header: ({ table }) =>
+    h(Checkbox, {
+      checked: table.getIsAllPageRowsSelected()
+        ? true
+        : table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : false,
+      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+      'aria-label': '全選',
+    }),
+  cell: ({ row }) =>
+    h(Checkbox, {
+      checked: row.getIsSelected(),
+      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+      'aria-label': '選取此列',
+    }),
+  enableSorting: false,
+}
+
+const columns = computed<ColumnDef<ProjectMemberItem, unknown>[]>(() => {
+  const dataCols: ColumnDef<ProjectMemberItem, unknown>[] = [
+    {
+      accessorKey: 'user.name',
+      id: 'name',
+      header: () => '姓名',
+      cell: ({ row }) =>
+        h('div', { class: 'font-medium text-foreground' }, row.original.user.name || '—'),
+    },
+    {
+      accessorKey: 'user.email',
+      id: 'email',
+      header: () => 'Email',
+      cell: ({ row }) =>
+        h('div', { class: 'text-muted-foreground' }, row.original.user.email),
+    },
+    {
+      accessorKey: 'user.systemRole',
+      id: 'systemRole',
+      header: () => '系統角色',
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, systemRoleLabel(row.original.user.systemRole)),
+    },
+    {
+      accessorKey: 'user.memberType',
+      id: 'memberType',
+      header: () => '成員類型',
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, memberTypeLabel(row.original.user.memberType)),
+    },
+    {
+      accessorKey: 'user.status',
+      id: 'accountStatus',
+      header: () => '帳號狀態',
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, statusLabel(row.original.user.status)),
+    },
+    {
+      accessorKey: 'status',
+      id: 'projectStatus',
+      header: () => '專案狀態',
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, projectStatusLabel(row.original.status)),
+    },
+    {
+      id: 'actions',
+      header: () => h('div', { class: 'w-[4rem]' }),
+      cell: ({ row }) => {
+        if (!canManageMembers.value) {
+          return h('span', { class: 'text-xs text-muted-foreground' }, '—')
+        }
+        const showPerm = row.original.user.systemRole !== 'platform_admin'
+        return h(ProjectMembersRowActions, {
+          row: row.original,
+          togglingStatusId: togglingStatusId.value,
+          canManageMembership: true,
+          canEditPermissions: showPerm,
+          onToggleStatus: (r: ProjectMemberItem) => toggleMemberStatus(r),
+          onRemove: (r: ProjectMemberItem) => openRemoveDialog(r),
+          onEditPermissions: (r: ProjectMemberItem) => openProjectPermDialog(r),
+        })
+      },
+      enableSorting: false,
+    },
+  ]
+  return canManageMembers.value ? [selectColumn, ...dataCols] : dataCols
+})
+
+const columnCount = computed(() => columns.value.length)
 
 const table = useVueTable({
   get data() {
@@ -374,11 +480,13 @@ watch(projectId, (id) => {
 <template>
   <div class="space-y-4">
     <p class="text-sm text-muted-foreground">
-      專案成員來自租戶成員，可將同租戶的成員加入此專案；一成員可參與多個專案。僅租戶管理員或平台管理員可新增／移除成員。
+      專案成員來自租戶成員，可將同租戶的成員加入此專案；一成員可參與多個專案。
+      <template v-if="canManageMembers">僅租戶管理員或平台管理員可新增／移除成員與編輯專案權限覆寫。</template>
+      <template v-else>您可檢視名單；變更成員與權限請洽租戶管理員。</template>
     </p>
 
     <!-- 工具列：已選 + ButtonGroup + 新增成員在右 -->
-    <div class="flex flex-wrap items-center justify-end gap-3">
+    <div v-if="canManageMembers" class="flex flex-wrap items-center justify-end gap-3">
       <template v-if="hasSelection">
         <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
         <ButtonGroup>
@@ -438,7 +546,7 @@ watch(projectId, (id) => {
             </template>
             <template v-else>
               <TableRow>
-                <TableCell :colspan="8" class="h-24 text-center text-muted-foreground">
+                <TableCell :colspan="columnCount" class="h-24 text-center text-muted-foreground">
                   尚無專案成員
                 </TableCell>
               </TableRow>
@@ -453,7 +561,7 @@ watch(projectId, (id) => {
           class="flex flex-col items-center justify-center py-16 text-muted-foreground"
         >
           <p class="text-sm">尚無專案成員</p>
-          <p class="mt-1 text-xs">請從「新增成員」加入同租戶的成員</p>
+          <p v-if="canManageMembers" class="mt-1 text-xs">請從「新增成員」加入同租戶的成員</p>
         </div>
       </template>
     </div>
@@ -577,6 +685,50 @@ watch(projectId, (id) => {
             移除
           </Button>
         </DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <!-- 專案成員模組權限覆寫 -->
+    <Dialog :open="projectPermDialogOpen" @update:open="(v: boolean) => !v && closeProjectPermDialog()">
+      <DialogContent class="max-h-[90vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>
+            專案權限 — {{ projectPermMember?.user.name || projectPermMember?.user.email || '成員' }}
+          </DialogTitle>
+          <DialogDescription>
+            僅影響此成員在本專案的模組權限。「重設為租戶範本」會依該成員目前的租戶權限範本重新寫入本專案，不影響其他專案。
+          </DialogDescription>
+        </DialogHeader>
+        <div v-if="projectPermLoading" class="flex justify-center py-12">
+          <Loader2 class="size-8 animate-spin text-muted-foreground" />
+        </div>
+        <template v-else>
+          <div class="py-4">
+            <PermissionMatrixForm v-model="projectPermModules" />
+          </div>
+          <p v-if="projectPermError" class="text-sm text-destructive">{{ projectPermError }}</p>
+          <DialogFooter class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              :disabled="projectPermSaving || projectPermResetting"
+              @click="closeProjectPermDialog"
+            >
+              取消
+            </Button>
+            <Button
+              variant="outline"
+              :disabled="projectPermSaving || projectPermResetting"
+              @click="resetProjectPermOverrides"
+            >
+              <Loader2 v-if="projectPermResetting" class="mr-2 size-4 animate-spin" />
+              重設為租戶範本
+            </Button>
+            <Button :disabled="projectPermSaving || projectPermResetting" @click="saveProjectPermOverrides">
+              <Loader2 v-if="projectPermSaving" class="mr-2 size-4 animate-spin" />
+              儲存
+            </Button>
+          </DialogFooter>
+        </template>
       </DialogContent>
     </Dialog>
   </div>
