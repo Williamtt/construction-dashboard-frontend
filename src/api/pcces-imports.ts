@@ -6,6 +6,8 @@ export interface PccesImportSummary {
   id: string
   projectId: string
   version: number
+  /** 版本顯示名稱；第 1 版空值時前端顯示「原契約」 */
+  versionLabel: string | null
   documentType: string | null
   fileName: string
   attachmentId: string | null
@@ -36,6 +38,19 @@ export interface PccesItemDto {
   depth: number
 }
 
+/** 列表／明細用版本名稱（第 1 版無自訂時為「原契約」） */
+export function displayPccesVersionLabel(row: {
+  version: number
+  versionLabel: string | null | undefined
+}): string {
+  const t = row.versionLabel?.trim()
+  if (row.version === 1) {
+    if (!t) return '原契約'
+    return t
+  }
+  return t || `第 ${row.version} 版`
+}
+
 export async function listPccesImports(projectId: string): Promise<PccesImportSummary[]> {
   const { data } = await apiClient.get<ApiResponse<PccesImportSummary[]>>(
     API_PATH.PROJECT_PCCES_IMPORTS(projectId)
@@ -43,13 +58,32 @@ export async function listPccesImports(projectId: string): Promise<PccesImportSu
   return data.data
 }
 
-export async function uploadPccesImport(projectId: string, file: File): Promise<PccesImportSummary> {
+export async function uploadPccesImport(
+  projectId: string,
+  file: File,
+  options?: { versionLabel?: string }
+): Promise<PccesImportSummary> {
   const form = new FormData()
   form.append('file', file, file.name)
+  if (options?.versionLabel != null && options.versionLabel !== '') {
+    form.append('versionLabel', options.versionLabel)
+  }
   const { data } = await apiClient.post<ApiResponse<PccesImportSummary>>(
     API_PATH.PROJECT_PCCES_IMPORTS(projectId),
     form,
     { headers: { 'Content-Type': 'multipart/form-data' } }
+  )
+  return data.data
+}
+
+export async function patchPccesImportVersionLabel(
+  projectId: string,
+  importId: string,
+  versionLabel: string
+): Promise<PccesImportSummary> {
+  const { data } = await apiClient.patch<ApiResponse<PccesImportSummary>>(
+    API_PATH.PROJECT_PCCES_IMPORT(projectId, importId),
+    { versionLabel }
   )
   return data.data
 }
@@ -86,13 +120,62 @@ export async function approvePccesImport(
   return data.data
 }
 
+/** POST .../pcces-imports/:importId/excel-apply 請求體（與後端 Zod 對齊） */
+export interface PccesExcelApplyExcelAudit {
+  itemNo?: string
+  description: string
+  unit?: string
+  qtyRaw?: string
+  unitPriceRaw?: string
+  remark?: string
+}
+
+export interface PccesExcelApplyAutoMatched {
+  itemKey: number
+  newQuantity?: string
+  newUnitPrice?: string
+  excel: PccesExcelApplyExcelAudit
+}
+
+export interface PccesExcelApplyManuallyPlaced {
+  parentItemKey: number
+  itemNo: string
+  description: string
+  unit: string
+  quantity: string
+  unitPrice: string
+  remark?: string
+  excel: PccesExcelApplyExcelAudit
+}
+
+export interface PccesExcelApplyBody {
+  fileName?: string
+  /** 產生之新版本顯示名稱（必填） */
+  versionLabel: string
+  autoMatched: PccesExcelApplyAutoMatched[]
+  manuallyPlaced: PccesExcelApplyManuallyPlaced[]
+}
+
+export async function applyPccesImportExcelChanges(
+  projectId: string,
+  baseImportId: string,
+  body: PccesExcelApplyBody
+): Promise<PccesImportSummary> {
+  const { data } = await apiClient.post<ApiResponse<PccesImportSummary>>(
+    API_PATH.PROJECT_PCCES_IMPORT_EXCEL_APPLY(projectId, baseImportId),
+    body
+  )
+  return data.data
+}
+
 export async function getPccesImportItems(
   projectId: string,
   importId: string,
   params: {
     page?: number
     limit?: number
-    itemKind?: 'general' | 'mainItem' | ''
+    /** 後端依原字串篩選 XML itemKind；空字串表示不篩 */
+    itemKind?: string
     /** 一次載入該匯入之全部工項（後端有筆數上限） */
     all?: boolean
   }
@@ -104,8 +187,8 @@ export async function getPccesImportItems(
     if (params.page != null) search.set('page', String(params.page))
     if (params.limit != null) search.set('limit', String(params.limit))
   }
-  if (params.itemKind === 'general' || params.itemKind === 'mainItem') {
-    search.set('itemKind', params.itemKind)
+  if (params.itemKind != null && String(params.itemKind).trim() !== '') {
+    search.set('itemKind', String(params.itemKind).trim())
   }
   const q = search.toString()
   const url = `${API_PATH.PROJECT_PCCES_IMPORT_ITEMS(projectId, importId)}${q ? `?${q}` : ''}`

@@ -92,6 +92,8 @@ export const ROUTE_PATH = {
   PROJECT_CONSTRUCTION_DIARY_VALUATION_DETAIL: '/construction/diary/valuations/:valuationId',
   /** PCCES XML：初次／再次匯入、匯入紀錄列表、單次匯入工項明細 */
   PROJECT_CONSTRUCTION_PCCES_UPLOAD: '/construction/diary/pcces/upload',
+  /** 以指定匯入版為基底，上傳 Excel 變更清單（query: baseImportId） */
+  PROJECT_CONSTRUCTION_PCCES_EXCEL_CHANGE: '/construction/diary/pcces/excel-change',
   PROJECT_CONSTRUCTION_PCCES_VERSIONS: '/construction/diary/pcces/versions',
   PROJECT_CONSTRUCTION_PCCES_VERSION_DETAIL: '/construction/diary/pcces/versions/:importId',
   PROJECT_CONSTRUCTION_DRAWINGS: '/construction/drawings',
@@ -184,6 +186,7 @@ export const ROUTE_NAME = {
   PROJECT_CONSTRUCTION_DIARY_VALUATION_NEW: 'project-construction-diary-valuation-new',
   PROJECT_CONSTRUCTION_DIARY_VALUATION_DETAIL: 'project-construction-diary-valuation-detail',
   PROJECT_CONSTRUCTION_PCCES_UPLOAD: 'project-construction-pcces-upload',
+  PROJECT_CONSTRUCTION_PCCES_EXCEL_CHANGE: 'project-construction-pcces-excel-change',
   PROJECT_CONSTRUCTION_PCCES_VERSIONS: 'project-construction-pcces-versions',
   PROJECT_CONSTRUCTION_PCCES_VERSION_DETAIL: 'project-construction-pcces-version-detail',
   PROJECT_CONSTRUCTION_DRAWINGS: 'project-construction-drawings',

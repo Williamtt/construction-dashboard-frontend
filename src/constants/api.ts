@@ -115,6 +115,8 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/pcces-imports/${importId}/items`,
   PROJECT_PCCES_IMPORT_APPROVE: (projectId: string, importId: string) =>
     `${API_V1}/projects/${projectId}/pcces-imports/${importId}/approve`,
+  PROJECT_PCCES_IMPORT_EXCEL_APPLY: (projectId: string, importId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/${importId}/excel-apply`,
 
   /** 公共工程施工日誌（依附表四） */
   PROJECT_CONSTRUCTION_DAILY_LOGS: (projectId: string) =>

@@ -17,6 +17,8 @@ export interface ConstructionValuationLineDto {
   pccesItemId: string | null
   /** PCCES 父階 itemKey；手填列通常為 null */
   pccesParentItemKey?: number | null
+  /** 綁定 PCCES 時之 XML itemKind；手填列為 null */
+  pccesItemKind?: string | null
   itemNo: string
   description: string
   unit: string
@@ -27,6 +29,8 @@ export interface ConstructionValuationLineDto {
   remark: string
   priorBilledQty: string
   maxQty: string
+  /** PCCES 列：施工日誌截至估驗日之累計完成；手填列為 null */
+  logAccumulatedQtyToDate: string | null
   availableValuationQty: string
   cumulativeValuationQtyToDate: string
   currentPeriodAmount: string
@@ -66,28 +70,37 @@ export interface ConstructionValuationPccesPickerImport {
   approvedById: string | null
 }
 
-export interface ConstructionValuationPccesPickerItem {
+/** 與「PCCES 明細／全部類型」同序（itemKey 升序）；非末層之估驗聚合欄位為 null */
+export interface ConstructionValuationPccesPickerRow {
   pccesItemId: string
+  itemKey: number
+  parentItemKey: number | null
   itemNo: string
   description: string
   unit: string
+  itemKind: string
   contractQty: string
   approvedQtyAfterChange: string | null
   unitPrice: string
-  priorBilledQty: string
-  maxQty: string
-  suggestedAvailableQty: string
+  isStructuralLeaf: boolean
+  priorBilledQty: string | null
+  maxQty: string | null
+  logAccumulatedQtyToDate: string | null
+  suggestedAvailableQty: string | null
 }
 
+/** @deprecated 後端回傳空陣列；請改用 `rows` */
 export interface ConstructionValuationPccesPickerGroup {
   parent: { itemNo: string; description: string; unit: string; itemKey: number } | null
-  children: ConstructionValuationPccesPickerItem[]
+  children: ConstructionValuationPccesPickerRow[]
 }
 
 export interface ConstructionValuationPccesPickerResponse {
   pccesImport: ConstructionValuationPccesPickerImport | null
+  rows: ConstructionValuationPccesPickerRow[]
+  /** @deprecated 請改用 `rows` */
   groups: ConstructionValuationPccesPickerGroup[]
-  items: ConstructionValuationPccesPickerItem[]
+  items: ConstructionValuationPccesPickerRow[]
 }
 
 export type ConstructionValuationUpsertPayload = {
@@ -129,10 +142,11 @@ export async function listConstructionValuations(
 
 export async function getConstructionValuationPccesLines(
   projectId: string,
-  params?: { excludeValuationId?: string }
+  params?: { excludeValuationId?: string; /** YYYY-MM-DD；施工日誌累計算至該日（含），省略則截至今日 UTC */ asOfDate?: string }
 ): Promise<ConstructionValuationPccesPickerResponse> {
   const search = new URLSearchParams()
   if (params?.excludeValuationId) search.set('excludeValuationId', params.excludeValuationId)
+  if (params?.asOfDate?.trim()) search.set('asOfDate', params.asOfDate.trim())
   const q = search.toString()
   const url = `${API_PATH.PROJECT_CONSTRUCTION_VALUATION_PCCES_LINES(projectId)}${q ? `?${q}` : ''}`
   const { data: body } = await apiClient.get<ApiResponse<ConstructionValuationPccesPickerResponse>>(url)

@@ -7,9 +7,15 @@ export interface ConstructionDailyLogWorkItemDto {
   pccesItemId?: string | null
   /** PCCES 項次；手填列為 null */
   itemNo?: string | null
+  /** 綁定 PCCES 時之 XML itemKind；手填列為 null */
+  pccesItemKind?: string | null
+  /** 綁定 PCCES 時是否為結構末層（目錄列為 false）；手填列為 null */
+  pccesStructuralLeaf?: boolean | null
   workItemName: string
   unit: string
   contractQty: string
+  /** 綁定 PCCES 時之單價快照；未存過為 null */
+  unitPrice?: string | null
   dailyQty: string
   accumulatedQty: string
   remark: string
@@ -144,28 +150,36 @@ export interface ConstructionDailyLogPccesPickerImport {
   approvedById: string | null
 }
 
-export interface ConstructionDailyLogPccesPickerItem {
+/** 與「PCCES 明細／全部類型」同序（itemKey 升序）；父列與末層欄位一致 */
+export interface ConstructionDailyLogPccesPickerRow {
   pccesItemId: string
+  itemKey: number
+  parentItemKey: number | null
   itemNo: string
   workItemName: string
   unit: string
+  itemKind: string
   contractQty: string
-  /** 填表日期之前、其他日誌已填本日量加總 */
-  priorAccumulatedQty: string
+  unitPrice: string
+  isStructuralLeaf: boolean
+  /** 非末層為 null */
+  priorAccumulatedQty: string | null
 }
 
-/** 父層僅供對照（單位與子項不同，不填數量）；僅當該父下至少有一筆 general 子項時出現 */
+/** @deprecated 後端回傳空陣列；請改用 `rows` */
 export interface ConstructionDailyLogPccesPickerGroup {
   parent: { itemNo: string; workItemName: string; unit: string } | null
-  children: ConstructionDailyLogPccesPickerItem[]
+  children: ConstructionDailyLogPccesPickerRow[]
 }
 
 export interface ConstructionDailyLogPccesPickerResponse {
   pccesImport: ConstructionDailyLogPccesPickerImport | null
-  /** 依父層分組；無父層之 general 列會落在 parent 為 null 的群組 */
+  /** 全部工項列，itemKey 升序（同匯入明細列表） */
+  rows: ConstructionDailyLogPccesPickerRow[]
+  /** @deprecated 請改用 `rows` */
   groups: ConstructionDailyLogPccesPickerGroup[]
-  /** 所有可填數量之子列（扁平，與後端驗證用 id 清單一致） */
-  items: ConstructionDailyLogPccesPickerItem[]
+  /** 僅結構末層（等同 `rows.filter(r => r.isStructuralLeaf)`） */
+  items: ConstructionDailyLogPccesPickerRow[]
 }
 
 export async function getConstructionDailyLogPccesWorkItems(

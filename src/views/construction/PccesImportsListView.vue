@@ -26,16 +26,25 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
-import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
+import { ROUTE_NAME } from '@/constants/routes'
 import {
   listPccesImports,
   deletePccesImport,
   approvePccesImport,
+  displayPccesVersionLabel,
   type PccesImportSummary,
 } from '@/api/pcces-imports'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import { Loader2, Plus, MoreHorizontal, Eye, Trash2, CheckCircle2 } from 'lucide-vue-next'
+import {
+  Loader2,
+  Plus,
+  ChevronDown,
+  MoreHorizontal,
+  Eye,
+  Trash2,
+  CheckCircle2,
+} from 'lucide-vue-next'
 
 const route = useRoute()
 const projectId = computed(() => (route.params.projectId as string) ?? '')
@@ -49,9 +58,20 @@ const deleteTarget = ref<PccesImportSummary | null>(null)
 const deleteLoading = ref(false)
 const approvingId = ref<string | null>(null)
 
-const uploadPath = computed(() =>
-  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_PCCES_UPLOAD)
-)
+/** 全量 XML 上傳（與明細頁帶入的 context 對齊） */
+const uploadXmlRoute = computed(() => ({
+  name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_UPLOAD,
+  params: { projectId: projectId.value },
+  query: { context: 'xml' },
+}))
+
+/** 列表新到舊，預設以最新一版為 Excel 變更基底 */
+const excelChangeFromLatestRoute = computed(() => ({
+  name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_EXCEL_CHANGE,
+  params: { projectId: projectId.value },
+  query:
+    list.value.length > 0 ? { baseImportId: list.value[0].id } : ({} as Record<string, string>),
+}))
 
 async function fetchList() {
   if (!projectId.value) return
@@ -132,11 +152,12 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">PCCES 匯入紀錄</h1>
+      <h1 class="text-xl font-semibold text-foreground">PCCES 匯入紀錄</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        依版本新到舊排列；可刪除整次匯入（軟刪除，無法復原）。
+        依版次新到舊排列；第 1 版顯示為「原契約」，其餘版本名稱於上傳或 Excel
+        確認時自訂，可於明細修改。可刪除整次匯入（軟刪除，無法復原）。
       </p>
     </div>
 
@@ -146,12 +167,48 @@ async function confirmDelete() {
 
     <template v-else>
       <div class="flex flex-wrap items-center justify-end gap-3">
-        <Button v-if="perm.canCreate.value" class="gap-2" as-child>
-          <RouterLink :to="uploadPath" class="inline-flex items-center gap-2">
-            <Plus class="size-4" />
-            上傳新版本
-          </RouterLink>
-        </Button>
+        <template v-if="perm.canCreate.value">
+          <Button v-if="loading" disabled class="gap-2">
+            <Loader2 class="size-4 animate-spin" />
+            載入中…
+          </Button>
+          <Button v-else-if="list.length === 0" class="gap-2" as-child>
+            <RouterLink :to="uploadXmlRoute" class="inline-flex items-center gap-2">
+              <Plus class="size-4" />
+              首次匯入（XML）
+            </RouterLink>
+          </Button>
+          <DropdownMenu v-else>
+            <DropdownMenuTrigger as-child>
+              <Button type="button" class="gap-2">
+                <Plus class="size-4" />
+                新增版本
+                <ChevronDown class="size-4 opacity-70" aria-hidden="true" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" class="w-[min(20rem,calc(100vw-2rem))]">
+              <DropdownMenuItem as-child class="cursor-pointer">
+                <RouterLink :to="uploadXmlRoute" class="flex w-full flex-col items-start gap-0.5 py-2">
+                  <span class="font-medium">上傳 PCCES XML</span>
+                  <span class="text-xs font-normal text-muted-foreground">
+                    完整 eTender 標單；與 Excel 變更產生的版本不同
+                  </span>
+                </RouterLink>
+              </DropdownMenuItem>
+              <DropdownMenuItem as-child class="cursor-pointer">
+                <RouterLink
+                  :to="excelChangeFromLatestRoute"
+                  class="flex w-full flex-col items-start gap-0.5 py-2"
+                >
+                  <span class="font-medium">Excel 變更</span>
+                  <span class="text-xs font-normal text-muted-foreground">
+                    以目前列表最上方（最新）版本為基底；若要以其他版為基底，請至該版明細頁使用「Excel 變更」
+                  </span>
+                </RouterLink>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </template>
       </div>
 
       <div class="rounded-lg border border-border bg-card p-4">
@@ -162,7 +219,7 @@ async function confirmDelete() {
           尚無匯入紀錄。
           <RouterLink
             v-if="perm.canCreate.value"
-            :to="uploadPath"
+            :to="uploadXmlRoute"
             class="text-primary underline-offset-4 hover:underline"
           >
             前往首次匯入
@@ -171,7 +228,8 @@ async function confirmDelete() {
         <Table v-else>
           <TableHeader>
             <TableRow>
-              <TableHead>版本</TableHead>
+              <TableHead class="min-w-[8rem]">版次</TableHead>
+              <TableHead>版本名稱</TableHead>
               <TableHead>檔名</TableHead>
               <TableHead>類型</TableHead>
               <TableHead>筆數</TableHead>
@@ -182,11 +240,16 @@ async function confirmDelete() {
           </TableHeader>
           <TableBody>
             <TableRow v-for="row in list" :key="row.id">
-              <TableCell class="tabular-nums font-medium">第 {{ row.version }} 版</TableCell>
+              <TableCell class="tabular-nums font-medium text-muted-foreground">
+                第 {{ row.version }} 版
+              </TableCell>
+              <TableCell class="font-medium text-foreground">
+                {{ displayPccesVersionLabel(row) }}
+              </TableCell>
               <TableCell>{{ row.fileName }}</TableCell>
               <TableCell class="text-muted-foreground">{{ row.documentType ?? '—' }}</TableCell>
               <TableCell class="tabular-nums text-sm text-muted-foreground">
-                {{ row.itemCount }}（general {{ row.generalCount }}）
+                {{ row.itemCount }}（葉節點 {{ row.generalCount }}）
               </TableCell>
               <TableCell class="text-sm text-muted-foreground">{{ formatDate(row.createdAt) }}</TableCell>
               <TableCell class="text-center text-sm">

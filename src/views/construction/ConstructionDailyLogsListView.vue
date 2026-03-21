@@ -157,9 +157,9 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">施工日誌</h1>
+      <h1 class="text-xl font-semibold text-foreground">施工日誌</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         公共工程依附表四格式；同一專案同一填表日期僅能一筆。
       </p>

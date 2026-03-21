@@ -322,6 +322,11 @@ const router = createRouter({
           component: () => import('@/views/construction/PccesImportsListView.vue'),
         },
         {
+          path: 'p/:projectId/construction/diary/pcces/excel-change',
+          name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_EXCEL_CHANGE,
+          component: () => import('@/views/construction/PccesExcelChangeView.vue'),
+        },
+        {
           path: 'p/:projectId/construction/diary/pcces/upload',
           name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_UPLOAD,
           component: () => import('@/views/construction/PccesImportUploadView.vue'),

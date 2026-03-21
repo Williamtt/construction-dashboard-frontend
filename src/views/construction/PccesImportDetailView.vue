@@ -4,6 +4,8 @@ import { useRoute, useRouter, RouterLink } from 'vue-router'
 import { isAxiosError } from 'axios'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -40,11 +42,13 @@ import {
   getPccesImportItems,
   deletePccesImport,
   approvePccesImport,
+  patchPccesImportVersionLabel,
+  displayPccesVersionLabel,
   type PccesItemDto,
 } from '@/api/pcces-imports'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import { Loader2, ArrowLeft, Trash2 } from 'lucide-vue-next'
+import { Loader2, Trash2, FileSpreadsheet } from 'lucide-vue-next'
 import { h } from 'vue'
 
 const route = useRoute()
@@ -58,10 +62,13 @@ const loadError = ref('')
 const summaryVersion = ref<number | null>(null)
 const summaryFileName = ref('')
 const summaryDocType = ref<string | null>(null)
+const summaryVersionLabelRaw = ref<string | null>(null)
+const editVersionLabel = ref('')
+const savingVersionLabel = ref(false)
 const items = ref<PccesItemDto[]>([])
 const itemTotal = ref(0)
-/** all | general | mainItem */
-const kindFilter = ref<'all' | 'general' | 'mainItem'>('all')
+/** all 或任一 XML itemKind（後端原字串篩選） */
+const kindFilter = ref<'all' | 'general' | 'mainItem' | 'formula' | 'variablePrice'>('all')
 
 const deleteOpen = ref(false)
 const deleteLoading = ref(false)
@@ -71,9 +78,19 @@ const approveLoading = ref(false)
 const versionsPath = computed(() =>
   buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_PCCES_VERSIONS)
 )
-const uploadPath = computed(() =>
-  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_PCCES_UPLOAD)
-)
+const isOriginalContractVersion = computed(() => summaryVersion.value === 1)
+const isExcelDerivedVersion = computed(() => summaryDocType.value === 'excel_change')
+
+const uploadRoute = computed(() => ({
+  name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_UPLOAD,
+  params: { projectId: projectId.value },
+  query: { context: isExcelDerivedVersion.value ? 'excel' : 'xml' },
+}))
+const excelChangeRoute = computed(() => ({
+  name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_EXCEL_CHANGE,
+  params: { projectId: projectId.value },
+  query: { baseImportId: importId.value },
+}))
 
 const itemKindParam = computed(() => {
   if (kindFilter.value === 'all') return undefined
@@ -92,6 +109,10 @@ async function load() {
     summaryVersion.value = res.import.version
     summaryFileName.value = res.import.fileName
     summaryDocType.value = res.import.documentType
+    summaryVersionLabelRaw.value = res.import.versionLabel ?? null
+    const v = res.import.version
+    const raw = (res.import.versionLabel ?? '').trim()
+    editVersionLabel.value = raw !== '' ? raw : v === 1 ? '原契約' : ''
     importApprovedAt.value = res.import.approvedAt ?? null
     items.value = res.items
     itemTotal.value = res.meta.total
@@ -240,59 +261,158 @@ async function confirmDeleteVersion() {
   }
 }
 
+const summaryDisplayLabel = computed(() => {
+  if (summaryVersion.value == null) return ''
+  return displayPccesVersionLabel({
+    version: summaryVersion.value,
+    versionLabel: summaryVersionLabelRaw.value,
+  })
+})
+
+async function saveVersionLabel() {
+  if (!projectId.value || !importId.value) return
+  if (!perm.canUpdate.value) {
+    toast.error('您沒有修改權限')
+    return
+  }
+  savingVersionLabel.value = true
+  try {
+    const updated = await patchPccesImportVersionLabel(
+      projectId.value,
+      importId.value,
+      editVersionLabel.value.trim()
+    )
+    summaryVersionLabelRaw.value = updated.versionLabel
+    const v = updated.version
+    const raw = (updated.versionLabel ?? '').trim()
+    editVersionLabel.value = raw !== '' ? raw : v === 1 ? '原契約' : ''
+    toast.success('已更新版本名稱')
+  } catch (e) {
+    const msg = isAxiosError(e)
+      ? (e.response?.data as { error?: { message?: string } })?.error?.message
+      : null
+    toast.error(msg ?? '更新失敗')
+  } finally {
+    savingVersionLabel.value = false
+  }
+}
+
 </script>
 
 <template>
   <div class="flex h-full min-h-0 flex-col gap-6">
-    <div class="flex shrink-0 flex-wrap items-center gap-3">
-      <Button variant="ghost" size="sm" as-child class="text-muted-foreground">
-        <RouterLink :to="versionsPath" class="inline-flex items-center gap-1">
-          <ArrowLeft class="size-4" />
-          匯入紀錄
-        </RouterLink>
-      </Button>
-      <Button variant="outline" size="sm" as-child>
-        <RouterLink :to="uploadPath">上傳新版本</RouterLink>
-      </Button>
-      <Button
-        v-if="perm.canUpdate.value && !loading && !loadError && summaryVersion != null && !importApprovedAt"
-        variant="default"
-        size="sm"
-        :disabled="approveLoading"
-        @click="onApproveVersion"
-      >
-        <Loader2 v-if="approveLoading" class="mr-1 size-4 animate-spin" />
-        核定此版本
-      </Button>
-      <Button
-        v-if="perm.canDelete.value && !loading && !loadError && summaryVersion != null"
-        variant="destructive"
-        size="sm"
-        class="ms-auto sm:ms-0"
-        @click="deleteOpen = true"
-      >
-        <Trash2 class="mr-1 size-4" />
-        刪除此版本
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <Button variant="outline" as-child>
+        <RouterLink :to="versionsPath">返回列表</RouterLink>
       </Button>
     </div>
 
-    <div class="shrink-0">
-      <h1 class="text-xl font-semibold text-foreground">PCCES 工項明細</h1>
-      <p v-if="summaryVersion != null" class="mt-1 text-sm text-muted-foreground">
-        第 {{ summaryVersion }} 版 · {{ summaryFileName }}
-        <span v-if="summaryDocType"> · {{ summaryDocType }}</span>
-        <span v-if="!loading && !loadError"> · 共 {{ itemTotal }} 筆</span>
-      </p>
-      <p v-if="importApprovedAt" class="mt-1 text-sm text-muted-foreground">
-        已於 {{ formatDateTime(importApprovedAt) }} 核定（施工日誌可引用此版工項）。
-      </p>
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <div class="min-w-0 flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <h1 class="text-xl font-semibold text-foreground">PCCES 工項明細</h1>
+          <span
+            v-if="!loading && !loadError && summaryVersion != null"
+            class="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground"
+          >
+            <template v-if="isOriginalContractVersion">原契約版</template>
+            <template v-else-if="isExcelDerivedVersion">Excel 變更版</template>
+            <template v-else>XML 匯入版</template>
+          </span>
+        </div>
+        <p v-if="summaryVersion != null" class="mt-1 text-sm text-muted-foreground">
+          <span class="font-medium text-foreground">{{ summaryDisplayLabel }}</span>
+          <span class="text-muted-foreground"> · 第 {{ summaryVersion }} 版 · {{ summaryFileName }}</span>
+          <span v-if="summaryDocType && !isExcelDerivedVersion"> · {{ summaryDocType }}</span>
+          <span v-if="!loading && !loadError"> · 共 {{ itemTotal }} 筆</span>
+        </p>
+        <p v-if="importApprovedAt" class="mt-1 text-sm text-muted-foreground">
+          已於 {{ formatDateTime(importApprovedAt) }} 核定（施工日誌可引用此版工項）。
+        </p>
+        <p
+          v-else-if="summaryVersion != null && !loading && !loadError"
+          class="mt-1 text-sm text-muted-foreground"
+        >
+          尚未核定。請先核定後，施工日誌始得自本版帶出工項。
+        </p>
+      </div>
+      <div class="flex shrink-0 flex-wrap items-center gap-2">
+        <Button v-if="perm.canCreate.value" variant="outline" size="sm" as-child>
+          <RouterLink :to="excelChangeRoute" class="inline-flex items-center gap-2">
+            <FileSpreadsheet class="size-4" />
+            Excel 變更
+          </RouterLink>
+        </Button>
+        <Button
+          v-if="perm.canCreate.value && !isExcelDerivedVersion"
+          variant="outline"
+          size="sm"
+          as-child
+        >
+          <RouterLink :to="uploadRoute">上傳新版本（XML）</RouterLink>
+        </Button>
+        <Button
+          v-if="perm.canUpdate.value && !loading && !loadError && summaryVersion != null && !importApprovedAt"
+          variant="default"
+          size="sm"
+          :disabled="approveLoading"
+          @click="onApproveVersion"
+        >
+          <Loader2 v-if="approveLoading" class="mr-2 size-4 animate-spin" />
+          核定此版本
+        </Button>
+        <Button
+          v-if="perm.canDelete.value && !loading && !loadError && summaryVersion != null"
+          variant="outline"
+          size="sm"
+          class="text-destructive hover:text-destructive"
+          @click="deleteOpen = true"
+        >
+          <Trash2 class="mr-2 size-4" />
+          刪除此版本
+        </Button>
+      </div>
       <p
-        v-else-if="summaryVersion != null && !loading && !loadError"
-        class="mt-1 text-sm text-muted-foreground"
+        v-if="perm.canCreate.value && isExcelDerivedVersion && !loading && !loadError"
+        class="w-full text-xs text-muted-foreground"
       >
-        尚未核定。請先核定後，施工日誌始得自本版帶出工項。
+        此版為 Excel 變更版：下一版請使用「Excel 變更」。若要改以
+        <span class="text-foreground">完整 PCCES XML</span>
+        新增版本，請至匯入紀錄列表右上角「新增版本」→「上傳 PCCES XML」。
       </p>
     </div>
+
+    <Card
+      v-if="perm.canRead.value && !loading && !loadError && summaryVersion != null && perm.canUpdate.value"
+      class="shrink-0 border-border bg-card"
+    >
+      <CardHeader class="pb-3">
+        <CardTitle class="text-base">版本名稱</CardTitle>
+        <CardDescription>
+          可隨時修改在列表與本頁顯示的名稱。第 1 版無自訂時語意為「原契約」；第 2 版起若清空並儲存，將顯示「第 N 版」。
+        </CardDescription>
+      </CardHeader>
+      <CardContent class="flex flex-wrap items-end gap-3">
+        <div class="flex min-w-[12rem] flex-1 flex-col gap-2">
+          <Label for="pcces-detail-version-label">顯示名稱</Label>
+          <Input
+            id="pcces-detail-version-label"
+            v-model="editVersionLabel"
+            class="max-w-md bg-background"
+            autocomplete="off"
+          />
+        </div>
+        <Button
+          type="button"
+          variant="secondary"
+          :disabled="savingVersionLabel"
+          @click="saveVersionLabel"
+        >
+          <Loader2 v-if="savingVersionLabel" class="mr-2 size-4 animate-spin" />
+          儲存名稱
+        </Button>
+      </CardContent>
+    </Card>
 
     <Card v-if="!perm.canRead.value" class="shrink-0 border-border bg-card">
       <CardContent class="pt-6 text-sm text-muted-foreground">您沒有檢視權限。</CardContent>
@@ -305,7 +425,10 @@ async function confirmDeleteVersion() {
         >
           <div>
             <CardTitle class="text-lg">工項列表</CardTitle>
-            <CardDescription> 可篩選 mainItem／general；一次載入該次匯入之全部工項。 </CardDescription>
+            <CardDescription>
+              可依 XML itemKind 篩選（目錄層多為 mainItem；可填量之末層多為 general，亦有 formula／variablePrice
+              等葉節點）。一次載入該次匯入之全部工項。
+            </CardDescription>
           </div>
           <div class="flex items-center gap-2">
             <span class="text-sm text-muted-foreground">工項類型</span>
@@ -315,8 +438,10 @@ async function confirmDeleteVersion() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">全部</SelectItem>
-                <SelectItem value="general">general（可施工）</SelectItem>
-                <SelectItem value="mainItem">mainItem（目錄）</SelectItem>
+                <SelectItem value="general">general</SelectItem>
+                <SelectItem value="mainItem">mainItem</SelectItem>
+                <SelectItem value="formula">formula</SelectItem>
+                <SelectItem value="variablePrice">variablePrice</SelectItem>
               </SelectContent>
             </Select>
           </div>

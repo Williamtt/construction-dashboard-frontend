@@ -32,15 +32,23 @@ import {
   getConstructionValuationPccesLines,
   updateConstructionValuation,
   type ConstructionValuationDto,
+  type ConstructionValuationPccesPickerRow,
 } from '@/api/construction-valuations'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-vue-next'
+import { Loader2, Plus, Trash2 } from 'lucide-vue-next'
+
+function pccesValuationQtyEditable(itemKind: string | null | undefined): boolean {
+  if (itemKind == null || itemKind === '') return true
+  return itemKind === 'general'
+}
 
 type LineDraft = {
   rowKey: string
   pccesItemId?: string
   pccesParentItemKey?: number | null
+  /** 綁定 PCCES 時之 XML itemKind */
+  pccesItemKind?: string | null
   itemNo: string
   description: string
   unit: string
@@ -51,6 +59,8 @@ type LineDraft = {
   remark: string
   priorBilledQty: string
   maxQty: string
+  /** PCCES：施工日誌截至估驗日累計完成（與契約上限取 min 得可估驗空間）；手填留空 */
+  logAccumulatedQtyToDate: string
 }
 
 type GroupSection = {
@@ -70,10 +80,17 @@ function lineCapN(line: LineDraft): number {
   return c
 }
 
-function maxCurrentN(line: LineDraft): number {
+/** 可估驗數量上限：契約／變更後核定與施工日誌累計完成取較小（§估驗：完成量−已請款） */
+function effectiveCapN(line: LineDraft): number {
   const cap = lineCapN(line)
+  if (!line.pccesItemId) return cap
+  const logQ = parseLocaleNumber(line.logAccumulatedQtyToDate) ?? 0
+  return Math.min(cap, logQ)
+}
+
+function maxCurrentN(line: LineDraft): number {
   const prior = parseLocaleNumber(line.priorBilledQty) ?? 0
-  return Math.max(0, cap - prior)
+  return Math.max(0, effectiveCapN(line) - prior)
 }
 
 function currentQtyN(line: LineDraft): number {
@@ -103,6 +120,21 @@ function lineCumulativeAmountN(line: LineDraft): number {
 
 function getLine(rowKey: string): LineDraft | undefined {
   return lines.value.find((l) => l.rowKey === rowKey)
+}
+
+function pickerSectionHeaderForLeaf(
+  rows: ConstructionValuationPccesPickerRow[],
+  leaf: ConstructionValuationPccesPickerRow
+): { itemNo: string; description: string; unit: string } | null {
+  const pk = leaf.parentItemKey
+  if (pk == null) return null
+  const p = rows.find((x) => x.itemKey === pk && !x.isStructuralLeaf)
+  if (!p) return null
+  return { itemNo: p.itemNo, description: p.description, unit: p.unit }
+}
+
+function parentBucketKey(pk: number | null): string {
+  return pk == null ? '__null__' : String(pk)
 }
 
 function sectionAmounts67(section: GroupSection): { a6: number; a7: number } {
@@ -185,6 +217,7 @@ function draftFromDto(d: ConstructionValuationDto): void {
     rowKey: l.id,
     pccesItemId: l.pccesItemId ?? undefined,
     pccesParentItemKey: l.pccesParentItemKey ?? undefined,
+    pccesItemKind: l.pccesItemKind ?? undefined,
     itemNo: l.itemNo,
     description: l.description,
     unit: l.unit,
@@ -195,6 +228,7 @@ function draftFromDto(d: ConstructionValuationDto): void {
     remark: l.remark,
     priorBilledQty: l.priorBilledQty,
     maxQty: l.maxQty,
+    logAccumulatedQtyToDate: l.logAccumulatedQtyToDate ?? (l.pccesItemId ? '0' : ''),
   }))
   const groups = d.lineGroups
   if (groups != null && groups.length > 0) {
@@ -253,45 +287,42 @@ async function fillFromPcces() {
   try {
     const data = await getConstructionValuationPccesLines(projectId.value, {
       excludeValuationId: isNew.value ? undefined : valuationId.value,
+      asOfDate: valuationDate.value.trim() || undefined,
     })
-    if (!data.items.length) {
+    if (!data.rows.some((r) => r.isStructuralLeaf)) {
       toast.message('無可用工項', { description: '請先完成 PCCES 匯入並核定版本。' })
       return
     }
-    const groupsToUse =
-      data.groups.length > 0 ? data.groups : [{ parent: null, children: data.items }]
+    const leaves = data.rows.filter((r) => r.isStructuralLeaf)
     const nextLines: LineDraft[] = []
     const nextSecs: GroupSection[] = []
-    for (const g of groupsToUse) {
-      const ids: string[] = []
-      for (const c of g.children) {
-        const rk = randomRowKey()
-        ids.push(rk)
-        nextLines.push({
-          rowKey: rk,
-          pccesItemId: c.pccesItemId,
-          pccesParentItemKey: g.parent?.itemKey ?? undefined,
-          itemNo: c.itemNo,
-          description: c.description,
-          unit: c.unit,
-          contractQty: c.contractQty,
-          approvedQtyAfterChange: c.approvedQtyAfterChange ?? '',
-          unitPrice: c.unitPrice,
-          currentPeriodQty: '0',
-          remark: '',
-          priorBilledQty: c.priorBilledQty,
-          maxQty: c.maxQty,
-        })
+    let lastBucket = ''
+    for (const c of leaves) {
+      const rk = randomRowKey()
+      const bucket = parentBucketKey(c.parentItemKey)
+      const header = pickerSectionHeaderForLeaf(data.rows, c)
+      if (nextSecs.length === 0 || bucket !== lastBucket) {
+        nextSecs.push({ parent: header, lineIds: [rk] })
+        lastBucket = bucket
+      } else {
+        nextSecs[nextSecs.length - 1]!.lineIds.push(rk)
       }
-      nextSecs.push({
-        parent: g.parent
-          ? {
-              itemNo: g.parent.itemNo,
-              description: g.parent.description,
-              unit: g.parent.unit,
-            }
-          : null,
-        lineIds: ids,
+      nextLines.push({
+        rowKey: rk,
+        pccesItemId: c.pccesItemId,
+        pccesParentItemKey: c.parentItemKey ?? undefined,
+        pccesItemKind: c.itemKind,
+        itemNo: c.itemNo,
+        description: c.description,
+        unit: c.unit,
+        contractQty: c.contractQty,
+        approvedQtyAfterChange: c.approvedQtyAfterChange ?? '',
+        unitPrice: c.unitPrice,
+        currentPeriodQty: '0',
+        remark: '',
+        priorBilledQty: c.priorBilledQty ?? '0',
+        maxQty: c.maxQty ?? '0',
+        logAccumulatedQtyToDate: c.logAccumulatedQtyToDate ?? '0',
       })
     }
     lines.value = nextLines
@@ -318,6 +349,7 @@ function addManualRow() {
     remark: '',
     priorBilledQty: '0',
     maxQty: '0',
+    logAccumulatedQtyToDate: '',
   })
   const last = groupSections.value[groupSections.value.length - 1]
   if (last && last.parent === null) {
@@ -453,33 +485,10 @@ async function confirmDelete() {
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center gap-3">
-      <Button variant="ghost" size="sm" as-child class="text-muted-foreground">
-        <RouterLink :to="listPath" class="inline-flex items-center gap-1">
-          <ArrowLeft class="size-4" />
-          估驗列表
-        </RouterLink>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <Button variant="outline" as-child>
+        <RouterLink :to="listPath">返回列表</RouterLink>
       </Button>
-      <Button
-        v-if="!isNew && perm.canDelete.value"
-        variant="outline"
-        size="sm"
-        class="ms-auto text-destructive hover:text-destructive"
-        type="button"
-        @click="deleteOpen = true"
-      >
-        <Trash2 class="size-4" />
-        刪除此估驗
-      </Button>
-    </div>
-
-    <div>
-      <h1 class="text-xl font-semibold text-foreground">
-        {{ isNew ? '新增估驗計價' : '估驗計價明細' }}
-      </h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        本次估驗數量手填；本次可估驗數量會隨輸入即時減少，達上限後無法再增加。
-      </p>
     </div>
 
     <div v-if="!perm.canRead.value" class="text-sm text-muted-foreground">
@@ -489,13 +498,34 @@ async function confirmDelete() {
     </div>
 
     <template v-else-if="loading">
-      <div class="flex items-center gap-2 text-sm text-muted-foreground">
-        <Loader2 class="size-4 animate-spin" />
-        載入中…
+      <div class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+        <Loader2 class="size-8 animate-spin" />
+        <p class="mt-2 text-sm">載入中…</p>
       </div>
     </template>
 
     <template v-else>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-semibold text-foreground">
+            {{ isNew ? '新增估驗計價' : '估驗計價明細' }}
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            本次估驗數量手填；「本次可估驗數量」依施工日誌累計完成（截至估驗日）扣除他次估驗已請款後計算，並不得超過契約／變更後核定上限；會隨本次填寫即時減少。
+          </p>
+        </div>
+        <div v-if="!isNew && perm.canDelete.value" class="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            class="text-destructive hover:text-destructive"
+            type="button"
+            @click="deleteOpen = true"
+          >
+            <Trash2 class="mr-2 size-4" />
+            刪除此估驗
+          </Button>
+        </div>
+      </div>
       <div class="grid gap-4 sm:grid-cols-2">
         <div class="space-y-2">
           <Label for="val-title">標題（選填）</Label>
@@ -697,10 +727,21 @@ async function confirmDelete() {
                   />
                 </TableCell>
                 <TableCell class="text-end">
+                  <template
+                    v-if="
+                      !canEdit ||
+                      (isPccesBoundLine(row.line) &&
+                        !pccesValuationQtyEditable(row.line.pccesItemKind))
+                    "
+                  >
+                    <span class="tabular-nums text-sm text-foreground">{{
+                      formatThousands(currentQtyN(row.line), { maximumFractionDigits: 4 })
+                    }}</span>
+                  </template>
                   <Input
+                    v-else
                     v-model="row.line.currentPeriodQty"
                     class="bg-background text-end tabular-nums"
-                    :disabled="!canEdit"
                     @blur="clampCurrent(row.line.rowKey)"
                   />
                 </TableCell>

@@ -54,6 +54,7 @@ export const BREADCRUMB_PROJECT_SUFFIX_LABELS: Record<string, string> = {
   '/construction/diary/valuations': '估驗計價',
   '/construction/diary/valuations/new': '新增估驗',
   '/construction/diary/pcces/upload': 'PCCES／XML 匯入',
+  '/construction/diary/pcces/excel-change': 'PCCES Excel 變更',
   '/construction/diary/pcces/versions': 'PCCES 匯入紀錄',
   '/construction/drawings': '圖說管理',
   '/construction/defects': '缺失改善',

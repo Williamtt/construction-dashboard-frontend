@@ -146,9 +146,9 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">估驗計價</h1>
+      <h1 class="text-xl font-semibold text-foreground">估驗計價</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         每次估驗一筆主檔；明細可自核定 PCCES 帶入。本次可估驗數量＝上限扣除他次已估驗與本次填寫。
       </p>

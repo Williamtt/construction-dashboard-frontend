@@ -54,35 +54,47 @@ import {
 } from '@/components/ui/table'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-vue-next'
+import { Loader2, Plus, Trash2 } from 'lucide-vue-next'
+
+/** general 或空字串視為可填本日完成量；其餘 kind 僅能 0（與後端一致） */
+function pccesDailyQtyEditable(itemKind: string | null | undefined): boolean {
+  if (itemKind == null || itemKind === '') return true
+  return itemKind === 'general'
+}
 
 type WorkDraft = {
-  /** 綁定最新核定 PCCES general 列時使用 */
+  /** 綁定最新核定 PCCES 末層列時使用 */
   pccesItemId?: string | null
+  /** 綁定 PCCES 時之 XML itemKind */
+  pccesItemKind?: string | null
+  /** 與 modal `isStructuralLeaf` 一致；主表單價僅末層顯示 */
+  pccesStructuralLeaf?: boolean | null
   itemNo?: string | null
   workItemName: string
   unit: string
   contractQty: string
+  /** 綁定 PCCES 時自 API／快照帶入，送出時一併寫回 */
+  unitPrice?: string
   dailyQty: string
   accumulatedQty: string
   remark: string
 }
 
-type WorkModalRow = {
+/** 與 API `rows` 對齊；目錄列不填量 */
+type WorkModalTableRow = {
   pccesItemId: string
+  itemKey: number
+  parentItemKey: number | null
   itemNo: string
   workItemName: string
   unit: string
+  itemKind: string
   contractQty: string
+  unitPrice: string
+  isStructuralLeaf: boolean
   priorAccumulatedQty: string
   dailyQty: string
   remark: string
-}
-
-type WorkModalGroup = {
-  /** 有子項 general 時顯示；單位與子項不同，不填數量 */
-  parent: { itemNo: string; workItemName: string; unit: string } | null
-  children: WorkModalRow[]
 }
 
 type MatDraft = {
@@ -112,9 +124,6 @@ const perm = useProjectModuleActions(projectId, 'construction.diary')
 
 const listPath = computed(() =>
   buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY_LOGS)
-)
-const hubPath = computed(() =>
-  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY)
 )
 
 const loading = ref(true)
@@ -156,10 +165,10 @@ const personnelRows = ref<PeDraft[]>([])
 const workModalOpen = ref(false)
 const workModalLoading = ref(false)
 const workModalError = ref('')
-const modalGroups = ref<WorkModalGroup[]>([])
+const modalTableRows = ref<WorkModalTableRow[]>([])
 
-const modalChildRowCount = computed(() =>
-  modalGroups.value.reduce((n, g) => n + g.children.length, 0)
+const modalHasStructuralLeaves = computed(() =>
+  modalTableRows.value.some((r) => r.isStructuralLeaf)
 )
 
 function todayIso() {
@@ -177,16 +186,26 @@ function emptyWork(): WorkDraft {
   }
 }
 
-function workRowAccumulatedPreview(row: WorkModalRow): number {
+function workRowAccumulatedPreview(row: WorkModalTableRow): number {
   const prior = parseLocaleNumber(row.priorAccumulatedQty) ?? 0
   const daily = parseLocaleNumber(row.dailyQty) ?? 0
   return prior + daily
 }
 
-function workModalRowExceedsContract(row: WorkModalRow): boolean {
+function workModalRowExceedsContract(row: WorkModalTableRow): boolean {
+  if (!row.isStructuralLeaf) return false
   const cap = parseLocaleNumber(row.contractQty)
   if (cap == null) return false
   return workRowAccumulatedPreview(row) > cap + 1e-9
+}
+
+/** 與主表／後端一致：已存在日誌列時以快照為準，不換成最新核定版欄位 */
+function preferPccesSnapshotField(
+  existing: string | null | undefined,
+  latest: string
+): string {
+  if (existing != null && String(existing).trim() !== '') return String(existing).trim()
+  return latest
 }
 
 async function openWorkItemsModal() {
@@ -203,9 +222,9 @@ async function openWorkItemsModal() {
       logDate: form.logDate,
       ...(isNew.value || !logId.value ? {} : { excludeLogId: logId.value }),
     })
-    const hasRows = res.groups.some((g) => g.children.length > 0)
-    if (!res.pccesImport || !hasRows) {
-      modalGroups.value = []
+    const hasLeaf = res.rows.some((r) => r.isStructuralLeaf)
+    if (!res.pccesImport || !hasLeaf || res.rows.length === 0) {
+      modalTableRows.value = []
       workModalError.value =
         '專案尚無已核定之 PCCES 版本，或該版無可填寫之明細工項。請至「PCCES 匯入紀錄」核定其中一版後再試。'
       return
@@ -213,59 +232,60 @@ async function openWorkItemsModal() {
     const existingByPcces = new Map(
       workItems.value.filter((w) => w.pccesItemId).map((w) => [w.pccesItemId as string, w])
     )
-    modalGroups.value = res.groups
-      .filter((g) => g.children.length > 0)
-      .map((g) => ({
-        parent: g.parent,
-        children: g.children.map((it) => {
-          const ex = existingByPcces.get(it.pccesItemId)
-          return {
-            pccesItemId: it.pccesItemId,
-            itemNo: it.itemNo,
-            workItemName: it.workItemName,
-            unit: it.unit,
-            contractQty: it.contractQty,
-            priorAccumulatedQty: it.priorAccumulatedQty,
-            dailyQty: ex?.dailyQty ?? '0',
-            remark: ex?.remark ?? '',
-          }
-        }),
-      }))
+    modalTableRows.value = res.rows.map((it) => {
+      const ex = existingByPcces.get(it.pccesItemId)
+      const prior = it.priorAccumulatedQty ?? ''
+      return {
+        pccesItemId: it.pccesItemId,
+        itemKey: it.itemKey,
+        parentItemKey: it.parentItemKey,
+        itemNo: preferPccesSnapshotField(ex?.itemNo, it.itemNo),
+        workItemName: preferPccesSnapshotField(ex?.workItemName, it.workItemName),
+        unit: preferPccesSnapshotField(ex?.unit, it.unit),
+        itemKind: it.itemKind,
+        contractQty: preferPccesSnapshotField(ex?.contractQty, it.contractQty),
+        unitPrice: preferPccesSnapshotField(ex?.unitPrice, it.unitPrice),
+        isStructuralLeaf: it.isStructuralLeaf,
+        priorAccumulatedQty: prior,
+        dailyQty: it.isStructuralLeaf ? (ex?.dailyQty ?? '0') : '',
+        remark: it.isStructuralLeaf ? (ex?.remark ?? '') : '',
+      }
+    })
   } catch {
     workModalError.value = '無法載入核定工項'
-    modalGroups.value = []
+    modalTableRows.value = []
   } finally {
     workModalLoading.value = false
   }
 }
 
 function confirmWorkItemsModal() {
-  for (const g of modalGroups.value) {
-    for (const r of g.children) {
-      if (workModalRowExceedsContract(r)) {
-        toast.error(`項次 ${r.itemNo}：累計完成不可超過契約數量`)
-        return
-      }
+  for (const r of modalTableRows.value) {
+    if (workModalRowExceedsContract(r)) {
+      toast.error(`項次 ${r.itemNo}：累計完成不可超過契約數量`)
+      return
     }
   }
   const manual = workItems.value.filter((w) => !w.pccesItemId)
   const next: WorkDraft[] = [...manual]
-  for (const g of modalGroups.value) {
-    for (const r of g.children) {
-      const dailyN = parseLocaleNumber(r.dailyQty) ?? 0
-      if (dailyN === 0 && !r.remark.trim()) continue
-      const acc = workRowAccumulatedPreview(r)
-      next.push({
-        pccesItemId: r.pccesItemId,
-        itemNo: r.itemNo,
-        workItemName: r.workItemName,
-        unit: r.unit,
-        contractQty: r.contractQty,
-        dailyQty: r.dailyQty.trim() || '0',
-        accumulatedQty: String(acc),
-        remark: r.remark,
-      })
-    }
+  for (const r of modalTableRows.value) {
+    if (!r.isStructuralLeaf) continue
+    const dailyN = parseLocaleNumber(r.dailyQty) ?? 0
+    if (dailyN === 0 && !r.remark.trim()) continue
+    const acc = workRowAccumulatedPreview(r)
+    next.push({
+      pccesItemId: r.pccesItemId,
+      pccesItemKind: r.itemKind,
+      pccesStructuralLeaf: r.isStructuralLeaf,
+      itemNo: r.itemNo,
+      workItemName: r.workItemName,
+      unit: r.unit,
+      contractQty: r.contractQty,
+      unitPrice: r.unitPrice,
+      dailyQty: r.dailyQty.trim() || '0',
+      accumulatedQty: String(acc),
+      remark: r.remark,
+    })
   }
   workItems.value = next
   workModalOpen.value = false
@@ -367,6 +387,11 @@ function buildPayload(): ConstructionDailyLogUpsertPayload {
     siteManagerSigned: form.siteManagerSigned,
     workItems: work.map((w) => ({
       ...(w.pccesItemId ? { pccesItemId: w.pccesItemId } : {}),
+      ...(w.pccesItemId &&
+      w.unitPrice != null &&
+      String(w.unitPrice).replace(/,/g, '').trim() !== ''
+        ? { unitPrice: String(w.unitPrice).replace(/,/g, '').trim() }
+        : {}),
       workItemName: w.workItemName.trim(),
       unit: w.unit.trim(),
       contractQty: w.contractQty.trim() || '0',
@@ -426,10 +451,13 @@ function applyDto(d: ConstructionDailyLogDto) {
     d.workItems.length > 0
       ? d.workItems.map((w) => ({
           pccesItemId: w.pccesItemId ?? undefined,
+          pccesItemKind: w.pccesItemKind ?? undefined,
+          pccesStructuralLeaf: w.pccesStructuralLeaf ?? undefined,
           itemNo: w.itemNo ?? undefined,
           workItemName: w.workItemName,
           unit: w.unit,
           contractQty: w.contractQty,
+          unitPrice: w.unitPrice ?? '',
           dailyQty: w.dailyQty,
           accumulatedQty: w.accumulatedQty,
           remark: w.remark,
@@ -566,40 +594,38 @@ watch(
 
 <template>
   <div class="space-y-6">
-    <div class="flex flex-wrap items-center gap-3">
-      <Button variant="ghost" size="sm" as-child class="text-muted-foreground">
-        <RouterLink :to="listPath" class="inline-flex items-center gap-1">
-          <ArrowLeft class="size-4" />
-          日誌列表
-        </RouterLink>
-      </Button>
-      <Button
-        v-if="!isNew && perm.canDelete.value"
-        variant="destructive"
-        size="sm"
-        class="ms-auto"
-        @click="deleteOpen = true"
-      >
-        <Trash2 class="mr-1 size-4" />
-        刪除
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <Button variant="outline" as-child>
+        <RouterLink :to="listPath">返回列表</RouterLink>
       </Button>
     </div>
 
-    <div>
-      <h1 class="text-xl font-semibold text-foreground">
-        {{ isNew ? '新增施工日誌' : '編輯施工日誌' }}
-      </h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        公共工程依附表四；預定進度由系統依開工日與核定工期推算（儲存後以伺服器計算為準）。
-      </p>
-    </div>
-
-    <div v-if="loading" class="flex items-center gap-2 text-sm text-muted-foreground">
-      <Loader2 class="size-4 animate-spin" />
-      載入中…
+    <div v-if="loading" class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+      <Loader2 class="size-8 animate-spin" />
+      <p class="mt-2 text-sm">載入中…</p>
     </div>
 
     <template v-else>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-xl font-semibold text-foreground">
+            {{ isNew ? '新增施工日誌' : '編輯施工日誌' }}
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            公共工程依附表四；預定進度由系統依開工日與核定工期推算（儲存後以伺服器計算為準）。
+          </p>
+        </div>
+        <div v-if="!isNew && perm.canDelete.value" class="flex flex-wrap items-center gap-2">
+          <Button
+            variant="outline"
+            class="text-destructive hover:text-destructive"
+            @click="deleteOpen = true"
+          >
+            <Trash2 class="mr-2 size-4" />
+            刪除
+          </Button>
+        </div>
+      </div>
       <!-- 表頭 -->
       <Card class="border-border bg-card">
         <CardHeader>
@@ -763,6 +789,7 @@ watch(
                   <TableHead class="min-w-[12rem]">工程項目</TableHead>
                   <TableHead class="w-16">單位</TableHead>
                   <TableHead class="w-24 text-end">契約數量</TableHead>
+                  <TableHead class="w-24 text-end">單價</TableHead>
                   <TableHead class="w-24 text-end">本日完成</TableHead>
                   <TableHead class="w-24 text-end">累計完成</TableHead>
                   <TableHead class="min-w-[8rem]">備註</TableHead>
@@ -796,9 +823,20 @@ watch(
                       formatThousands(row.contractQty, { maximumFractionDigits: 4 })
                     }}</span>
                   </TableCell>
+                  <TableCell class="text-end tabular-nums text-sm">
+                    <span v-if="!row.pccesItemId" class="text-muted-foreground">—</span>
+                    <span
+                      v-else-if="row.pccesStructuralLeaf === false"
+                      class="text-muted-foreground"
+                    >—</span>
+                    <span v-else-if="row.unitPrice != null && String(row.unitPrice).trim() !== ''">{{
+                      formatThousands(row.unitPrice, { maximumFractionDigits: 4 })
+                    }}</span>
+                    <span v-else class="text-muted-foreground">—</span>
+                  </TableCell>
                   <TableCell class="text-end">
                     <Input
-                      v-if="!row.pccesItemId"
+                      v-if="!row.pccesItemId || pccesDailyQtyEditable(row.pccesItemKind)"
                       v-model="row.dailyQty"
                       class="bg-background text-end"
                     />
@@ -1104,7 +1142,7 @@ watch(
         <DialogHeader>
           <DialogTitle>施工項目（核定 PCCES）</DialogTitle>
           <DialogDescription>
-            上一層大項與明細同欄位排列，僅供對照；大項不填數量與備註。請僅在最底層明細填寫本日完成與備註。累計不可超過契約數量。
+            與 PCCES 明細（全部類型）相同順序（itemKey 升序）；目錄列與末層同欄位，目錄列不填本日完成與備註。累計不可超過契約數量。
           </DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-auto py-2">
@@ -1124,6 +1162,7 @@ watch(
                   <TableHead class="min-w-[10rem]">工程項目</TableHead>
                   <TableHead class="w-14">單位</TableHead>
                   <TableHead class="w-24 text-end">契約數量</TableHead>
+                  <TableHead class="w-24 text-end">單價</TableHead>
                   <TableHead class="w-28 text-end">累計（迄前日）</TableHead>
                   <TableHead class="w-28 text-end">本日完成</TableHead>
                   <TableHead class="w-28 text-end">累計（預覽）</TableHead>
@@ -1131,67 +1170,82 @@ watch(
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <template v-for="(group, gi) in modalGroups" :key="'mg-' + gi">
-                  <TableRow v-if="group.parent" class="bg-muted/50 hover:bg-muted/50">
-                    <TableCell class="py-2.5 tabular-nums text-sm text-muted-foreground">
-                      {{ group.parent.itemNo }}
-                    </TableCell>
-                    <TableCell
-                      class="max-w-[min(24rem,40vw)] py-2.5 text-sm font-medium text-foreground"
-                    >
-                      {{ group.parent.workItemName }}
-                    </TableCell>
-                    <TableCell class="py-2.5 text-sm text-muted-foreground">
-                      {{ group.parent.unit }}
-                    </TableCell>
-                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
-                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
-                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
-                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
-                    <TableCell class="py-2.5 text-sm text-muted-foreground" />
-                  </TableRow>
-                  <TableRow
-                    v-for="(row, idx) in group.children"
-                    :key="row.pccesItemId + '-' + gi + '-' + idx"
-                    :class="workModalRowExceedsContract(row) ? 'bg-destructive/10' : ''"
+                <TableRow
+                  v-for="row in modalTableRows"
+                  :key="row.pccesItemId"
+                  :class="[
+                    !row.isStructuralLeaf ? 'bg-muted/50 hover:bg-muted/50' : '',
+                    workModalRowExceedsContract(row) ? 'bg-destructive/10' : '',
+                  ]"
+                >
+                  <TableCell class="tabular-nums text-sm text-muted-foreground">
+                    {{ row.itemNo }}
+                  </TableCell>
+                  <TableCell
+                    class="max-w-[min(24rem,40vw)] text-sm"
+                    :class="row.isStructuralLeaf ? '' : 'font-medium text-foreground'"
                   >
-                    <TableCell class="text-muted-foreground tabular-nums text-sm">{{
-                      row.itemNo
-                    }}</TableCell>
-                    <TableCell class="max-w-[min(24rem,40vw)] text-sm">{{
-                      row.workItemName
-                    }}</TableCell>
-                    <TableCell class="text-sm text-muted-foreground">{{ row.unit }}</TableCell>
-                    <TableCell class="text-end tabular-nums text-sm">
-                      {{ formatThousands(row.contractQty, { maximumFractionDigits: 4 }) }}
-                    </TableCell>
-                    <TableCell class="text-end tabular-nums text-sm text-muted-foreground">
-                      {{ formatThousands(row.priorAccumulatedQty, { maximumFractionDigits: 4 }) }}
-                    </TableCell>
-                    <TableCell class="text-end">
-                      <Input v-model="row.dailyQty" class="bg-background text-end tabular-nums" />
-                    </TableCell>
-                    <TableCell
-                      class="text-end tabular-nums text-sm"
-                      :class="
-                        workModalRowExceedsContract(row) ? 'font-medium text-destructive' : ''
-                      "
-                    >
+                    {{ row.workItemName }}
+                  </TableCell>
+                  <TableCell class="text-sm text-muted-foreground">{{ row.unit }}</TableCell>
+                  <TableCell class="text-end tabular-nums text-sm">
+                    {{ formatThousands(row.contractQty, { maximumFractionDigits: 4 }) }}
+                  </TableCell>
+                  <TableCell class="text-end tabular-nums text-sm text-muted-foreground">
+                    <template v-if="row.isStructuralLeaf">
                       {{
-                        formatThousands(workRowAccumulatedPreview(row), {
-                          maximumFractionDigits: 4,
-                        })
+                        row.unitPrice != null && String(row.unitPrice).trim() !== ''
+                          ? formatThousands(row.unitPrice, { maximumFractionDigits: 4 })
+                          : '—'
                       }}
-                    </TableCell>
-                    <TableCell>
-                      <textarea
-                        v-model="row.remark"
-                        rows="2"
-                        class="flex min-h-[52px] w-full min-w-[8rem] rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-                      />
-                    </TableCell>
-                  </TableRow>
-                </template>
+                    </template>
+                    <span v-else>—</span>
+                  </TableCell>
+                  <TableCell class="text-end tabular-nums text-sm text-muted-foreground">
+                    {{
+                      row.isStructuralLeaf
+                        ? formatThousands(row.priorAccumulatedQty, { maximumFractionDigits: 4 })
+                        : '—'
+                    }}
+                  </TableCell>
+                  <TableCell class="text-end">
+                    <Input
+                      v-if="row.isStructuralLeaf"
+                      v-model="row.dailyQty"
+                      class="bg-background text-end tabular-nums"
+                      :disabled="!pccesDailyQtyEditable(row.itemKind)"
+                      :title="
+                        !pccesDailyQtyEditable(row.itemKind)
+                          ? '此 PCCES 類型不開放填寫本日完成量'
+                          : undefined
+                      "
+                    />
+                    <span v-else class="text-sm text-muted-foreground">—</span>
+                  </TableCell>
+                  <TableCell
+                    class="text-end tabular-nums text-sm"
+                    :class="
+                      workModalRowExceedsContract(row) ? 'font-medium text-destructive' : ''
+                    "
+                  >
+                    {{
+                      row.isStructuralLeaf
+                        ? formatThousands(workRowAccumulatedPreview(row), {
+                            maximumFractionDigits: 4,
+                          })
+                        : '—'
+                    }}
+                  </TableCell>
+                  <TableCell>
+                    <textarea
+                      v-if="row.isStructuralLeaf"
+                      v-model="row.remark"
+                      rows="2"
+                      class="flex min-h-[52px] w-full min-w-[8rem] rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                    />
+                    <span v-else class="text-sm text-muted-foreground">—</span>
+                  </TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </div>
@@ -1200,7 +1254,7 @@ watch(
           <Button type="button" variant="outline" @click="workModalOpen = false">取消</Button>
           <Button
             type="button"
-            :disabled="workModalLoading || !!workModalError || modalChildRowCount === 0"
+            :disabled="workModalLoading || !!workModalError || !modalHasStructuralLeaves"
             @click="confirmWorkItemsModal"
           >
             套用至表單
