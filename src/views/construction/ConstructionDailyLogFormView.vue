@@ -1,0 +1,1228 @@
+<script setup lang="ts">
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter, RouterLink } from 'vue-router'
+import { isAxiosError } from 'axios'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
+import { parseLocaleNumber, formatThousands } from '@/lib/format-number'
+import { computePlannedProgressPreview } from '@/lib/construction-daily-log-plan'
+import {
+  createConstructionDailyLog,
+  deleteConstructionDailyLog,
+  getConstructionDailyLog,
+  getConstructionDailyLogDefaults,
+  getConstructionDailyLogPccesWorkItems,
+  updateConstructionDailyLog,
+  type ConstructionDailyLogDto,
+  type ConstructionDailyLogUpsertPayload,
+} from '@/api/construction-daily-logs'
+import {
+  Dialog,
+  DialogScrollContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
+import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
+import { toast } from '@/components/ui/sonner'
+import { ArrowLeft, Loader2, Plus, Trash2 } from 'lucide-vue-next'
+
+type WorkDraft = {
+  /** 綁定最新核定 PCCES general 列時使用 */
+  pccesItemId?: string | null
+  itemNo?: string | null
+  workItemName: string
+  unit: string
+  contractQty: string
+  dailyQty: string
+  accumulatedQty: string
+  remark: string
+}
+
+type WorkModalRow = {
+  pccesItemId: string
+  itemNo: string
+  workItemName: string
+  unit: string
+  contractQty: string
+  priorAccumulatedQty: string
+  dailyQty: string
+  remark: string
+}
+
+type WorkModalGroup = {
+  /** 有子項 general 時顯示；單位與子項不同，不填數量 */
+  parent: { itemNo: string; workItemName: string; unit: string } | null
+  children: WorkModalRow[]
+}
+
+type MatDraft = {
+  materialName: string
+  unit: string
+  contractQty: string
+  dailyUsedQty: string
+  accumulatedQty: string
+  remark: string
+}
+
+type PeDraft = {
+  workType: string
+  dailyWorkers: string
+  accumulatedWorkers: string
+  equipmentName: string
+  dailyEquipmentQty: string
+  accumulatedEquipmentQty: string
+}
+
+const route = useRoute()
+const router = useRouter()
+const projectId = computed(() => (route.params.projectId as string) ?? '')
+const logId = computed(() => (route.params.logId as string) ?? '')
+const isNew = computed(() => route.name === ROUTE_NAME.PROJECT_CONSTRUCTION_DIARY_LOG_NEW)
+const perm = useProjectModuleActions(projectId, 'construction.diary')
+
+const listPath = computed(() =>
+  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY_LOGS)
+)
+const hubPath = computed(() =>
+  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY)
+)
+
+const loading = ref(true)
+const saving = ref(false)
+const deleteOpen = ref(false)
+const deleteLoading = ref(false)
+
+const form = reactive({
+  reportNo: '',
+  weatherAm: '',
+  weatherPm: '',
+  logDate: '',
+  projectName: '',
+  contractorName: '',
+  approvedDurationDays: '',
+  accumulatedDays: '',
+  remainingDays: '',
+  extendedDays: '',
+  startDate: '',
+  completionDate: '',
+  actualProgress: '',
+  specialItemA: '',
+  specialItemB: '',
+  hasTechnician: false,
+  preWorkEducation: 'no' as 'yes' | 'no',
+  newWorkerInsurance: 'no_new' as 'yes' | 'no' | 'no_new',
+  ppeCheck: 'no' as 'yes' | 'no',
+  otherSafetyNotes: '',
+  sampleTestRecord: '',
+  subcontractorNotice: '',
+  importantNotes: '',
+  siteManagerSigned: false,
+})
+
+const workItems = ref<WorkDraft[]>([])
+const materials = ref<MatDraft[]>([])
+const personnelRows = ref<PeDraft[]>([])
+
+const workModalOpen = ref(false)
+const workModalLoading = ref(false)
+const workModalError = ref('')
+const modalGroups = ref<WorkModalGroup[]>([])
+
+const modalChildRowCount = computed(() =>
+  modalGroups.value.reduce((n, g) => n + g.children.length, 0)
+)
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10)
+}
+
+function emptyWork(): WorkDraft {
+  return {
+    workItemName: '',
+    unit: '',
+    contractQty: '0',
+    dailyQty: '0',
+    accumulatedQty: '0',
+    remark: '',
+  }
+}
+
+function workRowAccumulatedPreview(row: WorkModalRow): number {
+  const prior = parseLocaleNumber(row.priorAccumulatedQty) ?? 0
+  const daily = parseLocaleNumber(row.dailyQty) ?? 0
+  return prior + daily
+}
+
+function workModalRowExceedsContract(row: WorkModalRow): boolean {
+  const cap = parseLocaleNumber(row.contractQty)
+  if (cap == null) return false
+  return workRowAccumulatedPreview(row) > cap + 1e-9
+}
+
+async function openWorkItemsModal() {
+  if (!form.logDate) {
+    toast.error('請先選擇填表日期')
+    return
+  }
+  if (!projectId.value) return
+  workModalError.value = ''
+  workModalLoading.value = true
+  workModalOpen.value = true
+  try {
+    const res = await getConstructionDailyLogPccesWorkItems(projectId.value, {
+      logDate: form.logDate,
+      ...(isNew.value || !logId.value ? {} : { excludeLogId: logId.value }),
+    })
+    const hasRows = res.groups.some((g) => g.children.length > 0)
+    if (!res.pccesImport || !hasRows) {
+      modalGroups.value = []
+      workModalError.value =
+        '專案尚無已核定之 PCCES 版本，或該版無可填寫之明細工項。請至「PCCES 匯入紀錄」核定其中一版後再試。'
+      return
+    }
+    const existingByPcces = new Map(
+      workItems.value.filter((w) => w.pccesItemId).map((w) => [w.pccesItemId as string, w])
+    )
+    modalGroups.value = res.groups
+      .filter((g) => g.children.length > 0)
+      .map((g) => ({
+        parent: g.parent,
+        children: g.children.map((it) => {
+          const ex = existingByPcces.get(it.pccesItemId)
+          return {
+            pccesItemId: it.pccesItemId,
+            itemNo: it.itemNo,
+            workItemName: it.workItemName,
+            unit: it.unit,
+            contractQty: it.contractQty,
+            priorAccumulatedQty: it.priorAccumulatedQty,
+            dailyQty: ex?.dailyQty ?? '0',
+            remark: ex?.remark ?? '',
+          }
+        }),
+      }))
+  } catch {
+    workModalError.value = '無法載入核定工項'
+    modalGroups.value = []
+  } finally {
+    workModalLoading.value = false
+  }
+}
+
+function confirmWorkItemsModal() {
+  for (const g of modalGroups.value) {
+    for (const r of g.children) {
+      if (workModalRowExceedsContract(r)) {
+        toast.error(`項次 ${r.itemNo}：累計完成不可超過契約數量`)
+        return
+      }
+    }
+  }
+  const manual = workItems.value.filter((w) => !w.pccesItemId)
+  const next: WorkDraft[] = [...manual]
+  for (const g of modalGroups.value) {
+    for (const r of g.children) {
+      const dailyN = parseLocaleNumber(r.dailyQty) ?? 0
+      if (dailyN === 0 && !r.remark.trim()) continue
+      const acc = workRowAccumulatedPreview(r)
+      next.push({
+        pccesItemId: r.pccesItemId,
+        itemNo: r.itemNo,
+        workItemName: r.workItemName,
+        unit: r.unit,
+        contractQty: r.contractQty,
+        dailyQty: r.dailyQty.trim() || '0',
+        accumulatedQty: String(acc),
+        remark: r.remark,
+      })
+    }
+  }
+  workItems.value = next
+  workModalOpen.value = false
+}
+
+function clearPccesLinkedWorkItems() {
+  workItems.value = workItems.value.filter((w) => !w.pccesItemId)
+}
+
+function emptyMat(): MatDraft {
+  return {
+    materialName: '',
+    unit: '',
+    contractQty: '0',
+    dailyUsedQty: '0',
+    accumulatedQty: '0',
+    remark: '',
+  }
+}
+
+function emptyPe(): PeDraft {
+  return {
+    workType: '',
+    dailyWorkers: '0',
+    accumulatedWorkers: '0',
+    equipmentName: '',
+    dailyEquipmentQty: '0',
+    accumulatedEquipmentQty: '0',
+  }
+}
+
+const plannedPreview = computed(() => {
+  const ap = form.approvedDurationDays.trim()
+  const ad = ap === '' ? null : Number(ap)
+  return computePlannedProgressPreview(
+    form.logDate || todayIso(),
+    form.startDate.trim() || null,
+    ad != null && Number.isFinite(ad) ? ad : null
+  )
+})
+
+const plannedDisplay = computed(() => {
+  const p = plannedPreview.value
+  if (p == null) return '—（請填開工日與核定工期）'
+  return `${formatThousands(p, { maximumFractionDigits: 2 })}%`
+})
+
+function parseOptionalInt(s: string): number | null {
+  const t = s.trim()
+  if (t === '') return null
+  const n = parseInt(t, 10)
+  return Number.isFinite(n) ? n : null
+}
+
+function parseOptionalDec(s: string): number | null {
+  const t = s.trim()
+  if (t === '') return null
+  const n = parseFloat(t.replace(/,/g, ''))
+  return Number.isFinite(n) ? n : null
+}
+
+function buildPayload(): ConstructionDailyLogUpsertPayload {
+  const work = workItems.value.filter((w) => w.workItemName.trim() !== '')
+  const mats = materials.value.filter((m) => m.materialName.trim() !== '')
+  const pe = personnelRows.value.filter(
+    (p) =>
+      p.workType.trim() !== '' ||
+      p.equipmentName.trim() !== '' ||
+      Number(p.dailyWorkers) > 0 ||
+      Number(p.accumulatedWorkers) > 0 ||
+      parseFloat(p.dailyEquipmentQty) > 0 ||
+      parseFloat(p.accumulatedEquipmentQty) > 0
+  )
+
+  return {
+    reportNo: form.reportNo.trim() || null,
+    weatherAm: form.weatherAm.trim() || null,
+    weatherPm: form.weatherPm.trim() || null,
+    logDate: form.logDate,
+    projectName: form.projectName.trim(),
+    contractorName: form.contractorName.trim(),
+    approvedDurationDays: parseOptionalInt(form.approvedDurationDays),
+    accumulatedDays: parseOptionalInt(form.accumulatedDays),
+    remainingDays: parseOptionalInt(form.remainingDays),
+    extendedDays: parseOptionalInt(form.extendedDays),
+    startDate: form.startDate.trim() || null,
+    completionDate: form.completionDate.trim() || null,
+    actualProgress: parseOptionalDec(form.actualProgress),
+    specialItemA: form.specialItemA,
+    specialItemB: form.specialItemB,
+    hasTechnician: form.hasTechnician,
+    preWorkEducation: form.preWorkEducation,
+    newWorkerInsurance: form.newWorkerInsurance,
+    ppeCheck: form.ppeCheck,
+    otherSafetyNotes: form.otherSafetyNotes,
+    sampleTestRecord: form.sampleTestRecord,
+    subcontractorNotice: form.subcontractorNotice,
+    importantNotes: form.importantNotes,
+    siteManagerSigned: form.siteManagerSigned,
+    workItems: work.map((w) => ({
+      ...(w.pccesItemId ? { pccesItemId: w.pccesItemId } : {}),
+      workItemName: w.workItemName.trim(),
+      unit: w.unit.trim(),
+      contractQty: w.contractQty.trim() || '0',
+      dailyQty: w.dailyQty.trim() || '0',
+      accumulatedQty: w.accumulatedQty.trim() || '0',
+      remark: w.remark,
+    })),
+    materials: mats.map((m) => ({
+      materialName: m.materialName.trim(),
+      unit: m.unit.trim(),
+      contractQty: m.contractQty.trim() || '0',
+      dailyUsedQty: m.dailyUsedQty.trim() || '0',
+      accumulatedQty: m.accumulatedQty.trim() || '0',
+      remark: m.remark,
+    })),
+    personnelEquipmentRows: pe.map((p) => ({
+      workType: p.workType.trim(),
+      dailyWorkers: Math.max(0, parseInt(p.dailyWorkers, 10) || 0),
+      accumulatedWorkers: Math.max(0, parseInt(p.accumulatedWorkers, 10) || 0),
+      equipmentName: p.equipmentName.trim(),
+      dailyEquipmentQty: p.dailyEquipmentQty.trim() || '0',
+      accumulatedEquipmentQty: p.accumulatedEquipmentQty.trim() || '0',
+    })),
+  }
+}
+
+function applyDto(d: ConstructionDailyLogDto) {
+  form.reportNo = d.reportNo ?? ''
+  form.weatherAm = d.weatherAm ?? ''
+  form.weatherPm = d.weatherPm ?? ''
+  form.logDate = d.logDate
+  form.projectName = d.projectName
+  form.contractorName = d.contractorName
+  form.approvedDurationDays = d.approvedDurationDays != null ? String(d.approvedDurationDays) : ''
+  form.accumulatedDays = d.accumulatedDays != null ? String(d.accumulatedDays) : ''
+  form.remainingDays = d.remainingDays != null ? String(d.remainingDays) : ''
+  form.extendedDays = d.extendedDays != null ? String(d.extendedDays) : ''
+  form.startDate = d.startDate ?? ''
+  form.completionDate = d.completionDate ?? ''
+  form.actualProgress = d.actualProgress ?? ''
+  form.specialItemA = d.specialItemA
+  form.specialItemB = d.specialItemB
+  form.hasTechnician = d.hasTechnician
+  form.preWorkEducation = d.preWorkEducation === 'yes' ? 'yes' : 'no'
+  form.newWorkerInsurance =
+    d.newWorkerInsurance === 'yes' || d.newWorkerInsurance === 'no'
+      ? d.newWorkerInsurance
+      : 'no_new'
+  form.ppeCheck = d.ppeCheck === 'yes' ? 'yes' : 'no'
+  form.otherSafetyNotes = d.otherSafetyNotes
+  form.sampleTestRecord = d.sampleTestRecord
+  form.subcontractorNotice = d.subcontractorNotice
+  form.importantNotes = d.importantNotes
+  form.siteManagerSigned = d.siteManagerSigned
+
+  workItems.value =
+    d.workItems.length > 0
+      ? d.workItems.map((w) => ({
+          pccesItemId: w.pccesItemId ?? undefined,
+          itemNo: w.itemNo ?? undefined,
+          workItemName: w.workItemName,
+          unit: w.unit,
+          contractQty: w.contractQty,
+          dailyQty: w.dailyQty,
+          accumulatedQty: w.accumulatedQty,
+          remark: w.remark,
+        }))
+      : []
+  materials.value =
+    d.materials.length > 0
+      ? d.materials.map((m) => ({
+          materialName: m.materialName,
+          unit: m.unit,
+          contractQty: m.contractQty,
+          dailyUsedQty: m.dailyUsedQty,
+          accumulatedQty: m.accumulatedQty,
+          remark: m.remark,
+        }))
+      : []
+  personnelRows.value =
+    d.personnelEquipmentRows.length > 0
+      ? d.personnelEquipmentRows.map((p) => ({
+          workType: p.workType,
+          dailyWorkers: String(p.dailyWorkers),
+          accumulatedWorkers: String(p.accumulatedWorkers),
+          equipmentName: p.equipmentName,
+          dailyEquipmentQty: p.dailyEquipmentQty,
+          accumulatedEquipmentQty: p.accumulatedEquipmentQty,
+        }))
+      : []
+}
+
+async function init() {
+  if (!projectId.value) return
+  if (!isNew.value && !logId.value) {
+    await router.replace(listPath.value)
+    return
+  }
+  loading.value = true
+  try {
+    if (isNew.value) {
+      if (!perm.canCreate.value) {
+        toast.error('您沒有新增權限')
+        await router.replace(listPath.value)
+        return
+      }
+      const defs = await getConstructionDailyLogDefaults(projectId.value)
+      form.logDate = todayIso()
+      form.projectName = defs.projectName
+      form.contractorName = defs.contractorName
+      form.startDate = defs.startDate ?? ''
+      form.approvedDurationDays =
+        defs.approvedDurationDays != null ? String(defs.approvedDurationDays) : ''
+      workItems.value = []
+      materials.value = []
+      personnelRows.value = []
+    } else {
+      if (!perm.canRead.value) {
+        toast.error('您沒有檢視權限')
+        await router.replace(listPath.value)
+        return
+      }
+      const d = await getConstructionDailyLog(projectId.value, logId.value)
+      applyDto(d)
+    }
+  } catch {
+    toast.error('無法載入資料')
+    await router.replace(listPath.value)
+  } finally {
+    loading.value = false
+  }
+}
+
+async function onSubmit() {
+  if (!form.logDate) {
+    toast.error('請選擇填表日期')
+    return
+  }
+  if (!form.projectName.trim() || !form.contractorName.trim()) {
+    toast.error('請填工程名稱與承攬廠商')
+    return
+  }
+  saving.value = true
+  try {
+    const payload = buildPayload()
+    if (isNew.value) {
+      const created = await createConstructionDailyLog(projectId.value, payload)
+      toast.success('已建立施工日誌')
+      await router.replace({
+        name: ROUTE_NAME.PROJECT_CONSTRUCTION_DIARY_LOG_DETAIL,
+        params: { projectId: projectId.value, logId: created.id },
+      })
+    } else {
+      await updateConstructionDailyLog(projectId.value, logId.value, payload)
+      toast.success('已儲存')
+      await init()
+    }
+  } catch (e) {
+    const msg = isAxiosError(e)
+      ? (e.response?.data as { error?: { message?: string } })?.error?.message
+      : null
+    toast.error(msg ?? '儲存失敗')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function confirmDelete() {
+  if (!perm.canDelete.value) {
+    toast.error('您沒有刪除權限')
+    return
+  }
+  deleteLoading.value = true
+  try {
+    await deleteConstructionDailyLog(projectId.value, logId.value)
+    toast.success('已刪除')
+    deleteOpen.value = false
+    await router.push(listPath.value)
+  } catch (e) {
+    const msg = isAxiosError(e)
+      ? (e.response?.data as { error?: { message?: string } })?.error?.message
+      : null
+    toast.error(msg ?? '刪除失敗')
+  } finally {
+    deleteLoading.value = false
+  }
+}
+
+watch(
+  () => [route.name, route.params.projectId, route.params.logId] as const,
+  () => {
+    void init()
+  },
+  { immediate: true }
+)
+</script>
+
+<template>
+  <div class="space-y-6">
+    <div class="flex flex-wrap items-center gap-3">
+      <Button variant="ghost" size="sm" as-child class="text-muted-foreground">
+        <RouterLink :to="listPath" class="inline-flex items-center gap-1">
+          <ArrowLeft class="size-4" />
+          日誌列表
+        </RouterLink>
+      </Button>
+      <Button
+        v-if="!isNew && perm.canDelete.value"
+        variant="destructive"
+        size="sm"
+        class="ms-auto"
+        @click="deleteOpen = true"
+      >
+        <Trash2 class="mr-1 size-4" />
+        刪除
+      </Button>
+    </div>
+
+    <div>
+      <h1 class="text-xl font-semibold text-foreground">
+        {{ isNew ? '新增施工日誌' : '編輯施工日誌' }}
+      </h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        公共工程依附表四；預定進度由系統依開工日與核定工期推算（儲存後以伺服器計算為準）。
+      </p>
+    </div>
+
+    <div v-if="loading" class="flex items-center gap-2 text-sm text-muted-foreground">
+      <Loader2 class="size-4 animate-spin" />
+      載入中…
+    </div>
+
+    <template v-else>
+      <!-- 表頭 -->
+      <Card class="border-border bg-card">
+        <CardHeader>
+          <CardTitle class="text-lg">表頭資訊</CardTitle>
+          <CardDescription>表報編號、天氣、填表日期</CardDescription>
+        </CardHeader>
+        <CardContent class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <div class="space-y-2">
+            <Label for="reportNo">表報編號</Label>
+            <Input id="reportNo" v-model="form.reportNo" class="bg-background" />
+          </div>
+          <div class="space-y-2">
+            <Label for="logDate">填表日期</Label>
+            <Input id="logDate" v-model="form.logDate" type="date" class="bg-background" />
+          </div>
+          <div class="space-y-2">
+            <Label for="weatherAm">天氣（上午）</Label>
+            <Input id="weatherAm" v-model="form.weatherAm" class="bg-background" />
+          </div>
+          <div class="space-y-2">
+            <Label for="weatherPm">天氣（下午）</Label>
+            <Input id="weatherPm" v-model="form.weatherPm" class="bg-background" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 工程基本資料 -->
+      <Card class="border-border bg-card">
+        <CardHeader>
+          <CardTitle class="text-lg">工程基本資料</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-2">
+              <Label for="projectName">工程名稱</Label>
+              <Input id="projectName" v-model="form.projectName" class="bg-background" />
+            </div>
+            <div class="space-y-2">
+              <Label for="contractorName">承攬廠商名稱</Label>
+              <Input id="contractorName" v-model="form.contractorName" class="bg-background" />
+            </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div class="space-y-2">
+              <Label for="approvedDurationDays">核定工期（天）</Label>
+              <Input
+                id="approvedDurationDays"
+                v-model="form.approvedDurationDays"
+                type="number"
+                min="0"
+                class="bg-background"
+              />
+            </div>
+            <div class="space-y-2">
+              <Label for="accumulatedDays">累計工期（天）</Label>
+              <Input
+                id="accumulatedDays"
+                v-model="form.accumulatedDays"
+                type="number"
+                class="bg-background"
+              />
+            </div>
+            <div class="space-y-2">
+              <Label for="remainingDays">剩餘工期（天）</Label>
+              <Input
+                id="remainingDays"
+                v-model="form.remainingDays"
+                type="number"
+                class="bg-background"
+              />
+            </div>
+            <div class="space-y-2">
+              <Label for="extendedDays">工期展延天數</Label>
+              <Input
+                id="extendedDays"
+                v-model="form.extendedDays"
+                type="number"
+                min="0"
+                class="bg-background"
+              />
+            </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-2">
+              <Label for="startDate">開工日期</Label>
+              <Input id="startDate" v-model="form.startDate" type="date" class="bg-background" />
+            </div>
+            <div class="space-y-2">
+              <Label for="completionDate">完工日期</Label>
+              <Input
+                id="completionDate"
+                v-model="form.completionDate"
+                type="date"
+                class="bg-background"
+              />
+            </div>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-2">
+            <div class="space-y-2">
+              <Label>預定進度（%）</Label>
+              <div
+                class="flex h-9 w-full items-center rounded-md border border-input bg-muted px-3 text-sm text-muted-foreground"
+              >
+                {{ plannedDisplay }}
+              </div>
+            </div>
+            <div class="space-y-2">
+              <Label for="actualProgress">實際進度（%）</Label>
+              <Input
+                id="actualProgress"
+                v-model="form.actualProgress"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                class="bg-background"
+                placeholder="人工填寫"
+              />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 一、施工項目 -->
+      <Card class="border-border bg-card">
+        <CardHeader class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <CardTitle class="text-lg">一、施工項目</CardTitle>
+            <CardDescription>
+              核定工項請以視窗填寫（本日完成、備註）；累計由系統依歷史推算並於儲存時由伺服器覆核。可另增手動列。
+            </CardDescription>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <Button type="button" variant="default" size="sm" @click="openWorkItemsModal">
+              填寫核定工項
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              :disabled="!workItems.some((w) => w.pccesItemId)"
+              @click="clearPccesLinkedWorkItems"
+            >
+              清除核定工項
+            </Button>
+            <Button type="button" variant="outline" size="sm" @click="workItems.push(emptyWork())">
+              <Plus class="mr-1 size-4" />
+              新增手動列
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent class="overflow-x-auto">
+          <p v-if="workItems.length === 0" class="text-sm text-muted-foreground">
+            尚無列：請開啟「填寫核定工項」或新增手動列。
+          </p>
+          <div v-else class="rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead class="w-14 whitespace-nowrap">項次</TableHead>
+                  <TableHead class="min-w-[12rem]">工程項目</TableHead>
+                  <TableHead class="w-16">單位</TableHead>
+                  <TableHead class="w-24 text-end">契約數量</TableHead>
+                  <TableHead class="w-24 text-end">本日完成</TableHead>
+                  <TableHead class="w-24 text-end">累計完成</TableHead>
+                  <TableHead class="min-w-[8rem]">備註</TableHead>
+                  <TableHead class="w-20 text-end">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-for="(row, idx) in workItems" :key="'w' + idx">
+                  <TableCell class="text-muted-foreground tabular-nums">
+                    {{ row.itemNo?.trim() ? row.itemNo : '—' }}
+                  </TableCell>
+                  <TableCell>
+                    <Input
+                      v-if="!row.pccesItemId"
+                      v-model="row.workItemName"
+                      class="bg-background"
+                    />
+                    <span v-else class="text-sm">{{ row.workItemName }}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Input v-if="!row.pccesItemId" v-model="row.unit" class="bg-background" />
+                    <span v-else class="text-sm text-muted-foreground">{{ row.unit }}</span>
+                  </TableCell>
+                  <TableCell class="text-end tabular-nums text-sm">
+                    <Input
+                      v-if="!row.pccesItemId"
+                      v-model="row.contractQty"
+                      class="bg-background text-end"
+                    />
+                    <span v-else>{{
+                      formatThousands(row.contractQty, { maximumFractionDigits: 4 })
+                    }}</span>
+                  </TableCell>
+                  <TableCell class="text-end">
+                    <Input
+                      v-if="!row.pccesItemId"
+                      v-model="row.dailyQty"
+                      class="bg-background text-end"
+                    />
+                    <span v-else class="tabular-nums text-sm">{{
+                      formatThousands(row.dailyQty, { maximumFractionDigits: 4 })
+                    }}</span>
+                  </TableCell>
+                  <TableCell class="text-end tabular-nums text-sm">
+                    <Input
+                      v-if="!row.pccesItemId"
+                      v-model="row.accumulatedQty"
+                      class="bg-background text-end"
+                    />
+                    <span v-else>{{
+                      formatThousands(row.accumulatedQty, { maximumFractionDigits: 4 })
+                    }}</span>
+                  </TableCell>
+                  <TableCell>
+                    <Input v-if="!row.pccesItemId" v-model="row.remark" class="bg-background" />
+                    <span v-else class="line-clamp-2 text-sm text-muted-foreground">{{
+                      row.remark || '—'
+                    }}</span>
+                  </TableCell>
+                  <TableCell class="text-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      @click="workItems.splice(idx, 1)"
+                    >
+                      移除
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 營造業特定項目 -->
+      <Card class="border-border bg-card">
+        <CardHeader>
+          <CardTitle class="text-lg">營造業專業工程特定施工項目</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="space-y-2">
+            <Label for="specialA">A 項</Label>
+            <textarea
+              id="specialA"
+              v-model="form.specialItemA"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label for="specialB">B 項</Label>
+            <textarea
+              id="specialB"
+              v-model="form.specialItemB"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 二、材料 -->
+      <Card class="border-border bg-card">
+        <CardHeader class="flex flex-row items-end justify-between gap-4">
+          <div>
+            <CardTitle class="text-lg">二、材料</CardTitle>
+            <CardDescription>可新增多列</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" @click="materials.push(emptyMat())">
+            <Plus class="mr-1 size-4" />
+            新增列
+          </Button>
+        </CardHeader>
+        <CardContent class="space-y-4 overflow-x-auto">
+          <p v-if="materials.length === 0" class="text-sm text-muted-foreground">
+            尚無列，請新增。
+          </p>
+          <div
+            v-for="(row, idx) in materials"
+            :key="'m' + idx"
+            class="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-6 lg:grid-cols-12"
+          >
+            <div class="md:col-span-3 lg:col-span-3">
+              <Label class="text-xs text-muted-foreground">材料名稱</Label>
+              <Input v-model="row.materialName" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-1">
+              <Label class="text-xs text-muted-foreground">單位</Label>
+              <Input v-model="row.unit" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">契約數量</Label>
+              <Input v-model="row.contractQty" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">本日使用</Label>
+              <Input v-model="row.dailyUsedQty" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">累計使用</Label>
+              <Input v-model="row.accumulatedQty" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-6 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">備註</Label>
+              <Input v-model="row.remark" class="mt-1 bg-background" />
+            </div>
+            <div class="flex items-end md:col-span-6 lg:col-span-12">
+              <Button type="button" variant="ghost" size="sm" @click="materials.splice(idx, 1)">
+                移除此列
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 三、人員及機具 -->
+      <Card class="border-border bg-card">
+        <CardHeader class="flex flex-row items-end justify-between gap-4">
+          <div>
+            <CardTitle class="text-lg">三、人員及機具</CardTitle>
+            <CardDescription>一列可同時記錄工別／人數與機具</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" @click="personnelRows.push(emptyPe())">
+            <Plus class="mr-1 size-4" />
+            新增列
+          </Button>
+        </CardHeader>
+        <CardContent class="space-y-4 overflow-x-auto">
+          <p v-if="personnelRows.length === 0" class="text-sm text-muted-foreground">
+            尚無列，請新增。
+          </p>
+          <div
+            v-for="(row, idx) in personnelRows"
+            :key="'p' + idx"
+            class="grid gap-2 rounded-lg border border-border p-3 md:grid-cols-6 lg:grid-cols-12"
+          >
+            <div class="md:col-span-2 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">工別</Label>
+              <Input v-model="row.workType" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">本日人數</Label>
+              <Input v-model="row.dailyWorkers" type="number" min="0" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">累計人數</Label>
+              <Input
+                v-model="row.accumulatedWorkers"
+                type="number"
+                min="0"
+                class="mt-1 bg-background"
+              />
+            </div>
+            <div class="md:col-span-2 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">機具名稱</Label>
+              <Input v-model="row.equipmentName" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">本日機具量</Label>
+              <Input v-model="row.dailyEquipmentQty" class="mt-1 bg-background" />
+            </div>
+            <div class="md:col-span-1 lg:col-span-2">
+              <Label class="text-xs text-muted-foreground">累計機具量</Label>
+              <Input v-model="row.accumulatedEquipmentQty" class="mt-1 bg-background" />
+            </div>
+            <div class="flex items-end md:col-span-6 lg:col-span-12">
+              <Button type="button" variant="ghost" size="sm" @click="personnelRows.splice(idx, 1)">
+                移除此列
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <!-- 四～八 -->
+      <Card class="border-border bg-card">
+        <CardHeader>
+          <CardTitle class="text-lg">四、技術士與職安衛</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-6">
+          <div class="flex items-center gap-2">
+            <Checkbox
+              id="hasTechnician"
+              :checked="form.hasTechnician"
+              @update:checked="(v) => (form.hasTechnician = v === true)"
+            />
+            <Label for="hasTechnician" class="cursor-pointer font-normal">是否需設置技術士</Label>
+          </div>
+          <div class="grid gap-4 sm:grid-cols-3">
+            <div class="space-y-2">
+              <Label>勤前教育</Label>
+              <Select v-model="form.preWorkEducation">
+                <SelectTrigger class="bg-background"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">有</SelectItem>
+                  <SelectItem value="no">無</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label>新進勞工保險</Label>
+              <Select v-model="form.newWorkerInsurance">
+                <SelectTrigger class="bg-background"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">有</SelectItem>
+                  <SelectItem value="no">無</SelectItem>
+                  <SelectItem value="no_new">無新進勞工</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div class="space-y-2">
+              <Label>個人防護具檢查</Label>
+              <Select v-model="form.ppeCheck">
+                <SelectTrigger class="bg-background"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="yes">有</SelectItem>
+                  <SelectItem value="no">無</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div class="space-y-2">
+            <Label for="otherSafety">其他事項（職安衛）</Label>
+            <textarea
+              id="otherSafety"
+              v-model="form.otherSafetyNotes"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card class="border-border bg-card">
+        <CardHeader>
+          <CardTitle class="text-lg">六～八、備查與簽章</CardTitle>
+        </CardHeader>
+        <CardContent class="space-y-4">
+          <div class="space-y-2">
+            <Label for="sampleTest">施工取樣試驗紀錄</Label>
+            <textarea
+              id="sampleTest"
+              v-model="form.sampleTestRecord"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label for="subNotice">通知協力廠商事項</Label>
+            <textarea
+              id="subNotice"
+              v-model="form.subcontractorNotice"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+          <div class="space-y-2">
+            <Label for="impNotes">重要事項紀錄</Label>
+            <textarea
+              id="impNotes"
+              v-model="form.importantNotes"
+              rows="3"
+              class="flex min-h-[72px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            />
+          </div>
+          <div class="flex items-center gap-2">
+            <Checkbox
+              id="siteSigned"
+              :checked="form.siteManagerSigned"
+              @update:checked="(v) => (form.siteManagerSigned = v === true)"
+            />
+            <Label for="siteSigned" class="cursor-pointer font-normal">工地主任簽章</Label>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div class="flex flex-wrap gap-3">
+        <Button
+          v-if="isNew ? perm.canCreate.value : perm.canUpdate.value"
+          type="button"
+          :disabled="saving"
+          @click="onSubmit"
+        >
+          <Loader2 v-if="saving" class="mr-2 size-4 animate-spin" />
+          儲存
+        </Button>
+        <Button type="button" variant="outline" as-child>
+          <RouterLink :to="listPath">取消</RouterLink>
+        </Button>
+      </div>
+    </template>
+
+    <Dialog :open="workModalOpen" @update:open="(v: boolean) => (workModalOpen = v)">
+      <DialogScrollContent
+        class="flex max-h-[90vh] max-w-[min(96rem,calc(100vw-2rem))] flex-col gap-0 sm:max-w-[min(96rem,calc(100vw-2rem))]"
+      >
+        <DialogHeader>
+          <DialogTitle>施工項目（核定 PCCES）</DialogTitle>
+          <DialogDescription>
+            上一層大項與明細同欄位排列，僅供對照；大項不填數量與備註。請僅在最底層明細填寫本日完成與備註。累計不可超過契約數量。
+          </DialogDescription>
+        </DialogHeader>
+        <div class="min-h-0 flex-1 overflow-auto py-2">
+          <div
+            v-if="workModalLoading"
+            class="flex items-center gap-2 text-sm text-muted-foreground"
+          >
+            <Loader2 class="size-4 animate-spin" />
+            載入工項…
+          </div>
+          <p v-else-if="workModalError" class="text-sm text-destructive">{{ workModalError }}</p>
+          <div v-else class="rounded-lg border border-border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead class="w-14 whitespace-nowrap">項次</TableHead>
+                  <TableHead class="min-w-[10rem]">工程項目</TableHead>
+                  <TableHead class="w-14">單位</TableHead>
+                  <TableHead class="w-24 text-end">契約數量</TableHead>
+                  <TableHead class="w-28 text-end">累計（迄前日）</TableHead>
+                  <TableHead class="w-28 text-end">本日完成</TableHead>
+                  <TableHead class="w-28 text-end">累計（預覽）</TableHead>
+                  <TableHead class="min-w-[10rem]">備註</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <template v-for="(group, gi) in modalGroups" :key="'mg-' + gi">
+                  <TableRow v-if="group.parent" class="bg-muted/50 hover:bg-muted/50">
+                    <TableCell class="py-2.5 tabular-nums text-sm text-muted-foreground">
+                      {{ group.parent.itemNo }}
+                    </TableCell>
+                    <TableCell
+                      class="max-w-[min(24rem,40vw)] py-2.5 text-sm font-medium text-foreground"
+                    >
+                      {{ group.parent.workItemName }}
+                    </TableCell>
+                    <TableCell class="py-2.5 text-sm text-muted-foreground">
+                      {{ group.parent.unit }}
+                    </TableCell>
+                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
+                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
+                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
+                    <TableCell class="py-2.5 text-end text-sm text-muted-foreground" />
+                    <TableCell class="py-2.5 text-sm text-muted-foreground" />
+                  </TableRow>
+                  <TableRow
+                    v-for="(row, idx) in group.children"
+                    :key="row.pccesItemId + '-' + gi + '-' + idx"
+                    :class="workModalRowExceedsContract(row) ? 'bg-destructive/10' : ''"
+                  >
+                    <TableCell class="text-muted-foreground tabular-nums text-sm">{{
+                      row.itemNo
+                    }}</TableCell>
+                    <TableCell class="max-w-[min(24rem,40vw)] text-sm">{{
+                      row.workItemName
+                    }}</TableCell>
+                    <TableCell class="text-sm text-muted-foreground">{{ row.unit }}</TableCell>
+                    <TableCell class="text-end tabular-nums text-sm">
+                      {{ formatThousands(row.contractQty, { maximumFractionDigits: 4 }) }}
+                    </TableCell>
+                    <TableCell class="text-end tabular-nums text-sm text-muted-foreground">
+                      {{ formatThousands(row.priorAccumulatedQty, { maximumFractionDigits: 4 }) }}
+                    </TableCell>
+                    <TableCell class="text-end">
+                      <Input v-model="row.dailyQty" class="bg-background text-end tabular-nums" />
+                    </TableCell>
+                    <TableCell
+                      class="text-end tabular-nums text-sm"
+                      :class="
+                        workModalRowExceedsContract(row) ? 'font-medium text-destructive' : ''
+                      "
+                    >
+                      {{
+                        formatThousands(workRowAccumulatedPreview(row), {
+                          maximumFractionDigits: 4,
+                        })
+                      }}
+                    </TableCell>
+                    <TableCell>
+                      <textarea
+                        v-model="row.remark"
+                        rows="2"
+                        class="flex min-h-[52px] w-full min-w-[8rem] rounded-md border border-input bg-background px-2 py-1.5 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                      />
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+        <DialogFooter class="gap-2 sm:gap-0">
+          <Button type="button" variant="outline" @click="workModalOpen = false">取消</Button>
+          <Button
+            type="button"
+            :disabled="workModalLoading || !!workModalError || modalChildRowCount === 0"
+            @click="confirmWorkItemsModal"
+          >
+            套用至表單
+          </Button>
+        </DialogFooter>
+      </DialogScrollContent>
+    </Dialog>
+
+    <AlertDialog :open="deleteOpen" @update:open="(v: boolean) => !v && (deleteOpen = false)">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>刪除此筆施工日誌？</AlertDialogTitle>
+          <AlertDialogDescription>將軟刪除此日誌（無法從前台復原）。</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="deleteLoading">取消</AlertDialogCancel>
+          <Button variant="destructive" :disabled="deleteLoading" @click="confirmDelete">
+            <Loader2 v-if="deleteLoading" class="mr-2 size-4 animate-spin" />
+            刪除
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  </div>
+</template>

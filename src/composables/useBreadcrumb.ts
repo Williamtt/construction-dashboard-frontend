@@ -114,6 +114,24 @@ export function useBreadcrumb() {
             pageLabel = '查驗紀錄詳情'
           }
         }
+        const isPccesDetail =
+          rest[0] === 'construction' &&
+          rest[1] === 'diary' &&
+          rest[2] === 'pcces' &&
+          rest[3] === 'versions' &&
+          rest.length === 5
+        if (isPccesDetail) {
+          pageLabel = '工項明細'
+        }
+        const isValuationDetail =
+          rest[0] === 'construction' &&
+          rest[1] === 'diary' &&
+          rest[2] === 'valuations' &&
+          rest.length === 4 &&
+          rest[3] !== 'new'
+        if (isValuationDetail) {
+          pageLabel = '估驗明細'
+        }
         const moduleName = getBreadcrumbModuleForSuffix(suffix)
         if (moduleName) {
           result.push({ label: moduleName })

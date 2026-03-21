@@ -66,7 +66,7 @@
 
 後端已有對應 `assertProjectModuleAction` 者，前端可依相同模式補齊：
 
-- `construction.diary`：`ConstructionDiaryView.vue`（占位頁已註記 composable 用法）
+- `construction.diary`：`ConstructionDailyLogsListView.vue`（`/construction/diary` 導向日誌列表）
 - `project.schedule`：`ManagementScheduleView.vue`（目前僅讀取 WBS／資源顯示圖表，無寫入按鈕）
 - `repair.overview`：`RepairOverviewView.vue`（占位頁已註記 composable 用法）
 

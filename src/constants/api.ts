@@ -107,6 +107,31 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/drawing-nodes/${nodeId}/move`,
   PROJECT_DRAWING_NODE_REVISIONS: (projectId: string, nodeId: string) =>
     `${API_V1}/projects/${projectId}/drawing-nodes/${nodeId}/revisions`,
+  /** PCCES／eTender XML 匯入 */
+  PROJECT_PCCES_IMPORTS: (projectId: string) => `${API_V1}/projects/${projectId}/pcces-imports`,
+  PROJECT_PCCES_IMPORT: (projectId: string, importId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/${importId}`,
+  PROJECT_PCCES_IMPORT_ITEMS: (projectId: string, importId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/${importId}/items`,
+  PROJECT_PCCES_IMPORT_APPROVE: (projectId: string, importId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/${importId}/approve`,
+
+  /** 公共工程施工日誌（依附表四） */
+  PROJECT_CONSTRUCTION_DAILY_LOGS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/construction-daily-logs`,
+  PROJECT_CONSTRUCTION_DAILY_LOG_DEFAULTS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/construction-daily-logs/defaults`,
+  PROJECT_CONSTRUCTION_DAILY_LOG_PCCES_WORK_ITEMS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/construction-daily-logs/pcces-work-items`,
+  PROJECT_CONSTRUCTION_DAILY_LOG: (projectId: string, logId: string) =>
+    `${API_V1}/projects/${projectId}/construction-daily-logs/${logId}`,
+  /** 估驗計價 */
+  PROJECT_CONSTRUCTION_VALUATIONS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/construction-valuations`,
+  PROJECT_CONSTRUCTION_VALUATION_PCCES_LINES: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/construction-valuations/pcces-lines`,
+  PROJECT_CONSTRUCTION_VALUATION: (projectId: string, valuationId: string) =>
+    `${API_V1}/projects/${projectId}/construction-valuations/${valuationId}`,
   /** WBS 工作分解結構（樹狀） */
   PROJECT_WBS: (projectId: string) => `${API_V1}/projects/${projectId}/wbs`,
   PROJECT_WBS_NODE: (projectId: string, nodeId: string) => `${API_V1}/projects/${projectId}/wbs/${nodeId}`,

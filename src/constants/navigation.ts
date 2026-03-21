@@ -138,6 +138,18 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
     icon: 'BookOpen',
   },
   {
+    id: 'construction-valuation',
+    label: '估驗計價',
+    pathSuffix: '/construction/diary/valuations',
+    icon: 'Calculator',
+  },
+  {
+    id: 'construction-pcces',
+    label: 'PCCES 工項',
+    pathSuffix: '/construction/diary/pcces/versions',
+    icon: 'FileSpreadsheet',
+  },
+  {
     id: 'construction-defects',
     label: '缺失改善',
     pathSuffix: '/construction/defects',

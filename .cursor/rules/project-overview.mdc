@@ -25,7 +25,7 @@ alwaysApply: true
 - `src/composables/` - 共用邏輯（useAuth、usePagination 等）
 - `src/constants/` - 路由、API 路徑、選項等常數，避免 magic string
 - `src/layouts/` - 版面（DefaultLayout、AuthLayout），router 套用
-- `src/lib/` - 工具（cn 等）
+- `src/lib/` - 工具（`cn`、`format-number` 千分位／金額顯示 等）
 - `src/router/` - 路由設定，使用 constants 的 ROUTE_PATH / ROUTE_NAME
 - `src/stores/` - Pinia stores
 - `src/types/` - 共用 TypeScript 型別（API、auth、領域）
