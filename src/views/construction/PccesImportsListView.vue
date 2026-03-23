@@ -32,8 +32,10 @@ import {
   deletePccesImport,
   approvePccesImport,
   displayPccesVersionLabel,
+  downloadPccesChangeListExcelTemplate,
   type PccesImportSummary,
 } from '@/api/pcces-imports'
+import { getApiErrorMessage } from '@/lib/api-error'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
 import {
@@ -44,6 +46,7 @@ import {
   Eye,
   Trash2,
   CheckCircle2,
+  Download,
 } from 'lucide-vue-next'
 
 const route = useRoute()
@@ -57,6 +60,7 @@ const deleteOpen = ref(false)
 const deleteTarget = ref<PccesImportSummary | null>(null)
 const deleteLoading = ref(false)
 const approvingId = ref<string | null>(null)
+const downloadingChangeListTemplate = ref(false)
 
 /** 全量 XML 上傳（與明細頁帶入的 context 對齊） */
 const uploadXmlRoute = computed(() => ({
@@ -135,6 +139,19 @@ async function approveImport(row: PccesImportSummary) {
   }
 }
 
+async function downloadChangeListTemplateFile() {
+  if (!projectId.value || downloadingChangeListTemplate.value) return
+  downloadingChangeListTemplate.value = true
+  try {
+    await downloadPccesChangeListExcelTemplate(projectId.value)
+    toast.success('已下載樣板')
+  } catch (e) {
+    toast.error('下載樣板失敗', { description: getApiErrorMessage(e) })
+  } finally {
+    downloadingChangeListTemplate.value = false
+  }
+}
+
 async function confirmDelete() {
   if (!projectId.value || !deleteTarget.value) return
   if (!perm.canDelete.value) {
@@ -159,7 +176,7 @@ async function confirmDelete() {
 </script>
 
 <template>
-  <div class="space-y-4">
+  <div class="min-w-0 space-y-4">
     <div>
       <h1 class="text-xl font-semibold text-foreground">PCCES 匯入紀錄</h1>
       <p class="mt-1 text-sm text-muted-foreground">
@@ -174,6 +191,18 @@ async function confirmDelete() {
 
     <template v-else>
       <div class="flex flex-wrap items-center justify-end gap-3">
+        <Button
+          variant="outline"
+          :disabled="downloadingChangeListTemplate || loading"
+          @click="downloadChangeListTemplateFile"
+        >
+          <Download
+            class="size-4"
+            :class="{ 'animate-pulse': downloadingChangeListTemplate }"
+            aria-hidden="true"
+          />
+          {{ downloadingChangeListTemplate ? '下載中…' : '下載樣板' }}
+        </Button>
         <template v-if="perm.canCreate.value">
           <Button v-if="loading" disabled class="gap-2">
             <Loader2 class="size-4 animate-spin" />
@@ -218,7 +247,9 @@ async function confirmDelete() {
         </template>
       </div>
 
-      <div class="rounded-lg border border-border bg-card p-4">
+      <div
+        class="min-w-0 overflow-x-auto rounded-lg border border-border bg-card p-4 overscroll-x-contain"
+      >
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
@@ -232,7 +263,8 @@ async function confirmDelete() {
             前往首次匯入
           </RouterLink>
         </div>
-        <Table v-else>
+        <!-- 由卡片負責水平捲動，避免寬表格撐開 main 造成整頁橫向捲動 -->
+        <Table v-else :scroll-container="false">
           <TableHeader>
             <TableRow>
               <TableHead class="min-w-[8rem]">版次</TableHead>

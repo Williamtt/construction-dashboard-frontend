@@ -57,8 +57,10 @@ watch(
       <div class="border-b border-border bg-background px-4 py-2 md:px-6">
         <AppBreadcrumb />
       </div>
-      <main class="min-h-0 flex-1 overflow-auto p-4 md:p-6">
-        <RouterView />
+      <main class="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 md:p-6">
+        <div class="min-w-0">
+          <RouterView />
+        </div>
       </main>
     </div>
   </div>

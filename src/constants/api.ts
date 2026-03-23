@@ -117,6 +117,9 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/pcces-imports/${importId}/approve`,
   PROJECT_PCCES_IMPORT_EXCEL_APPLY: (projectId: string, importId: string) =>
     `${API_V1}/projects/${projectId}/pcces-imports/${importId}/excel-apply`,
+  /** PCCES Excel 變更用工程變更清單樣板（construction_project_change_list.xlsx） */
+  PROJECT_PCCES_IMPORTS_CONSTRUCTION_PROJECT_CHANGE_LIST_EXCEL_TEMPLATE: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/construction-project-change-list-excel-template`,
 
   /** 公共工程施工日誌（依附表四） */
   PROJECT_CONSTRUCTION_DAILY_LOGS: (projectId: string) =>
@@ -148,6 +151,8 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/progress/plans/with-upload`,
   PROJECT_PROGRESS_PLAN_UPLOADS: (projectId: string) =>
     `${API_V1}/projects/${projectId}/progress/plan-uploads`,
+  PROJECT_PROGRESS_PLAN_UPLOADS_EXCEL_TEMPLATE: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/progress/plan-uploads/excel-template`,
   PROJECT_PROGRESS_PLAN_DUPLICATE: (projectId: string) =>
     `${API_V1}/projects/${projectId}/progress/plans/duplicate`,
   PROJECT_PROGRESS_PLAN_ENTRIES: (projectId: string, planId: string) =>

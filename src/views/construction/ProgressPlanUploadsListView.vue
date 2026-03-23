@@ -50,6 +50,7 @@ import {
 } from '@/components/ui/alert-dialog'
 import {
   deleteProgressPlan,
+  downloadProgressPlanExcelTemplate,
   getProgressDashboard,
   listProgressPlanUploads,
   patchProgressPlanEffective,
@@ -78,6 +79,7 @@ const list = ref<ProgressPlanUploadListItemDto[]>([])
 const periods = ref<ProgressPeriodDto[]>([])
 const loading = ref(true)
 const downloadingId = ref<string | null>(null)
+const downloadingTemplate = ref(false)
 
 const effectiveDialogOpen = ref(false)
 const editRow = ref<ProgressPlanUploadListItemDto | null>(null)
@@ -214,6 +216,19 @@ async function load() {
   }
 }
 
+async function downloadTemplateFile() {
+  if (!projectId.value || downloadingTemplate.value) return
+  downloadingTemplate.value = true
+  try {
+    await downloadProgressPlanExcelTemplate(projectId.value)
+    toast.success('已下載樣板')
+  } catch (e) {
+    toast.error('下載樣板失敗', { description: getApiErrorMessage(e) })
+  } finally {
+    downloadingTemplate.value = false
+  }
+}
+
 async function downloadRow(row: ProgressPlanUploadListItemDto) {
   if (downloadingId.value) return
   downloadingId.value = row.attachmentId
@@ -256,17 +271,45 @@ onMounted(load)
 
     <template v-else>
       <div v-if="!embedded" class="flex flex-wrap items-center justify-end gap-3">
+        <Button
+          variant="outline"
+          :disabled="downloadingTemplate"
+          @click="downloadTemplateFile"
+        >
+          <Download
+            class="size-4"
+            :class="{ 'animate-pulse': downloadingTemplate }"
+            aria-hidden="true"
+          />
+          {{ downloadingTemplate ? '下載中…' : '下載 Excel 樣板' }}
+        </Button>
         <Button variant="outline" as-child>
           <RouterLink :to="progressPath">返回進度管理</RouterLink>
         </Button>
       </div>
+      <div v-else class="flex flex-wrap items-center justify-end gap-3">
+        <Button
+          variant="outline"
+          :disabled="downloadingTemplate"
+          @click="downloadTemplateFile"
+        >
+          <Download
+            class="size-4"
+            :class="{ 'animate-pulse': downloadingTemplate }"
+            aria-hidden="true"
+          />
+          {{ downloadingTemplate ? '下載中…' : '下載 Excel 樣板' }}
+        </Button>
+      </div>
 
-      <div class="rounded-lg border border-border bg-card p-4">
+      <div
+        class="min-w-0 overflow-x-auto overscroll-x-contain rounded-lg border border-border bg-card p-4"
+      >
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
         <template v-else>
-          <Table>
+          <Table :scroll-container="false">
             <TableHeader>
               <TableRow>
                 <TableHead class="w-10" />

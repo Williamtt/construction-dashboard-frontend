@@ -886,7 +886,7 @@ watch(projectId, async (id) => {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="min-w-0 space-y-6">
     <div>
       <h1 class="text-xl font-semibold tracking-tight text-foreground">WBS清單</h1>
       <p class="mt-1 text-sm text-muted-foreground">
@@ -967,7 +967,7 @@ watch(projectId, async (id) => {
     </div>
 
     <!-- 列表 / 網路圖 分頁（切到網路圖時會重載前置關係，即時反映甘特圖變更） -->
-    <Tabs v-model="activeWbsTab" class="w-full">
+    <Tabs v-model="activeWbsTab" class="w-full min-w-0">
       <TabsList class="grid w-full max-w-[280px] grid-cols-2">
         <TabsTrigger value="list" class="gap-1.5">
           <List class="size-4" />
@@ -978,7 +978,7 @@ watch(projectId, async (id) => {
           網路圖
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="list" class="mt-4">
+      <TabsContent value="list" class="mt-4 min-w-0">
         <p class="mb-3 text-xs text-muted-foreground max-w-3xl">
           <strong class="text-foreground">點欄位可內嵌編輯</strong>（類試算表）：可改<strong
             class="text-foreground"
@@ -991,8 +991,10 @@ watch(projectId, async (id) => {
             >資源</strong
           >點欄位開啟編輯視窗。父層開始／工期／結束為子項彙總。
         </p>
-        <!-- 樹狀表格 -->
-        <div class="rounded-lg border border-border bg-card p-4">
+        <!-- 樹狀表格（寬欄位多時於卡片內橫向捲動，不撐開整頁） -->
+        <div
+          class="min-w-0 overflow-x-auto overscroll-x-contain rounded-lg border border-border bg-card p-4"
+        >
           <div
             v-if="loading"
             class="flex items-center justify-center gap-2 py-12 text-muted-foreground"
@@ -1003,7 +1005,7 @@ watch(projectId, async (id) => {
           <p v-else-if="listError" class="py-4 text-center text-sm text-destructive">
             {{ listError }}
           </p>
-          <Table v-else>
+          <Table v-else :scroll-container="false">
             <TableHeader>
               <TableRow>
                 <TableHead class="w-8 px-1" aria-label="拖移" />

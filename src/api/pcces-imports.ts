@@ -2,6 +2,9 @@ import { apiClient } from './client'
 import { API_PATH } from '@/constants/api'
 import type { ApiResponse } from '@/types/api'
 
+/** 與後端 `resources/templates/construction_project_change_list.xlsx` 檔名一致 */
+export const PCCES_CHANGE_LIST_EXCEL_TEMPLATE_FILENAME = 'construction_project_change_list.xlsx'
+
 export interface PccesImportSummary {
   id: string
   projectId: string
@@ -58,6 +61,32 @@ export async function listPccesImports(projectId: string): Promise<PccesImportSu
     API_PATH.PROJECT_PCCES_IMPORTS(projectId)
   )
   return data.data
+}
+
+/** 下載 PCCES Excel 變更用工程變更清單樣板（須 construction.pcces 讀取權） */
+export async function downloadPccesChangeListExcelTemplate(projectId: string): Promise<void> {
+  const res = await apiClient.get<Blob>(
+    API_PATH.PROJECT_PCCES_IMPORTS_CONSTRUCTION_PROJECT_CHANGE_LIST_EXCEL_TEMPLATE(projectId),
+    { responseType: 'blob' }
+  )
+  const blob = res.data
+  if (blob.type === 'application/json' || blob.type === 'application/problem+json') {
+    const text = await blob.text()
+    let message = '下載失敗'
+    try {
+      const j = JSON.parse(text) as { error?: { message?: string } }
+      if (j.error?.message) message = j.error.message
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message)
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = PCCES_CHANGE_LIST_EXCEL_TEMPLATE_FILENAME
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export async function uploadPccesImport(

@@ -72,6 +72,7 @@ alwaysApply: true
   - 必須有「**檔案大小**」欄位。
   - 檔名欄位需在名稱前加上**檔案類型 icon**（依副檔名或類型選擇圖示）。
 - **版面**：若頁面有**篩選列／工具列**在表格上方，則**工具列與表格都不要用 Card 包**；表格區塊使用自己的邊框與底色（如 `rounded-lg border border-border bg-card`），避免雙重 Card 包覆。
+- **寬表格與水平捲動**：**禁止**讓寬表格撐出「整頁橫向捲動」；水平捲動應發生在表格區塊或 `Table` 元件外層。Layout、`Table.vue`、`DataTable.vue` 已依此實作；新增或改版面時請遵守 **`table-scroll-layout.mdc`**（flex 子項必要時加 `min-w-0`、甘特等維持 `scroll-container=false`）。
 
 ---
 
@@ -119,7 +120,7 @@ alwaysApply: true
 - [ ] **路由**：路徑與 name 已加入 `constants/routes.ts`，並在 `router/index.ts` 註冊。
 - [ ] **導航**：若需出現在側欄，已在 `constants/navigation.ts` 對應群組加入項目；麵包屑已在 `constants/breadcrumb.ts` 對應。
 - [ ] **專案內路徑**：連結使用 `buildProjectPath(projectId, pathSuffix)` 或具名路由，不手動拼字串。
-- [ ] **表格**：第一欄為勾選、操作收合在「更多」、檔案類有檔案大小與檔名 icon；有篩選時不雙重 Card。
+- [ ] **表格**：第一欄為勾選、操作收合在「更多」、檔案類有檔案大小與檔名 icon；有篩選時不雙重 Card；寬表不出現整頁橫向捲動（見 **table-scroll-layout.mdc**）。
 - [ ] **多選**：多選工具列在表格外上方、用 ButtonGroup；篩選在左、已選+ButtonGroup+新增/上傳**全部在右**相鄰。
 - [ ] **按鈕**：未特別需求時不覆寫 size（預設 sm）；多選列使用 ButtonGroup。
 - [ ] **主題**：未使用硬編碼色、淺色／深色皆已檢查可讀性。

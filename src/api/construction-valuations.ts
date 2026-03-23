@@ -15,6 +15,8 @@ export interface ConstructionValuationListItemDto {
 export interface ConstructionValuationLineDto {
   id: string
   pccesItemId: string | null
+  /** 階層麵包屑快照（與 PccesItem.path）；手填多為單段「項次 說明」 */
+  path: string
   /** PCCES 父階 itemKey；手填列通常為 null */
   pccesParentItemKey?: number | null
   /** 綁定 PCCES 時之 XML itemKind；手填列為 null */
@@ -48,6 +50,8 @@ export interface ConstructionValuationLineGroupDto {
   } | null
   lineStartIndex: number
   lineCount: number
+  /** false：與前一段為同一章節父階時不重複顯示父列（如 壹 章節標題後接直屬明細） */
+  showParentRow?: boolean
 }
 
 export interface ConstructionValuationDto {
@@ -68,13 +72,17 @@ export interface ConstructionValuationPccesPickerImport {
   version: number
   approvedAt: string | null
   approvedById: string | null
+  /** 與施工日誌相同：核定生效日曆日來源；未填則語意上以 approvedAt 之日為準 */
+  approvalEffectiveAt: string | null
 }
 
-/** 與「PCCES 明細／全部類型」同序（itemKey 升序）；非末層之估驗聚合欄位為 null */
+/** 列順序與後端 path 解析序一致（契約階層）；非末層之估驗聚合欄位為 null */
 export interface ConstructionValuationPccesPickerRow {
   pccesItemId: string
   itemKey: number
   parentItemKey: number | null
+  /** 最新版樹 path；存入估驗明細供排序 */
+  path: string
   itemNo: string
   description: string
   unit: string
@@ -109,6 +117,7 @@ export type ConstructionValuationUpsertPayload = {
   headerRemark: string
   lines: {
     pccesItemId?: string
+    path?: string
     itemNo: string
     description: string
     unit: string
@@ -142,7 +151,11 @@ export async function listConstructionValuations(
 
 export async function getConstructionValuationPccesLines(
   projectId: string,
-  params?: { excludeValuationId?: string; /** YYYY-MM-DD；施工日誌累計算至該日（含），省略則截至今日 UTC */ asOfDate?: string }
+  params?: {
+    excludeValuationId?: string
+    /** YYYY-MM-DD：決定「估驗日當日或之前已生效」之 PCCES 版次（與施工日誌）；施工日誌累計算至該日（含）；省略則今日 UTC 正午 */
+    asOfDate?: string
+  }
 ): Promise<ConstructionValuationPccesPickerResponse> {
   const search = new URLSearchParams()
   if (params?.excludeValuationId) search.set('excludeValuationId', params.excludeValuationId)

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Check, Loader2, Pencil, Plus, Upload } from 'lucide-vue-next'
+import { Check, Download, Loader2, Pencil, Plus, Upload } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -30,6 +30,7 @@ import { useProjectProgressDashboardStore } from '@/stores/projectProgressDashbo
 import {
   getProgressDashboard,
   createProgressPlanWithUpload,
+  downloadProgressPlanExcelTemplate,
   putProgressPlanEntries,
   putProgressActuals,
 } from '@/api/project-progress'
@@ -96,6 +97,7 @@ const actualDraft = ref<Record<string, string>>({})
 
 const changeDialogOpen = ref(false)
 const newVersionLabel = ref('')
+const downloadingProgressTemplate = ref(false)
 const changeUploading = ref(false)
 const changeFileInputRef = ref<HTMLInputElement | null>(null)
 const changeSelectedFileName = ref('')
@@ -553,6 +555,19 @@ function openChangeDialog() {
   changeDialogOpen.value = true
 }
 
+async function downloadProgressTemplateFile() {
+  if (!projectId.value || downloadingProgressTemplate.value || !perm.canRead.value) return
+  downloadingProgressTemplate.value = true
+  try {
+    await downloadProgressPlanExcelTemplate(projectId.value)
+    toast.success('已下載樣板')
+  } catch (e) {
+    toast.error('下載樣板失敗', { description: getApiErrorMessage(e) })
+  } finally {
+    downloadingProgressTemplate.value = false
+  }
+}
+
 function triggerChangeFilePick() {
   if (!newVersionLabel.value.trim()) {
     toast.error('請先填寫版本名稱')
@@ -738,18 +753,51 @@ watch(progressTab, async (tab) => {
               尚無計畫版本。請上傳 Excel（第一個工作表：日期、本期預定 %、累計預定 %
               可選）建立原始計畫。
             </p>
-            <Button class="mt-4" @click="openBaselineDialog">
-              <Upload class="size-4" />
-              上傳 Excel 建立原始計畫
-            </Button>
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-3">
+              <Button
+                v-if="perm.canRead"
+                variant="outline"
+                :disabled="downloadingProgressTemplate"
+                @click="downloadProgressTemplateFile"
+              >
+                <Download class="size-4" />
+                {{ downloadingProgressTemplate ? '下載中…' : '下載 Excel 樣板' }}
+              </Button>
+              <Button @click="openBaselineDialog">
+                <Upload class="size-4" />
+                上傳 Excel 建立原始計畫
+              </Button>
+            </div>
           </div>
 
-          <div v-else-if="!dashboard?.plans?.length" class="text-sm text-muted-foreground">
-            尚無資料，且您沒有建立權限。
+          <div
+            v-else-if="!dashboard?.plans?.length"
+            class="rounded-lg border border-border bg-card p-8 text-center"
+          >
+            <p class="text-sm text-muted-foreground">尚無資料，且您沒有建立權限。</p>
+            <Button
+              v-if="perm.canRead"
+              variant="outline"
+              class="mt-4"
+              :disabled="downloadingProgressTemplate"
+              @click="downloadProgressTemplateFile"
+            >
+              <Download class="size-4" />
+              {{ downloadingProgressTemplate ? '下載中…' : '下載 Excel 樣板' }}
+            </Button>
           </div>
 
           <div v-else class="space-y-4">
             <div class="flex flex-wrap items-center justify-end gap-3">
+              <Button
+                v-if="perm.canRead"
+                variant="outline"
+                :disabled="downloadingProgressTemplate"
+                @click="downloadProgressTemplateFile"
+              >
+                <Download class="size-4" />
+                {{ downloadingProgressTemplate ? '下載中…' : '下載 Excel 樣板' }}
+              </Button>
               <Button
                 v-if="perm.canCreate"
                 :disabled="!dashboard?.primaryPlanId"

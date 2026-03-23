@@ -1,5 +1,7 @@
 import { apiClient } from './client'
 import { API_PATH } from '@/constants/api'
+
+export const PROGRESS_PLAN_EXCEL_TEMPLATE_FILENAME = 'progress_template.xlsx'
 import type { ProgressDashboardDto, ProgressPlanSummaryDto } from '@/types/project-progress'
 
 export async function getProgressDashboard(
@@ -81,6 +83,32 @@ export async function listProgressPlanUploads(
     API_PATH.PROJECT_PROGRESS_PLAN_UPLOADS(projectId)
   )
   return res.data.data
+}
+
+/** 下載內建進度表 Excel 樣板（須 construction.progress 讀取權） */
+export async function downloadProgressPlanExcelTemplate(projectId: string): Promise<void> {
+  const res = await apiClient.get<Blob>(
+    API_PATH.PROJECT_PROGRESS_PLAN_UPLOADS_EXCEL_TEMPLATE(projectId),
+    { responseType: 'blob' }
+  )
+  const blob = res.data
+  if (blob.type === 'application/json' || blob.type === 'application/problem+json') {
+    const text = await blob.text()
+    let message = '下載失敗'
+    try {
+      const j = JSON.parse(text) as { error?: { message?: string } }
+      if (j.error?.message) message = j.error.message
+    } catch {
+      /* ignore */
+    }
+    throw new Error(message)
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = PROGRESS_PLAN_EXCEL_TEMPLATE_FILENAME
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 export async function duplicateProgressPlan(

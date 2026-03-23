@@ -5,6 +5,10 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn, randomRowKey } from '@/lib/utils'
+import {
+  comparePccesDisplayPathOrder,
+  orderPccesValuationBucketEmits,
+} from '@/lib/pcces-path-sort'
 import { getApiErrorMessage } from '@/lib/api-error'
 import {
   Table,
@@ -32,6 +36,7 @@ import {
   getConstructionValuationPccesLines,
   updateConstructionValuation,
   type ConstructionValuationDto,
+  type ConstructionValuationPccesPickerImport,
   type ConstructionValuationPccesPickerRow,
 } from '@/api/construction-valuations'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
@@ -45,6 +50,8 @@ function pccesValuationQtyEditable(itemKind: string | null | undefined): boolean
 
 type LineDraft = {
   rowKey: string
+  /** 與後端 path 相同格式；手填可為「項次 說明」單段 */
+  path: string
   pccesItemId?: string
   pccesParentItemKey?: number | null
   /** 綁定 PCCES 時之 XML itemKind */
@@ -66,6 +73,8 @@ type LineDraft = {
 type GroupSection = {
   parent: { itemNo: string; description: string; unit: string } | null
   lineIds: string[]
+  /** false：不渲染父列（與前一段同章節時避免重複 壹 等） */
+  showSectionParentRow?: boolean
 }
 
 function lineCapN(line: LineDraft): number {
@@ -122,19 +131,15 @@ function getLine(rowKey: string): LineDraft | undefined {
   return lines.value.find((l) => l.rowKey === rowKey)
 }
 
-function pickerSectionHeaderForLeaf(
+function pickerParentMetaByPk(
   rows: ConstructionValuationPccesPickerRow[],
-  leaf: ConstructionValuationPccesPickerRow
+  parentItemKey: number
 ): { itemNo: string; description: string; unit: string } | null {
-  const pk = leaf.parentItemKey
-  if (pk == null) return null
-  const p = rows.find((x) => x.itemKey === pk && !x.isStructuralLeaf)
+  const p =
+    rows.find((x) => x.itemKey === parentItemKey && !x.isStructuralLeaf) ??
+    rows.find((x) => x.itemKey === parentItemKey)
   if (!p) return null
   return { itemNo: p.itemNo, description: p.description, unit: p.unit }
-}
-
-function parentBucketKey(pk: number | null): string {
-  return pk == null ? '__null__' : String(pk)
 }
 
 function sectionAmounts67(section: GroupSection): { a6: number; a7: number } {
@@ -172,7 +177,7 @@ const valuationTableRows = computed((): ValuationTableRow[] => {
   const out: ValuationTableRow[] = []
   let parentSeq = 0
   for (const section of displaySections.value) {
-    if (section.parent) {
+    if (section.parent && section.showSectionParentRow !== false) {
       out.push({
         kind: 'parent',
         key: `p-${parentSeq++}-${section.lineIds[0] ?? 'x'}`,
@@ -200,6 +205,8 @@ const listPath = computed(() =>
 const loading = ref(true)
 const saving = ref(false)
 const pickerLoading = ref(false)
+/** 最近一次「自 PCCES 帶入」回傳之有效版次（契約欄位依此版；工項 id 仍屬最新版） */
+const lastPccesPickerImport = ref<ConstructionValuationPccesPickerImport | null>(null)
 const deleteOpen = ref(false)
 const deleteLoading = ref(false)
 
@@ -215,6 +222,7 @@ function draftFromDto(d: ConstructionValuationDto): void {
   headerRemark.value = d.headerRemark ?? ''
   lines.value = d.lines.map((l) => ({
     rowKey: l.id,
+    path: l.path ?? '',
     pccesItemId: l.pccesItemId ?? undefined,
     pccesParentItemKey: l.pccesParentItemKey ?? undefined,
     pccesItemKind: l.pccesItemKind ?? undefined,
@@ -241,6 +249,7 @@ function draftFromDto(d: ConstructionValuationDto): void {
           }
         : null,
       lineIds: d.lines.slice(g.lineStartIndex, g.lineStartIndex + g.lineCount).map((x) => x.id),
+      showSectionParentRow: g.showParentRow !== false,
     }))
   } else {
     groupSections.value =
@@ -257,6 +266,7 @@ async function load() {
       headerRemark.value = ''
       lines.value = []
       groupSections.value = []
+      lastPccesPickerImport.value = null
     } else {
       const d = await getConstructionValuation(projectId.value, valuationId.value)
       draftFromDto(d)
@@ -289,41 +299,120 @@ async function fillFromPcces() {
       excludeValuationId: isNew.value ? undefined : valuationId.value,
       asOfDate: valuationDate.value.trim() || undefined,
     })
+    lastPccesPickerImport.value = data.pccesImport
     if (!data.rows.some((r) => r.isStructuralLeaf)) {
-      toast.message('無可用工項', { description: '請先完成 PCCES 匯入並核定版本。' })
+      toast.message('無可用工項', {
+        description:
+          '請確認該估驗日（或今日）已有「生效」之核定 PCCES 版次，並於最新版完成匯入與核定。',
+      })
       return
     }
     const leaves = data.rows.filter((r) => r.isStructuralLeaf)
+    const bucketMap = new Map<number, ConstructionValuationPccesPickerRow[]>()
+    const rootParentLeaves: ConstructionValuationPccesPickerRow[] = []
+    for (const c of leaves) {
+      const pk = c.parentItemKey
+      if (pk == null) {
+        rootParentLeaves.push(c)
+        continue
+      }
+      const arr = bucketMap.get(pk) ?? []
+      arr.push(c)
+      bucketMap.set(pk, arr)
+    }
+    for (const arr of bucketMap.values()) {
+      arr.sort((x, y) => {
+        const d = comparePccesDisplayPathOrder(x.path ?? '', y.path ?? '')
+        return d !== 0 ? d : x.itemKey - y.itemKey
+      })
+    }
+    const treeRows = data.rows.map((r) => ({
+      itemKey: r.itemKey,
+      parentItemKey: r.parentItemKey,
+      path: r.path ?? '',
+    }))
+    const emits = orderPccesValuationBucketEmits(bucketMap.keys(), treeRows)
     const nextLines: LineDraft[] = []
     const nextSecs: GroupSection[] = []
-    let lastBucket = ''
-    for (const c of leaves) {
-      const rk = randomRowKey()
-      const bucket = parentBucketKey(c.parentItemKey)
-      const header = pickerSectionHeaderForLeaf(data.rows, c)
-      if (nextSecs.length === 0 || bucket !== lastBucket) {
-        nextSecs.push({ parent: header, lineIds: [rk] })
-        lastBucket = bucket
-      } else {
-        nextSecs[nextSecs.length - 1]!.lineIds.push(rk)
+    for (const em of emits) {
+      if (em.kind === 'chapterBanner') {
+        const header = pickerParentMetaByPk(data.rows, em.parentItemKey)
+        if (header) {
+          nextSecs.push({
+            parent: header,
+            lineIds: [],
+            showSectionParentRow: true,
+          })
+        }
+        continue
       }
-      nextLines.push({
-        rowKey: rk,
-        pccesItemId: c.pccesItemId,
-        pccesParentItemKey: c.parentItemKey ?? undefined,
-        pccesItemKind: c.itemKind,
-        itemNo: c.itemNo,
-        description: c.description,
-        unit: c.unit,
-        contractQty: c.contractQty,
-        approvedQtyAfterChange: c.approvedQtyAfterChange ?? '',
-        unitPrice: c.unitPrice,
-        currentPeriodQty: '0',
-        remark: '',
-        priorBilledQty: c.priorBilledQty ?? '0',
-        maxQty: c.maxQty ?? '0',
-        logAccumulatedQtyToDate: c.logAccumulatedQtyToDate ?? '0',
+      const arr = bucketMap.get(em.parentItemKey) ?? []
+      if (arr.length === 0) continue
+      const header = pickerParentMetaByPk(data.rows, em.parentItemKey)
+      for (let i = 0; i < arr.length; i++) {
+        const c = arr[i]!
+        const rk = randomRowKey()
+        if (i === 0) {
+          nextSecs.push({
+            parent: header,
+            lineIds: [rk],
+            showSectionParentRow: !em.hideParentRow,
+          })
+        } else {
+          nextSecs[nextSecs.length - 1]!.lineIds.push(rk)
+        }
+        nextLines.push({
+          rowKey: rk,
+          path: c.path ?? '',
+          pccesItemId: c.pccesItemId,
+          pccesParentItemKey: c.parentItemKey ?? undefined,
+          pccesItemKind: c.itemKind,
+          itemNo: c.itemNo,
+          description: c.description,
+          unit: c.unit,
+          contractQty: c.contractQty,
+          approvedQtyAfterChange: c.approvedQtyAfterChange ?? '',
+          unitPrice: c.unitPrice,
+          currentPeriodQty: '0',
+          remark: '',
+          priorBilledQty: c.priorBilledQty ?? '0',
+          maxQty: c.maxQty ?? '0',
+          logAccumulatedQtyToDate: c.logAccumulatedQtyToDate ?? '0',
+        })
+      }
+    }
+    if (rootParentLeaves.length > 0) {
+      rootParentLeaves.sort((x, y) => {
+        const d = comparePccesDisplayPathOrder(x.path ?? '', y.path ?? '')
+        return d !== 0 ? d : x.itemKey - y.itemKey
       })
+      for (let i = 0; i < rootParentLeaves.length; i++) {
+        const c = rootParentLeaves[i]!
+        const rk = randomRowKey()
+        if (i === 0) {
+          nextSecs.push({ parent: null, lineIds: [rk] })
+        } else {
+          nextSecs[nextSecs.length - 1]!.lineIds.push(rk)
+        }
+        nextLines.push({
+          rowKey: rk,
+          path: c.path ?? '',
+          pccesItemId: c.pccesItemId,
+          pccesParentItemKey: c.parentItemKey ?? undefined,
+          pccesItemKind: c.itemKind,
+          itemNo: c.itemNo,
+          description: c.description,
+          unit: c.unit,
+          contractQty: c.contractQty,
+          approvedQtyAfterChange: c.approvedQtyAfterChange ?? '',
+          unitPrice: c.unitPrice,
+          currentPeriodQty: '0',
+          remark: '',
+          priorBilledQty: c.priorBilledQty ?? '0',
+          maxQty: c.maxQty ?? '0',
+          logAccumulatedQtyToDate: c.logAccumulatedQtyToDate ?? '0',
+        })
+      }
     }
     lines.value = nextLines
     groupSections.value = nextSecs
@@ -339,6 +428,7 @@ function addManualRow() {
   const rk = randomRowKey()
   lines.value.push({
     rowKey: rk,
+    path: '',
     itemNo: '',
     description: '',
     unit: '',
@@ -415,6 +505,7 @@ function buildPayload() {
     headerRemark: headerRemark.value,
     lines: ordered.map((l) => ({
       ...(l.pccesItemId ? { pccesItemId: l.pccesItemId } : {}),
+      path: l.path,
       itemNo: l.itemNo,
       description: l.description,
       unit: l.unit,
@@ -582,6 +673,17 @@ async function confirmDelete() {
           新增手填列
         </Button>
       </div>
+      <p
+        v-if="lastPccesPickerImport && canEdit"
+        class="text-xs text-muted-foreground"
+      >
+        契約欄位（項次／說明／數量／單價）依估驗日對應之 PCCES 第
+        {{ lastPccesPickerImport.version }} 版；工項列仍綁定<strong class="font-medium text-foreground">最新版</strong>之
+        id（與施工日誌選版邏輯一致）。
+        <template v-if="lastPccesPickerImport.approvalEffectiveAt">
+          核定生效時間：{{ lastPccesPickerImport.approvalEffectiveAt.slice(0, 10) }}（UTC 日曆日）
+        </template>
+      </p>
 
       <div class="overflow-x-auto rounded-lg border border-border bg-card">
         <Table>
