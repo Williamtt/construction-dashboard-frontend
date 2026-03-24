@@ -579,9 +579,8 @@ function tryOpenUploadDialog() {
       </Dialog>
     </div>
 
-    <!-- 表格區塊（格式同工期調整：無 Card 包覆；分頁在表格外 mt-4） -->
-    <div class="rounded-lg border border-border bg-card p-4">
-      <p v-if="listError" class="text-sm text-destructive">{{ listError }}</p>
+    <div class="rounded-lg border border-border bg-card">
+      <p v-if="listError" class="px-4 pt-4 text-sm text-destructive">{{ listError }}</p>
       <div
         v-else-if="listLoading"
         class="flex items-center justify-center py-12 text-muted-foreground"
@@ -589,63 +588,59 @@ function tryOpenUploadDialog() {
         載入中…
       </div>
       <template v-else>
-        <template v-if="filteredList.length > 0">
-          <div class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
+        <div class="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                  <FlexRender
+                    v-if="!header.isPlaceholder"
+                    :render="header.column.columnDef.header"
+                    :props="header.getContext()"
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="fileList.length === 0">
+                <TableRow>
+                  <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                    尚無資料，請選擇分類或上傳檔案
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
-                  <TableRow
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                    :data-state="row.getIsSelected() ? 'selected' : undefined"
-                  >
-                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                    </TableCell>
-                  </TableRow>
-                </template>
-                <template v-else>
-                  <TableRow>
-                    <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
-                      此頁無資料
-                    </TableCell>
-                  </TableRow>
-                </template>
-              </TableBody>
-            </Table>
-          </div>
-          <div class="mt-4">
-            <DataTablePagination :table="table" />
-          </div>
-        </template>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
-        >
-          <FileText class="size-10 opacity-50" />
-          <p class="text-sm">
-            {{
-              fileList.length === 0
-                ? '尚無資料，請選擇分類或上傳檔案'
-                : '此分類尚無檔案'
-            }}
-          </p>
-          <p v-if="fileList.length > 0" class="text-xs text-muted-foreground">
-            請切換左側分類或上傳檔案至此分類。
-          </p>
+              </template>
+              <template v-else-if="filteredList.length === 0">
+                <TableRow>
+                  <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                    此分類尚無檔案。請切換左側分類或上傳檔案至此分類。
+                  </TableCell>
+                </TableRow>
+              </template>
+              <template v-else-if="table.getRowModel().rows?.length">
+                <TableRow
+                  v-for="row in table.getRowModel().rows"
+                  :key="row.id"
+                  :data-state="row.getIsSelected() ? 'selected' : undefined"
+                >
+                  <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                    <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                  </TableCell>
+                </TableRow>
+              </template>
+              <template v-else>
+                <TableRow>
+                  <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                    此頁無資料
+                  </TableCell>
+                </TableRow>
+              </template>
+            </TableBody>
+          </Table>
         </div>
       </template>
+    </div>
+    <div v-if="!listLoading && !listError && fileList.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
   </div>
 </template>

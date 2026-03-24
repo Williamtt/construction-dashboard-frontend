@@ -27,6 +27,7 @@ import {
 import type { FormTemplateItem } from '@/api/form-templates'
 import { Upload, Loader2, Trash2, Download, FileText } from 'lucide-vue-next'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
@@ -470,18 +471,13 @@ async function batchDownload() {
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <DataTableFeatureSection
-          v-else-if="list.length > 0 || globalFilter.trim()"
+        <DataTableFeatureSection v-else :table="table" :empty-text="formsEmptyText" />
+      </div>
+      <div v-if="!loading && list.length > 0" class="mt-4">
+        <DataTablePagination
           :table="table"
           :hide-selection-info="!hasSelectColumn"
-          :empty-text="formsEmptyText"
         />
-        <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <p class="text-sm">尚無表單樣板</p>
-          <p v-if="uploadPerm.canCreate" class="mt-1 text-xs">
-            請由後台新增預設樣板，或使用「新增專案樣板」
-          </p>
-        </div>
       </div>
     </template>
 

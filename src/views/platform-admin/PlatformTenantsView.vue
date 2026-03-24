@@ -37,7 +37,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 import PlatformTenantsRowActions from '@/views/platform-admin/PlatformTenantsRowActions.vue'
@@ -67,6 +69,11 @@ const COLUMN_LABELS: Record<string, string> = {
 }
 const ALL_STATUS_VALUE = '__all__'
 const statusFilter = ref<string>(ALL_STATUS_VALUE)
+const TENANT_STATUS_FILTER_OPTIONS = [
+  { value: ALL_STATUS_VALUE, label: '全部狀態' },
+  { value: 'active', label: '使用中' },
+  { value: 'suspended', label: '已停用' },
+]
 const createDialogOpen = ref(false)
 const createForm = ref({
   name: '',
@@ -467,23 +474,27 @@ watch(statusFilter, () => {
   void loadTenants()
 })
 
+const toolbarHasActiveFilters = computed(
+  () => hasActiveFilters.value || statusFilter.value !== ALL_STATUS_VALUE,
+)
+
+function resetAllListFilters() {
+  resetTableState()
+  statusFilter.value = ALL_STATUS_VALUE
+}
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
 
 const tenantsEmptyText = computed(() => {
-  if (list.value.length === 0 && statusFilter.value !== ALL_STATUS_VALUE) {
-    return '此狀態下尚無租戶'
+  if (list.value.length === 0) {
+    if (statusFilter.value !== ALL_STATUS_VALUE) return '此狀態下尚無租戶'
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無租戶，點「新增租戶」建立第一筆。'
   }
   return '沒有符合條件的資料'
 })
-
-const showTenantsTable = computed(
-  () =>
-    list.value.length > 0 ||
-    globalFilter.value.trim().length > 0 ||
-    statusFilter.value !== ALL_STATUS_VALUE
-)
 
 function clearSelection() {
   table.setRowSelection({})
@@ -602,60 +613,57 @@ async function confirmBatchDelete() {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-4">
-      <Select v-model="statusFilter">
-        <SelectTrigger class="w-[140px] shrink-0 bg-background">
-          <SelectValue placeholder="全部狀態" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem :value="ALL_STATUS_VALUE">全部狀態</SelectItem>
-          <SelectItem value="active">使用中</SelectItem>
-          <SelectItem value="suspended">已停用</SelectItem>
-        </SelectContent>
-      </Select>
-      <div class="min-w-0 flex-1">
-        <DataTableFeatureToolbar
-          v-if="!loading"
-          :table="table"
-          :features="TABLE_FEATURES"
-          :column-labels="COLUMN_LABELS"
-          :has-active-filters="hasActiveFilters"
-          :global-filter="globalFilter"
-          search-placeholder="搜尋租戶名稱、Slug、Email、狀態、到期日、人員／專案、限制…"
-          @reset="resetTableState"
-        >
-          <template #actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-              <template v-if="hasSelection">
-                <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-                <ButtonGroup>
-                  <Button variant="outline" @click="clearSelection">取消選取</Button>
-                  <Button
-                    variant="outline"
-                    class="text-destructive hover:text-destructive"
-                    @click="openBatchDelete"
-                  >
-                    <Trash2 class="size-4" />
-                    批次刪除
-                  </Button>
-                </ButtonGroup>
-              </template>
-              <Dialog
-          :open="createDialogOpen"
-          @update:open="
-            (v: boolean) => {
-              createDialogOpen = v
-              if (!v) resetCreateForm()
-            }
-          "
-        >
-          <DialogTrigger as-child>
-            <Button size="sm" class="gap-2">
-              <Plus class="size-4" />
-              新增租戶
-            </Button>
-          </DialogTrigger>
-          <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋租戶名稱、Slug、Email、狀態、到期日、人員／專案、限制…"
+      @reset="resetAllListFilters"
+    >
+      <template #prepend-filters>
+        <DataTableFilterPill
+          v-model="statusFilter"
+          title="租戶狀態"
+          :all-value="ALL_STATUS_VALUE"
+          :options="TENANT_STATUS_FILTER_OPTIONS"
+          :disabled="loading"
+        />
+      </template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <template v-if="hasSelection">
+            <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+            <ButtonGroup>
+              <Button variant="outline" @click="clearSelection">取消選取</Button>
+              <Button
+                variant="outline"
+                class="text-destructive hover:text-destructive"
+                @click="openBatchDelete"
+              >
+                <Trash2 class="size-4" />
+                批次刪除
+              </Button>
+            </ButtonGroup>
+          </template>
+          <Dialog
+            :open="createDialogOpen"
+            @update:open="
+              (v: boolean) => {
+                createDialogOpen = v
+                if (!v) resetCreateForm()
+              }
+            "
+          >
+            <DialogTrigger as-child>
+              <Button size="sm" class="gap-2">
+                <Plus class="size-4" />
+                新增租戶
+              </Button>
+            </DialogTrigger>
+            <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg">
             <DialogHeader>
               <DialogTitle>新增租戶</DialogTitle>
               <DialogDescription>
@@ -762,30 +770,20 @@ async function confirmBatchDelete() {
                 </Button>
               </DialogFooter>
             </form>
-          </DialogContent>
-        </Dialog>
-            </div>
-          </template>
-        </DataTableFeatureToolbar>
-      </div>
-    </div>
+            </DialogContent>
+          </Dialog>
+        </div>
+      </template>
+    </DataTableFeatureToolbar>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showTenantsTable"
-        :table="table"
-        :empty-text="tenantsEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無租戶</p>
-        <p class="mt-1 text-xs">點「新增租戶」建立第一筆。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="tenantsEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <!-- Add user dialog -->

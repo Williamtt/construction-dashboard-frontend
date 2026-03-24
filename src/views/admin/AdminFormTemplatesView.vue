@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
@@ -326,11 +327,13 @@ const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
 
-const templatesEmptyText = computed(() => '沒有符合條件的資料')
-
-const showTemplatesTable = computed(
-  () => list.value.length > 0 || globalFilter.value.trim().length > 0
-)
+const templatesEmptyText = computed(() => {
+  if (list.value.length === 0) {
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無預設樣板，點「新增預設樣板」上傳第一筆。'
+  }
+  return '沒有符合條件的資料'
+})
 
 function clearSelection() {
   table.setRowSelection({})
@@ -427,22 +430,14 @@ async function confirmBatchDelete() {
       </DataTableFeatureToolbar>
     </div>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showTemplatesTable"
-        :table="table"
-        :empty-text="templatesEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無預設樣板</p>
-        <p class="mt-1 text-xs">點「新增預設樣板」上傳第一筆。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="templatesEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <!-- 新增 Dialog -->

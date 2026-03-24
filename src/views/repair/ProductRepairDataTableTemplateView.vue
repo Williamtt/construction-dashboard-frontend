@@ -326,7 +326,7 @@ const createdAtColumn = computed(() => table.getColumn('createdAt'))
         </template>
       </DataTableToolbarShell>
 
-      <div class="rounded-lg border border-border bg-card p-4">
+      <div class="rounded-lg border border-border bg-card">
         <div class="overflow-x-auto">
           <Table>
             <TableHeader>
@@ -371,15 +371,14 @@ const createdAtColumn = computed(() => table.getColumn('createdAt'))
                   :colspan="columns.length"
                   class="h-24 text-center text-muted-foreground"
                 >
-                  沒有符合條件的資料
+                  此頁無資料
                 </TableCell>
               </TableRow>
             </TableBody>
           </Table>
         </div>
       </div>
-
-      <div class="mt-4">
+      <div v-if="data.length > 0" class="mt-4">
         <DataTablePagination :table="table" />
       </div>
     </div>

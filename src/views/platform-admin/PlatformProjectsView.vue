@@ -10,13 +10,6 @@ import {
   type TenantItem,
 } from '@/api/platform'
 import { Badge } from '@/components/ui/badge'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
@@ -30,7 +23,9 @@ import {
 } from '@/components/ui/dialog'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 import { Loader2, Trash2 } from 'lucide-vue-next'
@@ -41,6 +36,14 @@ const loading = ref(true)
 const tenantsLoading = ref(true)
 const ALL_TENANTS_VALUE = '__all__'
 const tenantFilter = ref<string>(ALL_TENANTS_VALUE)
+
+const tenantPillOptions = computed(() => [
+  { value: ALL_TENANTS_VALUE, label: '全部租戶' },
+  ...tenants.value.map((t) => ({
+    value: t.id,
+    label: t.slug ? `${t.name}（${t.slug}）` : t.name,
+  })),
+])
 
 const TABLE_FEATURES: TableListFeatures = {
   search: true,
@@ -259,23 +262,27 @@ watch(tenantFilter, () => {
   void loadProjects()
 })
 
+const toolbarHasActiveFilters = computed(
+  () => hasActiveFilters.value || tenantFilter.value !== ALL_TENANTS_VALUE,
+)
+
+function resetAllListFilters() {
+  resetTableState()
+  tenantFilter.value = ALL_TENANTS_VALUE
+}
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
 
 const projectsEmptyText = computed(() => {
-  if (list.value.length === 0 && tenantFilter.value !== ALL_TENANTS_VALUE) {
-    return '此租戶下尚無專案'
+  if (list.value.length === 0) {
+    if (tenantFilter.value !== ALL_TENANTS_VALUE) return '此租戶下尚無專案'
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無專案，變更租戶篩選或建立專案後將顯示於此。'
   }
   return '沒有符合條件的資料'
 })
-
-const showProjectsTable = computed(
-  () =>
-    list.value.length > 0 ||
-    globalFilter.value.trim().length > 0 ||
-    tenantFilter.value !== ALL_TENANTS_VALUE
-)
 
 function clearSelection() {
   table.setRowSelection({})
@@ -314,67 +321,53 @@ async function confirmBatchDelete() {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-4">
-      <Select v-model="tenantFilter" :disabled="tenantsLoading">
-        <SelectTrigger class="w-[200px] shrink-0 bg-background">
-          <SelectValue placeholder="全部租戶" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem :value="ALL_TENANTS_VALUE">全部租戶</SelectItem>
-          <SelectItem v-for="t in tenants" :key="t.id" :value="t.id">
-            {{ t.slug ? `${t.name}（${t.slug}）` : t.name }}
-          </SelectItem>
-        </SelectContent>
-      </Select>
-      <div class="min-w-0 flex-1">
-        <DataTableFeatureToolbar
-          v-if="!loading"
-          :table="table"
-          :features="TABLE_FEATURES"
-          :column-labels="COLUMN_LABELS"
-          :has-active-filters="hasActiveFilters"
-          :global-filter="globalFilter"
-          search-placeholder="搜尋專案名稱、說明、代碼、租戶、狀態、建立日期…"
-          @reset="resetTableState"
-        >
-          <template #actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-              <template v-if="hasSelection">
-                <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-                <ButtonGroup>
-                  <Button variant="outline" @click="clearSelection">取消選取</Button>
-                  <Button
-                    variant="outline"
-                    class="text-destructive hover:text-destructive"
-                    @click="openBatchDelete"
-                  >
-                    <Trash2 class="size-4" />
-                    批次刪除
-                  </Button>
-                </ButtonGroup>
-              </template>
-            </div>
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋專案名稱、說明、代碼、租戶、狀態、建立日期…"
+      @reset="resetAllListFilters"
+    >
+      <template #prepend-filters>
+        <DataTableFilterPill
+          v-model="tenantFilter"
+          title="所屬租戶"
+          :all-value="ALL_TENANTS_VALUE"
+          :options="tenantPillOptions"
+          :disabled="tenantsLoading || loading"
+        />
+      </template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <template v-if="hasSelection">
+            <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+            <ButtonGroup>
+              <Button variant="outline" @click="clearSelection">取消選取</Button>
+              <Button
+                variant="outline"
+                class="text-destructive hover:text-destructive"
+                @click="openBatchDelete"
+              >
+                <Trash2 class="size-4" />
+                批次刪除
+              </Button>
+            </ButtonGroup>
           </template>
-        </DataTableFeatureToolbar>
-      </div>
-    </div>
+        </div>
+      </template>
+    </DataTableFeatureToolbar>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showProjectsTable"
-        :table="table"
-        :empty-text="projectsEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無專案</p>
-        <p class="mt-1 text-xs">變更租戶篩選或建立專案後將顯示於此。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="projectsEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">

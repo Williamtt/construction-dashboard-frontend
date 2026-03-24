@@ -1,43 +1,59 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import { getCoreRowModel, getPaginationRowModel, useVueTable } from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import { ref, computed, onMounted, h } from 'vue'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
+import { ref, computed, onMounted, watch, h } from 'vue'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
-import { Input } from '@/components/ui/input'
-import { Loader2, BarChart3, Search } from 'lucide-vue-next'
+import { Loader2 } from 'lucide-vue-next'
 import { fetchUsage, type TenantUsageItem } from '@/api/platform'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
+import type { TableListFeatures } from '@/types/data-table'
 
 const list = ref<TenantUsageItem[]>([])
 const loading = ref(true)
-const searchQuery = ref('')
 
-const filteredList = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
-  if (!q) return list.value
-  return list.value.filter((row) => {
-    const name = row.name.toLowerCase()
-    const slug = (row.slug ?? '').toLowerCase()
-    const statusLabel = row.status === 'active' ? '啟用' : '停用'
-    return (
-      name.includes(q) ||
-      slug.includes(q) ||
-      statusLabel.includes(q) ||
-      row.status.toLowerCase().includes(q) ||
-      row.id.toLowerCase().includes(q)
-    )
-  })
+const ALL_STATUS = 'all' as const
+const statusFilter = ref<string>(ALL_STATUS)
+const usageStatusPillOptions = computed(() => {
+  const rows = list.value
+  const n = (s: string) => rows.filter((r) => r.status === s).length
+  return [
+    { value: ALL_STATUS, label: '全部狀態', count: rows.length },
+    { value: 'active', label: '啟用', count: n('active') },
+    { value: 'suspended', label: '停用', count: n('suspended') },
+  ]
 })
+
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: false,
+  columnVisibility: false,
+}
+const COLUMN_LABELS: Record<string, string> = {}
+
+const statusFilteredData = computed(() => {
+  const rows = list.value
+  if (statusFilter.value === ALL_STATUS) return rows
+  return rows.filter((r) => r.status === statusFilter.value)
+})
+
+const usageGlobalFilterFn: FilterFn<TenantUsageItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '').trim().toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const statusLabel = r.status === 'active' ? '啟用' : '停用'
+  const parts = [
+    r.name,
+    r.slug ?? '',
+    statusLabel.toLowerCase(),
+    r.status.toLowerCase(),
+    r.id.toLowerCase(),
+  ].map((s) => String(s).toLowerCase())
+  return parts.some((x) => x.includes(q))
+}
 
 function storageDisplay(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -114,7 +130,7 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
       const r = row.original
       const badges = [
         h(Badge, { variant: r.status === 'active' ? 'default' : 'secondary' }, () =>
-          r.status === 'active' ? '啟用' : '停用'
+          r.status === 'active' ? '啟用' : '停用',
         ),
       ]
       if (isExpired(r)) {
@@ -125,10 +141,11 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
             Badge,
             {
               variant: 'outline',
-              class: 'ml-1 border-amber-500 text-amber-600 dark:text-amber-400',
+              class:
+                'ml-1 border-amber-500 text-amber-600 dark:border-amber-500 dark:text-amber-400',
             },
-            () => '即將到期'
-          )
+            () => '即將到期',
+          ),
         )
       }
       return h('div', badges)
@@ -179,27 +196,45 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
       h(
         'span',
         { class: 'tabular-nums text-muted-foreground' },
-        formatDate(row.original.expiresAt)
+        formatDate(row.original.expiresAt),
       ),
   },
 ])
 
-const table = useVueTable({
-  get data() {
-    return filteredList.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: statusFilteredData,
+  columns,
+  features: TABLE_FEATURES,
   getRowId: (row) => row.id,
-  initialState: {
-    pagination: { pageSize: 10 },
-  },
+  globalFilterFn: usageGlobalFilterFn,
+  initialPageSize: 10,
+  enableRowSelection: false,
 })
 
-onMounted(load)
+watch(statusFilter, () => {
+  resetTableState()
+})
+
+const toolbarHasActiveFilters = computed(
+  () => hasActiveFilters.value || statusFilter.value !== ALL_STATUS,
+)
+
+function resetAllFilters() {
+  statusFilter.value = ALL_STATUS
+  resetTableState()
+}
+
+const emptyText = computed(() => {
+  if (list.value.length === 0) return '尚無租戶或用量資料。'
+  if (statusFilteredData.value.length === 0) return '此狀態下沒有租戶。'
+  if (globalFilter.value.trim() && table.getFilteredRowModel().rows.length === 0)
+    return '目前搜尋無符合的租戶。'
+  return '此頁無資料'
+})
+
+onMounted(() => {
+  void load()
+})
 </script>
 
 <template>
@@ -207,75 +242,41 @@ onMounted(load)
     <div>
       <h1 class="text-xl font-semibold tracking-tight text-foreground">用量總覽</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        各租戶的使用者數、專案數與儲存用量；可檢視是否接近或超過配額、到期日。
+        各租戶的使用者數、專案數與儲存用量。可依狀態篩選，並搜尋租戶名稱、slug、狀態；使用「重設」清空條件。
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div class="relative w-64 min-w-[12rem]">
-        <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          v-model="searchQuery"
-          placeholder="租戶名稱、slug、狀態…"
-          class="pl-9 bg-background"
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋租戶名稱、slug、狀態…"
+      :collapse-when-row-selection="false"
+      @reset="resetAllFilters"
+    >
+      <template #prepend-filters>
+        <DataTableFilterPill
+          v-model="statusFilter"
+          title="租戶狀態"
+          :all-value="ALL_STATUS"
+          :options="usageStatusPillOptions"
+          :disabled="loading"
         />
-      </div>
-    </div>
+      </template>
+      <template #actions />
+    </DataTableFeatureToolbar>
 
-    <!-- 表格區塊（規範：rounded-lg border bg-card p-4） -->
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <template v-else>
-        <div v-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
-          <BarChart3 class="mx-auto mb-2 size-10 opacity-50" />
-          <p>尚無租戶或用量資料。</p>
-        </div>
-        <div
-          v-else-if="!filteredList.length"
-          class="py-16 text-center text-sm text-muted-foreground"
-        >
-          <BarChart3 class="mx-auto mb-2 size-10 opacity-50" />
-          <p>目前搜尋無符合的租戶。</p>
-        </div>
-        <template v-else>
-          <div class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
-                  <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
-                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                    </TableCell>
-                  </TableRow>
-                </template>
-                <template v-else>
-                  <TableRow>
-                    <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
-                      尚無租戶或用量資料。
-                    </TableCell>
-                  </TableRow>
-                </template>
-              </TableBody>
-            </Table>
-          </div>
-          <div class="mt-4">
-            <DataTablePagination :table="table" hide-selection-info />
-          </div>
-        </template>
-      </template>
+      <DataTableFeatureSection v-else :table="table" :empty-text="emptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" hide-selection-info />
     </div>
   </div>
 </template>

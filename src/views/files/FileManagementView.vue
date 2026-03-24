@@ -22,6 +22,7 @@ import { ensureProjectPermission } from '@/lib/permission-toast'
 import { Upload, Loader2, Trash2, Download, FileIcon } from 'lucide-vue-next'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 
@@ -401,16 +402,16 @@ async function confirmBatchDelete() {
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <DataTableFeatureSection
-          v-else-if="fileList.length > 0 || globalFilter.trim()"
+        <DataTableFeatureSection v-else :table="table" :empty-text="filesEmptyText" />
+      </div>
+      <div
+        v-if="!loading && fileList.length > 0"
+        class="mt-4"
+      >
+        <DataTablePagination
           :table="table"
           :hide-selection-info="!hasSelectColumn"
-          :empty-text="filesEmptyText"
         />
-        <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <p class="text-sm">尚無檔案</p>
-          <p v-if="uploadPerm.canCreate" class="mt-1 text-xs">請使用「新增檔案」上傳</p>
-        </div>
       </div>
     </template>
 

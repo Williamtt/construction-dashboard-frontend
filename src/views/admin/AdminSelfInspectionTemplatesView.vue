@@ -19,6 +19,7 @@ import {
 import { Label } from '@/components/ui/label'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
@@ -32,7 +33,7 @@ import {
 import type { SelfInspectionTemplateItem } from '@/api/self-inspection-templates'
 import { ROUTE_NAME } from '@/constants/routes'
 import { useRouter } from 'vue-router'
-import { Loader2, Trash2, Plus, ClipboardCheck } from 'lucide-vue-next'
+import { Loader2, Trash2, Plus } from 'lucide-vue-next'
 
 const authStore = useAuthStore()
 const router = useRouter()
@@ -323,11 +324,13 @@ const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
 
-const templatesEmptyText = computed(() => '沒有符合條件的資料')
-
-const showTemplatesTable = computed(
-  () => list.value.length > 0 || globalFilter.value.trim().length > 0
-)
+const templatesEmptyText = computed(() => {
+  if (list.value.length === 0) {
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無樣板，點「新增樣板」開始建立。'
+  }
+  return '沒有符合條件的資料'
+})
 
 function clearSelection() {
   table.setRowSelection({})
@@ -432,24 +435,14 @@ async function confirmBatchDelete() {
       </DataTableFeatureToolbar>
     </div>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showTemplatesTable"
-        :table="table"
-        :empty-text="templatesEmptyText"
-        hide-selection-info
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground"
-      >
-        <ClipboardCheck class="size-10 opacity-50" />
-        <p class="text-sm">尚無樣板</p>
-        <p class="text-xs">點「新增樣板」開始建立。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="templatesEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog :open="addDialogOpen" @update:open="(v) => (addDialogOpen = v)">

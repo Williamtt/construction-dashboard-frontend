@@ -29,7 +29,9 @@ import {
 import { Checkbox } from '@/components/ui/checkbox'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 import AdminMembersRowActions from '@/views/admin/AdminMembersRowActions.vue'
@@ -60,6 +62,12 @@ const list = ref<AdminUserItem[]>([])
 const loading = ref(true)
 const ALL_MEMBERS_VALUE = '__all__'
 const memberTypeFilter = ref<string>(ALL_MEMBERS_VALUE)
+
+const MEMBER_TYPE_PILL_OPTIONS: { label: string; value: string }[] = [
+  { label: '全部成員', value: ALL_MEMBERS_VALUE },
+  { label: '內部成員', value: 'internal' },
+  { label: '外部成員', value: 'external' },
+]
 const dialogOpen = ref(false)
 const form = ref({
   email: '',
@@ -415,6 +423,17 @@ const { table, globalFilter, hasActiveFilters, resetTableState } = useClientData
   initialPageSize: 10,
 })
 
+const toolbarHasActiveFilters = computed(
+  () => hasActiveFilters.value || memberTypeFilter.value !== ALL_MEMBERS_VALUE,
+)
+
+function resetAllListFilters() {
+  resetTableState()
+  if (memberTypeFilter.value !== ALL_MEMBERS_VALUE) {
+    memberTypeFilter.value = ALL_MEMBERS_VALUE
+  }
+}
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
@@ -424,18 +443,13 @@ function clearSelection() {
 }
 
 const membersEmptyText = computed(() => {
-  if (list.value.length === 0 && memberTypeFilter.value !== ALL_MEMBERS_VALUE) {
-    return '此類型尚無成員'
+  if (list.value.length === 0) {
+    if (memberTypeFilter.value !== ALL_MEMBERS_VALUE) return '此類型尚無成員'
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無成員，點「新增成員」建立第一筆。'
   }
   return '沒有符合條件的資料'
 })
-
-const showMembersTable = computed(
-  () =>
-    list.value.length > 0 ||
-    globalFilter.value.trim().length > 0 ||
-    memberTypeFilter.value !== ALL_MEMBERS_VALUE
-)
 
 watch(memberTypeFilter, () => {
   resetTableState()
@@ -617,30 +631,27 @@ async function confirmBatchDelete() {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-4">
-      <Select v-model="memberTypeFilter">
-        <SelectTrigger class="w-[140px] shrink-0 bg-background">
-          <SelectValue placeholder="全部成員" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem :value="ALL_MEMBERS_VALUE">全部成員</SelectItem>
-          <SelectItem value="internal">內部成員</SelectItem>
-          <SelectItem value="external">外部成員</SelectItem>
-        </SelectContent>
-      </Select>
-      <div class="min-w-0 flex-1">
-        <DataTableFeatureToolbar
-          v-if="!loading"
-          :table="table"
-          :features="TABLE_FEATURES"
-          :column-labels="COLUMN_LABELS"
-          :has-active-filters="hasActiveFilters"
-          :global-filter="globalFilter"
-          search-placeholder="搜尋姓名、Email、角色、類型、狀態、建立日期…"
-          @reset="resetTableState"
-        >
-          <template #actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋姓名、Email、角色、類型、狀態、建立日期…"
+      @reset="resetAllListFilters"
+    >
+      <template #prepend-filters>
+        <DataTableFilterPill
+          title="成員類型"
+          v-model="memberTypeFilter"
+          :options="MEMBER_TYPE_PILL_OPTIONS"
+          :all-value="ALL_MEMBERS_VALUE"
+          :disabled="loading"
+        />
+      </template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-3">
               <template v-if="hasSelection">
                 <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
                 <ButtonGroup>
@@ -750,28 +761,18 @@ async function confirmBatchDelete() {
             </form>
           </DialogContent>
         </Dialog>
-            </div>
-          </template>
-        </DataTableFeatureToolbar>
-      </div>
-    </div>
+        </div>
+      </template>
+    </DataTableFeatureToolbar>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showMembersTable"
-        :table="table"
-        :empty-text="membersEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無成員</p>
-        <p class="mt-1 text-xs">點「新增成員」建立第一筆。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="membersEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">

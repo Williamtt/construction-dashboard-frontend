@@ -38,6 +38,7 @@ import type { TableListFeatures } from '@/types/data-table'
 import { Plus, Loader2 } from 'lucide-vue-next'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import ProjectMembersRowActions from '@/views/contract/ProjectMembersRowActions.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
@@ -389,6 +390,15 @@ const { table, globalFilter, hasActiveFilters, resetTableState } = useClientData
   enableRowSelection: hasSelectColumn,
 })
 
+const projectMembersEmptyText = computed(() => {
+  if (list.value.length === 0) {
+    const q = globalFilter.value.trim()
+    if (q) return '沒有符合條件的資料'
+    return '尚無專案成員，請從「新增成員」加入同租戶的成員。'
+  }
+  return '沒有符合條件的資料'
+})
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 
@@ -683,18 +693,17 @@ watch(
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <template v-else>
-          <DataTableFeatureSection
-            v-if="list.length > 0"
-            :table="table"
-            :hide-selection-info="!hasSelectColumn"
-            empty-text="沒有符合條件的資料"
-          />
-          <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
-            <p class="text-sm">尚無專案成員</p>
-            <p v-if="canCreateMembers" class="mt-1 text-xs">請從「新增成員」加入同租戶的成員</p>
-          </div>
-        </template>
+        <DataTableFeatureSection
+          v-else
+          :table="table"
+          :empty-text="projectMembersEmptyText"
+        />
+      </div>
+      <div v-if="!loading && list.length > 0" class="mt-4">
+        <DataTablePagination
+          :table="table"
+          :hide-selection-info="!hasSelectColumn"
+        />
       </div>
     </template>
 

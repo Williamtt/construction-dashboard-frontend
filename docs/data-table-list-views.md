@@ -17,11 +17,11 @@
 | 型別與 ColumnMeta 擴充 | `src/types/data-table.ts` |
 | 表格狀態（篩選／排序／分頁／選取） | `useClientDataTable` — `src/composables/useClientDataTable.ts` |
 | 工具列（搜尋＋依 meta 動態篩選＋重設＋多欄排序＋欄位顯示） | `DataTableFeatureToolbar` |
-| 表身＋水平捲動外層＋分頁 | `DataTableFeatureSection`（內建 `Table scroll-container=false`；表格外**不重複** `border`，由下列「表格區塊」殼層提供） |
+| 表頭＋表身＋水平捲動（**不含分頁**） | `DataTableFeatureSection`（內建 `Table scroll-container=false`） |
 | 分頁 | `DataTablePagination`（無勾選欄時傳 `hide-selection-info`） |
 | 可排序表頭 | `DataTableColumnHeader` |
 
-參考實作：**`src/views/contract/ProjectMembersView.vue`**（三區全开）。**`src/views/files/FileManagementView.vue`**、**`src/views/files/FileFormsView.vue`**、**`src/views/construction/ConstructionValuationsListView.vue`**、**`src/views/construction/PccesImportsListView.vue`**、**`src/views/construction/ConstructionDrawingsView.vue`**（樹狀表身仍為自訂 `Table`；以輕量 `useClientDataTable` 僅承載 **`globalFilter`**，列篩選為 **`filteredFlattenedList`**）為 **僅 `search: true`**（`filtersAndSort`／`columnVisibility` 關閉）之對照。**`src/views/construction/ConstructionDailyLogsListView.vue`** 為 **`search: true` + `filtersAndSort: true`**（`logDate` 使用 **`meta.filter` 之 `dateRange`** 做填表日期區間）、**`columnVisibility: false`**。**`src/views/construction/ConstructionDefectsView.vue`** 為 **`search: true` + `filtersAndSort: true`**（**`status`／`priority`** 為 **`faceted`**、**`updatedAt`** 為 **`dateRange`**）、**`columnVisibility: false`**（含列勾選與批次刪除）。進階手動拼裝可對照 **`src/views/repair/ProductRepairDataTableTemplateView.vue`**（示範頁，仍建議新頁優先採 `DataTableFeatureToolbar` + `meta.filter`）。
+參考實作：**`src/views/files/FileManagementView.vue`**（邊框殼無 `p-4`、無資料仍顯示表＋單列說明、分頁僅在 `list.length > 0` 且在外殼外）。**`src/views/contract/ProjectMembersView.vue`**（三區全开）。其餘對照見 **`.cursor/rules/data-table-list-views.mdc`**「參考實作」。
 
 ## 工具列：新增／上傳／建立（位置與尺寸）
 
@@ -36,8 +36,10 @@
 
 ## 版面與 UX（對齊 ui-ux-principles）
 
-- **說明文字**與 **`DataTableFeatureToolbar`**（搜尋／篩選／排序／欄位顯示；**`#actions`** 放「已選 + ButtonGroup + 新增／上傳」— **新增／上傳須為該列最右**，見上節）放在 **`rounded-lg border bg-card p-4` 之外**，與 **`src/views/files/FileManagementView.vue`** 相同層級關係。
-- **表格區塊**（載入中、**`DataTableFeatureSection`**、分頁、空狀態）**僅**用**一層** `rounded-lg border border-border bg-card p-4` 包住；**勿**再用更大一層 Card／邊框把「說明＋工具列＋表格」整包進去（避免雙層外殼）。
+- **說明文字**與 **`DataTableFeatureToolbar`** 放在 **邊框表格外殼之外**，與 **`src/views/files/FileManagementView.vue`** 相同層級關係。
+- **邊框表格外殼**：**一層** **`rounded-lg border border-border bg-card`**；**勿**加 **`p-4`**。
+- **載入完成後**一律顯示表格（**`DataTableFeatureSection`** 或手動 **`Table`**）：**無資料**時表身以**單列**（**`emptyText`** 或 colspan）顯示說明，**勿**用整塊空狀態取代表格。
+- **`DataTablePagination`**：**僅在列表確有資料時**渲染（例 **`!loading && list.length > 0`**）；放在**邊框殼 `</div>` 之後**的兄弟節點，**`class="mt-4"`**，**勿**包在邊框殼內。
 - 寬表：水平捲動發生在 **`DataTableFeatureSection`** 外層（`min-w-0 overflow-x-auto`），勿撐出整頁橫向捲動（見 **`table-scroll-layout.mdc`**）。
 - 第一欄勾選、操作收合在「更多」下拉（本頁維持既有列操作元件）。
 
@@ -56,7 +58,7 @@
 
 - 傳入 **`features: TableListFeatures`** 以對應三區開關（關閉時內部會關掉對應 table 能力）。
 - **`globalFilterFn`**：在 `features.search === true` 時應實作（至少涵蓋姓名、主旨等該頁宣告可搜尋欄位）。
-- **`enableRowSelection`**：無勾選欄時設為 `false`，並讓 **`DataTableFeatureSection`** `hide-selection-info`。
+- **`enableRowSelection`**：無勾選欄時設為 `false`，並在 **`DataTablePagination`** 設 **`hide-selection-info`**（勿傳給 `DataTableFeatureSection`）。
 
 ## 主題
 

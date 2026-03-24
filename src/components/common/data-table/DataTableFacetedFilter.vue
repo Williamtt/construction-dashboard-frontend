@@ -57,9 +57,9 @@ function clear() {
       <Button
         variant="outline"
         size="sm"
-        class="h-8 border-dashed"
+        class="h-8 gap-1.5 border-dashed bg-background"
       >
-        <PlusCircle class="size-4" />
+        <PlusCircle class="size-4 shrink-0" />
         {{ title }}
         <template v-if="selectedValues.size > 0">
           <Separator

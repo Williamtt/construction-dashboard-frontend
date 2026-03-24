@@ -20,6 +20,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import { ROUTE_NAME } from '@/constants/routes'
@@ -329,9 +330,12 @@ watch(
 )
 
 const importsEmptyText = computed(() => {
+  if (!projectId.value) return '缺少專案 ID'
   const q = globalFilter.value.trim()
   if (list.value.length === 0) {
-    return q ? '沒有符合條件的資料' : '尚無匯入紀錄'
+    return q
+      ? '沒有符合條件的資料'
+      : '尚無匯入紀錄，請透過「首次匯入／上傳 XML」建立版本。'
   }
   return '沒有符合條件的資料'
 })
@@ -429,25 +433,10 @@ const importsEmptyText = computed(() => {
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <DataTableFeatureSection
-          v-else-if="projectId && (list.length > 0 || globalFilter.trim())"
-          :table="table"
-          hide-selection-info
-          :empty-text="importsEmptyText"
-        />
-        <div
-          v-else-if="!loading"
-          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
-        >
-          <p class="text-sm">尚無匯入紀錄。</p>
-          <RouterLink
-            v-if="perm.canCreate.value"
-            :to="uploadXmlRoute"
-            class="mt-2 text-sm text-primary underline-offset-4 hover:underline"
-          >
-            前往首次匯入
-          </RouterLink>
-        </div>
+        <DataTableFeatureSection v-else :table="table" :empty-text="importsEmptyText" />
+      </div>
+      <div v-if="!loading && projectId && list.length > 0" class="mt-4">
+        <DataTablePagination :table="table" hide-selection-info />
       </div>
     </template>
 

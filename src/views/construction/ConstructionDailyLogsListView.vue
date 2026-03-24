@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
 import { CONSTRUCTION_DAILY_LOG_BREADCRUMB_STATE_KEY } from '@/lib/construction-daily-log-breadcrumb'
@@ -207,6 +208,7 @@ watch(
 )
 
 const logsEmptyText = computed(() => {
+  if (!projectId.value) return '缺少專案 ID'
   const q = globalFilter.value.trim()
   if (list.value.length === 0) {
     return q ? '沒有符合條件的資料' : '尚無日誌，請點「新增日誌」建立。'
@@ -255,21 +257,10 @@ const logsEmptyText = computed(() => {
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <DataTableFeatureSection
-          v-else-if="projectId && (list.length > 0 || globalFilter.trim() || hasActiveFilters)"
-          :table="table"
-          hide-selection-info
-          :empty-text="logsEmptyText"
-        />
-        <div
-          v-else-if="!loading"
-          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
-        >
-          <p class="text-sm">
-            {{ !projectId ? '缺少專案 ID' : '尚無日誌' }}
-          </p>
-          <p v-if="projectId && perm.canCreate.value" class="mt-1 text-xs">請點「新增日誌」建立</p>
-        </div>
+        <DataTableFeatureSection v-else :table="table" :empty-text="logsEmptyText" />
+      </div>
+      <div v-if="!loading && projectId && list.length > 0" class="mt-4">
+        <DataTablePagination :table="table" hide-selection-info />
       </div>
     </template>
   </div>

@@ -656,7 +656,7 @@ const colCount = 5
         </template>
       </DataTableFeatureToolbar>
 
-      <div class="rounded-lg border border-border bg-card p-4">
+      <div class="rounded-lg border border-border bg-card">
         <div
           v-if="loading"
           class="flex items-center justify-center gap-2 py-12 text-muted-foreground"

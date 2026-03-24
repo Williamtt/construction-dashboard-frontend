@@ -32,7 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, FileText, Clock, CheckCircle, ListChecks, Plus } from 'lucide-vue-next'
+import { Loader2, FileText, Clock, CheckCircle, Plus } from 'lucide-vue-next'
 import StateCard from '@/components/common/StateCard.vue'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { listRepairRequests, deleteRepairRequest } from '@/api/repair-requests'
@@ -454,62 +454,57 @@ watch(statusFilter, () => {
     </div>
 
     <div class="rounded-lg border border-border bg-card">
-      <p v-if="errorMessage" class="mb-3 text-sm text-destructive">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="mb-3 px-4 pt-4 text-sm text-destructive">{{ errorMessage }}</p>
       <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <template v-if="list.length > 0">
-          <div class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
+        <div class="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                  <FlexRender
+                    v-if="!header.isPlaceholder"
+                    :render="header.column.columnDef.header"
+                    :props="header.getContext()"
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="list.length === 0">
+                <TableRow>
+                  <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
+                    尚無報修紀錄。可點上方「新增報修」，或使用手機版報修管理現場填報。
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
-                  <TableRow
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                    :data-state="row.getIsSelected() ? 'selected' : undefined"
-                  >
-                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                    </TableCell>
-                  </TableRow>
-                </template>
-                <template v-else>
-                  <TableRow>
-                    <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
-                      此頁無資料
-                    </TableCell>
-                  </TableRow>
-                </template>
-              </TableBody>
-            </Table>
-          </div>
-          <div class="mt-4">
-            <DataTablePagination :table="table" />
-          </div>
-        </template>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
-        >
-          <ListChecks class="size-10 opacity-50" />
-          <p class="text-sm">尚無報修紀錄</p>
-          <p class="text-xs text-muted-foreground">
-            可點上方「新增報修」，或使用手機版報修管理現場填報。
-          </p>
+              </template>
+              <template v-else-if="table.getRowModel().rows?.length">
+                <TableRow
+                  v-for="row in table.getRowModel().rows"
+                  :key="row.id"
+                  :data-state="row.getIsSelected() ? 'selected' : undefined"
+                >
+                  <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                    <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                  </TableCell>
+                </TableRow>
+              </template>
+              <template v-else>
+                <TableRow>
+                  <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
+                    此頁無資料
+                  </TableCell>
+                </TableRow>
+              </template>
+            </TableBody>
+          </Table>
         </div>
       </template>
+    </div>
+    <div v-if="!loading && !errorMessage && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog

@@ -26,7 +26,7 @@ import {
 } from '@/components/ui/table'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Badge } from '@/components/ui/badge'
-import { Bell, Loader2 } from 'lucide-vue-next'
+import { Loader2 } from 'lucide-vue-next'
 import { fetchAlertHistory, type AlertHistoryItem } from '@/api/alerts'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import MonitoringAlertsRowActions from '@/views/monitoring/MonitoringAlertsRowActions.vue'
@@ -243,35 +243,34 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 表格區塊（依規範 rounded-lg border border-border bg-card p-4） -->
-    <div class="rounded-lg border border-border bg-card p-4">
-      <p v-if="errorMessage" class="mb-3 text-sm text-destructive">{{ errorMessage }}</p>
+    <div class="rounded-lg border border-border bg-card">
+      <p v-if="errorMessage" class="mb-3 px-4 pt-4 text-sm text-destructive">{{ errorMessage }}</p>
       <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <div
-          v-if="list.length === 0"
-          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
-        >
-          <Bell class="size-10 opacity-50" />
-          <p class="text-sm">此區間無警報紀錄</p>
-        </div>
-        <template v-else>
-          <div class="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
+        <div class="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                  <FlexRender
+                    v-if="!header.isPlaceholder"
+                    :render="header.column.columnDef.header"
+                    :props="header.getContext()"
+                  />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="list.length === 0">
+                <TableRow>
+                  <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                    此區間無警報紀錄
+                  </TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
+              </template>
+              <template v-else-if="table.getRowModel().rows.length">
                 <TableRow
                   v-for="row in table.getRowModel().rows"
                   :key="row.id"
@@ -281,14 +280,21 @@ onMounted(() => {
                     <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
                   </TableCell>
                 </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          <div class="mt-4">
-            <DataTablePagination :table="table" />
-          </div>
-        </template>
+              </template>
+              <template v-else>
+                <TableRow>
+                  <TableCell :colspan="6" class="h-24 text-center text-muted-foreground">
+                    此頁無資料
+                  </TableCell>
+                </TableRow>
+              </template>
+            </TableBody>
+          </Table>
+        </div>
       </template>
+    </div>
+    <div v-if="!loading && !errorMessage && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog v-model:open="detailOpen">

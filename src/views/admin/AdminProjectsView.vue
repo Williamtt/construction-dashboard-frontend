@@ -23,17 +23,12 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 import AdminProjectsRowActions from '@/views/admin/AdminProjectsRowActions.vue'
@@ -56,6 +51,16 @@ const projectCreateGateHint = ref('')
 
 const ALL_STATUS_VALUE = '__all__'
 const statusFilter = ref<string>(ALL_STATUS_VALUE)
+
+const projectStatusPillOptions = computed(() => {
+  const items = list.value
+  const n = (status: string) => items.filter((p) => p.status === status).length
+  return [
+    { label: '全部狀態', value: ALL_STATUS_VALUE, count: items.length },
+    { label: '使用中', value: 'active', count: n('active') },
+    { label: '已封存', value: 'archived', count: n('archived') },
+  ]
+})
 
 const TABLE_FEATURES: TableListFeatures = {
   search: true,
@@ -296,6 +301,19 @@ const { table, globalFilter, hasActiveFilters, resetTableState } = useClientData
   initialPageSize: 10,
 })
 
+const toolbarHasActiveFilters = computed(
+  () => hasActiveFilters.value || statusFilter.value !== ALL_STATUS_VALUE,
+)
+
+function resetAllListFilters() {
+  statusFilter.value = ALL_STATUS_VALUE
+  resetTableState()
+}
+
+watch(statusFilter, () => {
+  resetTableState()
+})
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
@@ -305,18 +323,16 @@ function clearSelection() {
 }
 
 const projectsEmptyText = computed(() => {
+  if (list.value.length === 0) {
+    if (statusFilter.value !== ALL_STATUS_VALUE) return '此狀態下尚無專案'
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無專案，點「新增專案」建立第一筆。'
+  }
   if (filteredByStatus.value.length === 0 && statusFilter.value !== ALL_STATUS_VALUE) {
     return '此狀態下尚無專案'
   }
   return '沒有符合條件的資料'
 })
-
-const showProjectsTable = computed(
-  () =>
-    list.value.length > 0 ||
-    globalFilter.value.trim().length > 0 ||
-    statusFilter.value !== ALL_STATUS_VALUE
-)
 
 watch(
   () => adminStore.selectedTenantId,
@@ -400,30 +416,27 @@ async function confirmBatchDelete() {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-4">
-      <Select v-model="statusFilter">
-        <SelectTrigger class="w-[140px] shrink-0 bg-background">
-          <SelectValue placeholder="狀態" />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem :value="ALL_STATUS_VALUE">全部狀態</SelectItem>
-          <SelectItem value="active">使用中</SelectItem>
-          <SelectItem value="archived">已封存</SelectItem>
-        </SelectContent>
-      </Select>
-      <div class="min-w-0 flex-1">
-        <DataTableFeatureToolbar
-          v-if="!loading"
-          :table="table"
-          :features="TABLE_FEATURES"
-          :column-labels="COLUMN_LABELS"
-          :has-active-filters="hasActiveFilters"
-          :global-filter="globalFilter"
-          search-placeholder="搜尋專案名稱、說明、代碼、狀態、建立日期…"
-          @reset="resetTableState"
-        >
-          <template #actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋專案名稱、說明、代碼、狀態、建立日期…"
+      @reset="resetAllListFilters"
+    >
+      <template #prepend-filters>
+        <DataTableFilterPill
+          title="狀態"
+          v-model="statusFilter"
+          :options="projectStatusPillOptions"
+          :all-value="ALL_STATUS_VALUE"
+          :disabled="loading"
+        />
+      </template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-3">
               <template v-if="hasSelection">
                 <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
                 <ButtonGroup>
@@ -506,32 +519,22 @@ async function confirmBatchDelete() {
                   </form>
                 </DialogContent>
               </Dialog>
-            </div>
-          </template>
-        </DataTableFeatureToolbar>
-      </div>
-    </div>
+        </div>
+      </template>
+    </DataTableFeatureToolbar>
 
     <p v-if="projectCreateGateHint" class="text-sm text-muted-foreground">
       {{ projectCreateGateHint }}
     </p>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showProjectsTable"
-        :table="table"
-        :empty-text="projectsEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無專案</p>
-        <p class="mt-1 text-xs">點「新增專案」建立第一筆。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="projectsEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">

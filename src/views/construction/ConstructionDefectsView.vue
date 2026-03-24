@@ -25,6 +25,7 @@ import {
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import {
   listAllDefectImprovements,
@@ -543,18 +544,15 @@ watch(
 )
 
 const defectsEmptyText = computed(() => {
+  if (!projectId.value) return '缺少專案 ID'
   const q = globalFilter.value.trim()
   if (list.value.length === 0) {
-    return q ? '沒有符合條件的資料' : '尚無缺失紀錄'
+    return q
+      ? '沒有符合條件的資料'
+      : '尚無缺失紀錄，可點「新增缺失」或於手機現場建立。'
   }
   return '沒有符合條件的資料'
 })
-
-const showDefectsTable = computed(
-  () =>
-    !!projectId.value &&
-    (list.value.length > 0 || globalFilter.value.trim() || hasActiveFilters.value)
-)
 </script>
 
 <template>
@@ -646,19 +644,17 @@ const showDefectsTable = computed(
       </DataTableFeatureToolbar>
 
       <div class="rounded-lg border border-border bg-card">
-        <p v-if="errorMessage" class="mb-2 text-sm text-destructive">{{ errorMessage }}</p>
-        <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+        <p v-if="errorMessage" class="mb-3 px-4 pt-4 text-sm text-destructive">{{ errorMessage }}</p>
+        <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <DataTableFeatureSection
-          v-else-if="showDefectsTable"
-          :table="table"
-          :empty-text="defectsEmptyText"
-        />
-        <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
-          <p class="text-sm">尚無缺失紀錄</p>
-          <p class="mt-1 text-xs">可點「新增缺失」或於手機現場建立</p>
-        </div>
+        <DataTableFeatureSection v-else :table="table" :empty-text="defectsEmptyText" />
+      </div>
+      <div
+        v-if="!loading && !errorMessage && list.length > 0"
+        class="mt-4"
+      >
+        <DataTablePagination :table="table" />
       </div>
     </template>
 

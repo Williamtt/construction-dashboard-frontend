@@ -22,17 +22,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
 import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
 import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
 import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import DataTableFilterPill from '@/components/common/data-table/DataTableFilterPill.vue'
+import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import { useClientDataTable } from '@/composables/useClientDataTable'
 import type { TableListFeatures } from '@/types/data-table'
 import PlatformUsersRowActions from '@/views/platform-admin/PlatformUsersRowActions.vue'
@@ -49,6 +44,22 @@ const ALL_MEMBER_TYPE_VALUE = '__all__'
 const tenantFilter = ref<string>(ALL_TENANTS_VALUE)
 const systemRoleFilter = ref<string>(ALL_ROLE_VALUE)
 const memberTypeFilter = ref<string>(ALL_MEMBER_TYPE_VALUE)
+
+const tenantFilterOptions = computed(() => [
+  { value: ALL_TENANTS_VALUE, label: '全部租戶' },
+  ...tenants.value.map((t) => ({ value: t.id, label: t.name })),
+])
+const ROLE_FILTER_OPTIONS = [
+  { value: ALL_ROLE_VALUE, label: '全部角色' },
+  { value: 'platform_admin', label: '平台管理員' },
+  { value: 'tenant_admin', label: '租戶管理員' },
+  { value: 'project_user', label: '專案使用者' },
+]
+const MEMBER_TYPE_FILTER_OPTIONS = [
+  { value: ALL_MEMBER_TYPE_VALUE, label: '全部類型' },
+  { value: 'internal', label: '內部成員' },
+  { value: 'external', label: '外部成員' },
+]
 
 const TABLE_FEATURES: TableListFeatures = {
   search: true,
@@ -346,6 +357,21 @@ watch([tenantFilter, systemRoleFilter, memberTypeFilter], () => {
   void loadUsers()
 })
 
+const toolbarHasActiveFilters = computed(
+  () =>
+    hasActiveFilters.value ||
+    tenantFilter.value !== ALL_TENANTS_VALUE ||
+    systemRoleFilter.value !== ALL_ROLE_VALUE ||
+    memberTypeFilter.value !== ALL_MEMBER_TYPE_VALUE,
+)
+
+function resetAllListFilters() {
+  resetTableState()
+  tenantFilter.value = ALL_TENANTS_VALUE
+  systemRoleFilter.value = ALL_ROLE_VALUE
+  memberTypeFilter.value = ALL_MEMBER_TYPE_VALUE
+}
+
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
@@ -359,18 +385,13 @@ function hasActiveApiFilters() {
 }
 
 const usersEmptyText = computed(() => {
-  if (list.value.length === 0 && hasActiveApiFilters()) {
-    return '目前篩選下尚無使用者'
+  if (list.value.length === 0) {
+    if (hasActiveApiFilters()) return '目前篩選下尚無使用者'
+    if (globalFilter.value.trim()) return '沒有符合條件的資料'
+    return '尚無使用者。變更上方篩選條件後將顯示符合的帳號。'
   }
   return '沒有符合條件的資料'
 })
-
-const showUsersTable = computed(
-  () =>
-    list.value.length > 0 ||
-    globalFilter.value.trim().length > 0 ||
-    hasActiveApiFilters()
-)
 
 function clearSelection() {
   table.setRowSelection({})
@@ -409,90 +430,69 @@ async function confirmBatchDelete() {
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center gap-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <Select v-model="tenantFilter" :disabled="tenantsLoading">
-          <SelectTrigger class="w-[160px] shrink-0 bg-background">
-            <SelectValue placeholder="租戶" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="ALL_TENANTS_VALUE">全部租戶</SelectItem>
-            <SelectItem v-for="t in tenants" :key="t.id" :value="t.id">
-              {{ t.name }}
-            </SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="systemRoleFilter">
-          <SelectTrigger class="w-[140px] shrink-0 bg-background">
-            <SelectValue placeholder="系統角色" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="ALL_ROLE_VALUE">全部角色</SelectItem>
-            <SelectItem value="platform_admin">平台管理員</SelectItem>
-            <SelectItem value="tenant_admin">租戶管理員</SelectItem>
-            <SelectItem value="project_user">專案使用者</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select v-model="memberTypeFilter">
-          <SelectTrigger class="w-[140px] shrink-0 bg-background">
-            <SelectValue placeholder="成員類型" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="ALL_MEMBER_TYPE_VALUE">全部類型</SelectItem>
-            <SelectItem value="internal">內部成員</SelectItem>
-            <SelectItem value="external">外部成員</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div class="min-w-0 flex-1">
-        <DataTableFeatureToolbar
-          v-if="!loading"
-          :table="table"
-          :features="TABLE_FEATURES"
-          :column-labels="COLUMN_LABELS"
-          :has-active-filters="hasActiveFilters"
-          :global-filter="globalFilter"
-          search-placeholder="搜尋姓名、Email、角色、類型、租戶、建立日期…"
-          @reset="resetTableState"
-        >
-          <template #actions>
-            <div class="flex flex-wrap items-center justify-end gap-3">
-              <template v-if="hasSelection">
-                <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-                <ButtonGroup>
-                  <Button variant="outline" @click="clearSelection">取消選取</Button>
-                  <Button
-                    variant="outline"
-                    class="text-destructive hover:text-destructive"
-                    @click="openBatchDelete"
-                  >
-                    <Trash2 class="size-4" />
-                    批次刪除
-                  </Button>
-                </ButtonGroup>
-              </template>
-            </div>
+    <DataTableFeatureToolbar
+      :table="table"
+      :features="TABLE_FEATURES"
+      :column-labels="COLUMN_LABELS"
+      :has-active-filters="toolbarHasActiveFilters"
+      :global-filter="globalFilter"
+      :search-disabled="loading"
+      search-placeholder="搜尋姓名、Email、角色、類型、租戶、建立日期…"
+      @reset="resetAllListFilters"
+    >
+      <template #prepend-filters>
+        <div class="flex flex-wrap items-center gap-2">
+          <DataTableFilterPill
+            v-model="tenantFilter"
+            title="租戶"
+            :all-value="ALL_TENANTS_VALUE"
+            :options="tenantFilterOptions"
+            :disabled="tenantsLoading || loading"
+          />
+          <DataTableFilterPill
+            v-model="systemRoleFilter"
+            title="系統角色"
+            :all-value="ALL_ROLE_VALUE"
+            :options="ROLE_FILTER_OPTIONS"
+            :disabled="loading"
+          />
+          <DataTableFilterPill
+            v-model="memberTypeFilter"
+            title="成員類型"
+            :all-value="ALL_MEMBER_TYPE_VALUE"
+            :options="MEMBER_TYPE_FILTER_OPTIONS"
+            :disabled="loading"
+          />
+        </div>
+      </template>
+      <template #actions>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+          <template v-if="hasSelection">
+            <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+            <ButtonGroup>
+              <Button variant="outline" @click="clearSelection">取消選取</Button>
+              <Button
+                variant="outline"
+                class="text-destructive hover:text-destructive"
+                @click="openBatchDelete"
+              >
+                <Trash2 class="size-4" />
+                批次刪除
+              </Button>
+            </ButtonGroup>
           </template>
-        </DataTableFeatureToolbar>
-      </div>
-    </div>
+        </div>
+      </template>
+    </DataTableFeatureToolbar>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <DataTableFeatureSection
-        v-else-if="showUsersTable"
-        :table="table"
-        :empty-text="usersEmptyText"
-      />
-      <div
-        v-else
-        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
-      >
-        <p class="text-sm">尚無使用者</p>
-        <p class="mt-1 text-xs">變更上方篩選條件後將顯示符合的帳號。</p>
-      </div>
+      <DataTableFeatureSection v-else :table="table" :empty-text="usersEmptyText" />
+    </div>
+    <div v-if="!loading && list.length > 0" class="mt-4">
+      <DataTablePagination :table="table" />
     </div>
 
     <Dialog

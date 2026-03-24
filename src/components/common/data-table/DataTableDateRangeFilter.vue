@@ -65,9 +65,9 @@ function clear() {
       <Button
         variant="outline"
         size="sm"
-        class="h-8 border-dashed"
+        class="h-8 gap-1.5 border-dashed bg-background"
       >
-        <CalendarIcon class="size-4" />
+        <CalendarIcon class="size-4 shrink-0" />
         {{ title ?? '建立日期' }}
         <template v-if="summary">
           <Separator

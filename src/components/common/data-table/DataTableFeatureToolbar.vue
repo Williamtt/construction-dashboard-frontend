@@ -15,12 +15,14 @@ const props = withDefaults(
     hasActiveFilters: boolean
     globalFilter: string
     searchPlaceholder?: string
+    /** 載入中時隱藏搜尋框（篩選下拉與操作列仍可顯示） */
+    searchDisabled?: boolean
     /**
      * 有勾選列時隱藏搜尋／篩選／多欄排序／欄位顯示，且不出現「重設」（與 #actions 批次區擇一呈現）
      */
     collapseWhenRowSelection?: boolean
   }>(),
-  { collapseWhenRowSelection: true },
+  { collapseWhenRowSelection: true, searchDisabled: false },
 )
 
 const emit = defineEmits<{
@@ -72,12 +74,17 @@ const effectiveHasActiveFilters = computed(
     <template #filters>
       <template v-if="showFilterAndSortChrome">
         <Input
-          v-if="features.search"
+          v-if="features.search && !searchDisabled"
           :model-value="globalFilter"
-          class="h-8 max-w-sm"
+          type="search"
+          class="h-8 min-w-0 max-w-sm shrink-0 bg-background sm:min-w-[240px]"
           :placeholder="searchPlaceholder ?? '搜尋…'"
+          autocomplete="off"
           @update:model-value="(v) => table.setGlobalFilter(String(v ?? ''))"
         />
+      </template>
+      <slot name="prepend-filters" />
+      <template v-if="showFilterAndSortChrome">
         <template v-for="col in facetedColumns" :key="col.id">
           <DataTableFacetedFilter
             v-if="col.columnDef.meta?.filter?.type === 'faceted'"

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
 import {
   getCoreRowModel,
   getFilteredRowModel,
@@ -41,7 +41,7 @@ import {
   deleteProjectResource,
 } from '@/api/resources'
 import type { ProjectResourceItem, ProjectResourceType } from '@/types/resource'
-import { Package, Plus, Loader2 } from 'lucide-vue-next'
+import { Plus, Loader2, Search } from 'lucide-vue-next'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import ManagementResourcesRowActions from '@/views/management/ManagementResourcesRowActions.vue'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
@@ -85,6 +85,25 @@ const batchDeleteLoading = ref(false)
 
 const sorting = ref<SortingState>([])
 const rowSelection = ref<Record<string, boolean>>({})
+const globalFilter = ref('')
+
+const resourcesGlobalFilterFn: FilterFn<ProjectResourceItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const parts = [
+    r.name,
+    r.unit,
+    String(r.unitCost),
+    r.capacityType ?? '',
+    r.dailyCapacity != null ? String(r.dailyCapacity) : '',
+    r.vendor ?? '',
+    r.description ?? '',
+  ]
+  return parts.some((p) => p.toLowerCase().includes(q))
+}
 
 async function loadList() {
   const id = projectId.value
@@ -336,6 +355,8 @@ const columns = computed<ColumnDef<ProjectResourceItem, unknown>[]>(() => {
   return cols
 })
 
+const tableColumnCount = computed(() => columns.value.length)
+
 const table = useVueTable({
   get data() {
     return list.value
@@ -347,14 +368,19 @@ const table = useVueTable({
   getPaginationRowModel: getPaginationRowModel(),
   getFilteredRowModel: getFilteredRowModel(),
   getSortedRowModel: getSortedRowModel(),
+  globalFilterFn: resourcesGlobalFilterFn,
   onSortingChange: (updater) => valueUpdater(updater, sorting),
   onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
+  onGlobalFilterChange: (updater) => valueUpdater(updater, globalFilter),
   state: {
     get sorting() {
       return sorting.value
     },
     get rowSelection() {
       return rowSelection.value
+    },
+    get globalFilter() {
+      return globalFilter.value
     },
   },
   getRowId: (row) => row.id,
@@ -403,6 +429,7 @@ function onTabChange(value: string | number) {
   if (TAB_VALUES.includes(s as ProjectResourceType)) {
     activeTab.value = s as ProjectResourceType
     rowSelection.value = {}
+    globalFilter.value = ''
     loadList()
   }
 }
@@ -414,6 +441,10 @@ watch(
   },
   { immediate: true }
 )
+
+watch(globalFilter, () => {
+  table.setPageIndex(0)
+})
 </script>
 
 <template>
@@ -430,28 +461,43 @@ watch(
       </TabsList>
 
       <TabsContent :value="activeTab" class="mt-4 space-y-4">
-        <div class="flex flex-wrap items-center justify-end gap-3">
-          <template v-if="hasSelection && resourcePerm.canDelete">
-            <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
-            <ButtonGroup>
-              <Button variant="outline" @click="clearSelection">取消選取</Button>
-              <Button
-                variant="outline"
-                class="text-destructive hover:text-destructive"
-                @click="openBatchDelete"
-              >
-                批次刪除
-              </Button>
-            </ButtonGroup>
-          </template>
-          <Button variant="default" @click="openCreateDialog">
-            <Plus class="mr-2 size-4" />
-            新增{{ TAB_LABELS[activeTab] }}
-          </Button>
+        <div class="flex flex-wrap items-center justify-between gap-4">
+          <div class="relative min-w-0 max-w-sm flex-1 sm:min-w-[240px]">
+            <Search
+              class="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+              aria-hidden="true"
+            />
+            <Input
+              v-model="globalFilter"
+              type="search"
+              placeholder="搜尋名稱、單位、廠商、說明…"
+              class="h-8 bg-background pl-9"
+              autocomplete="off"
+            />
+          </div>
+          <div class="flex flex-wrap items-center justify-end gap-3">
+            <template v-if="hasSelection && resourcePerm.canDelete">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" @click="clearSelection">取消選取</Button>
+                <Button
+                  variant="outline"
+                  class="text-destructive hover:text-destructive"
+                  @click="openBatchDelete"
+                >
+                  批次刪除
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button variant="default" @click="openCreateDialog">
+              <Plus class="mr-2 size-4" />
+              新增{{ TAB_LABELS[activeTab] }}
+            </Button>
+          </div>
         </div>
 
         <div class="rounded-lg border border-border bg-card">
-          <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
+          <p v-if="errorMessage" class="px-4 pt-4 text-sm text-destructive">{{ errorMessage }}</p>
           <div
             v-else-if="loading"
             class="flex items-center justify-center py-12 text-muted-foreground"
@@ -459,60 +505,73 @@ watch(
             <Loader2 class="size-8 animate-spin" />
           </div>
           <template v-else>
-            <template v-if="list.length > 0">
-              <div class="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                      <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                        <FlexRender
-                          v-if="!header.isPlaceholder"
-                          :render="header.column.columnDef.header"
-                          :props="header.getContext()"
-                        />
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    <template v-if="table.getRowModel().rows?.length">
-                      <TableRow
-                        v-for="row in table.getRowModel().rows"
-                        :key="row.id"
-                        :data-state="row.getIsSelected() ? 'selected' : undefined"
+            <div class="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                    <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                      <FlexRender
+                        v-if="!header.isPlaceholder"
+                        :render="header.column.columnDef.header"
+                        :props="header.getContext()"
+                      />
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  <template v-if="list.length === 0">
+                    <TableRow>
+                      <TableCell
+                        :colspan="tableColumnCount"
+                        class="h-24 text-center text-muted-foreground"
                       >
-                        <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                          <FlexRender
-                            :render="cell.column.columnDef.cell"
-                            :props="cell.getContext()"
-                          />
-                        </TableCell>
-                      </TableRow>
-                    </template>
-                    <template v-else>
-                      <TableRow>
-                        <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
-                          此頁無資料
-                        </TableCell>
-                      </TableRow>
-                    </template>
-                  </TableBody>
-                </Table>
-              </div>
-              <div class="mt-4">
-                <DataTablePagination :table="table" hide-selection-info />
-              </div>
-            </template>
-            <div
-              v-else
-              class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
-            >
-              <Package class="size-10 opacity-50" />
-              <p class="text-sm">尚無資源</p>
-              <p class="text-xs text-muted-foreground">
-                請點「新增{{ TAB_LABELS[activeTab] }}」建立第一筆
-              </p>
+                        尚無資源，請點「新增{{ TAB_LABELS[activeTab] }}」建立第一筆。
+                      </TableCell>
+                    </TableRow>
+                  </template>
+                  <template
+                    v-else-if="list.length > 0 && table.getFilteredRowModel().rows.length === 0"
+                  >
+                    <TableRow>
+                      <TableCell
+                        :colspan="tableColumnCount"
+                        class="h-24 text-center text-muted-foreground"
+                      >
+                        沒有符合搜尋條件的資料，請調整關鍵字。
+                      </TableCell>
+                    </TableRow>
+                  </template>
+                  <template v-else-if="table.getRowModel().rows?.length">
+                    <TableRow
+                      v-for="row in table.getRowModel().rows"
+                      :key="row.id"
+                      :data-state="row.getIsSelected() ? 'selected' : undefined"
+                    >
+                      <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                        <FlexRender
+                          :render="cell.column.columnDef.cell"
+                          :props="cell.getContext()"
+                        />
+                      </TableCell>
+                    </TableRow>
+                  </template>
+                  <template v-else>
+                    <TableRow>
+                      <TableCell
+                        :colspan="tableColumnCount"
+                        class="h-24 text-center text-muted-foreground"
+                      >
+                        此頁無資料
+                      </TableCell>
+                    </TableRow>
+                  </template>
+                </TableBody>
+              </Table>
             </div>
           </template>
+        </div>
+        <div v-if="!loading && !errorMessage && list.length > 0" class="mt-4">
+          <DataTablePagination :table="table" hide-selection-info />
         </div>
       </TabsContent>
     </Tabs>
