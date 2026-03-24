@@ -52,7 +52,7 @@ alwaysApply: true
   - **TanStack 標準工具列**（**`DataTableFeatureToolbar`**／**`DataTableToolbarShell`**）：主要 CTA 一律放 **`#actions`**；shell 內建順序為 **…多欄排序 → 欄位顯示 → `#actions`**，故 **新增／上傳／建立** 在整列 **最右**（詳見 **`data-table-list-views.mdc`** 與 **`docs/data-table-list-views.md`**）。該按鈕請設 **`size="sm"`** 與列上 `h-8` 控制項對齊。
 - **搜尋與篩選鈕（列表工具列左側）**
   - **全文搜尋**（`Input type="search"` 或 `DataTableFeatureToolbar` 內建搜尋）：一律放在該列 **最左側**（`DataTableFeatureToolbar` 已固定為 **搜尋 → `#prepend-filters` → 分面／日期**）。若頁面僅用 **`DataTableToolbarShell`**，請在 **`#filters`** 內 **先放搜尋、再放篩選**，外層可用 **`flex flex-wrap items-center gap-2`**，搜尋區塊建議 **`min-w-0 flex-1 basis-full sm:basis-auto`** + **`sm:max-w-sm`**，避免擠壓右側篩選。
-  - **非搜尋的單選篩選**（狀態、租戶、角色等）：**禁止**使用裸 **`SelectTrigger`** 作為工具列主篩選；請使用 **`DataTableFilterPill`**（**`PlusCircle`** 前綴、`Button variant="outline" size="sm"`、**`h-8 border-dashed bg-background`**、`Popover` + `Command` 單選），與 **`DataTableFacetedFilter`**（多選）視覺同一套「虛線膠囊」語言。
+  - **非搜尋的單選篩選**（狀態、租戶、角色等）：**禁止**使用裸 **`SelectTrigger`** 作為工具列主篩選；請使用 **`DataTableFilterPill`**：虛線膠囊觸發鈕與 **`DataTableFacetedFilter`** 同語言；**下拉內**必須有 **`CommandInput`**（搜尋選項標籤）、**`CommandSeparator`**、選項左側 **單選圓點**（非勾選方塊）、可選右側 **`count`**、非「全部」時底部 **「清除此篩選」**。細節見 **`data-table-list-views.mdc`**。
   - **後端時間區間**（非欄位 `dateRange` meta）：使用 **`DataTableServerDateRangePill`**（**`CalendarIcon`** + 虛線鈕 + Popover 內起迄日 + 套用／清除），勿在工具列平鋪兩個裸 `type="date"`（除非產品另有理由並於 PR 註明）。
 - **表格區塊**（與 **`data-table-list-views.mdc`**、**`FileManagementView`** 一致）
   - 使用 **`rounded-lg border border-border bg-card`** 包住表格（**勿**加 **`p-4`**）；**不要**再用 Card 包一層標題+表（避免雙層 Card）。

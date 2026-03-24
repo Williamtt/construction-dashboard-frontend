@@ -34,6 +34,15 @@
 
 手動拼 **`DataTableToolbarShell`**（未走 `DataTableFeatureToolbar`）的頁面，仍應遵守同一 **DOM 順序**，讓主要 CTA 落在排序／欄位顯示之後。
 
+## DataTableFilterPill（工具列單選篩選）
+
+路徑：`src/components/common/data-table/DataTableFilterPill.vue`。
+
+- **觸發鈕**：`PlusCircle` + 標題（`title`）；已選時分隔線 + 選中標籤摘要；樣式與分面篩選膠囊一致（`h-8`、`border-dashed`、`bg-background`）。
+- **下拉**：`CommandInput`（預設 placeholder = `title`）→ 分隔線 → 選項列表；選項以 **圓形 radio** 表示單選，**不要**用與多選分面相同的方塊勾選圖示。
+- **`options`**：每项 `label`、`value`；可選 **`count`** 顯示在列右側。**僅在**資料列為該維度之完整母體（例如一次載入的全量列表）時傳 `count`；分頁或伺服器依其他條件過濾後的列表**不要**傳，避免錯誤筆數。
+- **清除**：選中非「全部」時，列表底部提供「清除此篩選」（回到 `allValue`）。
+
 ## 版面與 UX（對齊 ui-ux-principles）
 
 - **說明文字**與 **`DataTableFeatureToolbar`** 放在 **邊框表格外殼之外**，與 **`src/views/files/FileManagementView.vue`** 相同層級關係。

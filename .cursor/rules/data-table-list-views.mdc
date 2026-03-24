@@ -30,7 +30,13 @@ alwaysApply: false
   - **尺寸**：該主要按鈕使用 **`size="sm"`**，與工具列搜尋框等 **`h-8`** 控制項視覺對齊。
   - **有列勾選時**：`DataTableFeatureToolbar` 預設 **`collapseWhenRowSelection: true`** — 隱藏搜尋／篩選／多欄排序／欄位顯示；**「重設」**僅給篩選用（`useClientDataTable` 的 **`hasActiveFilters`** 不含 `rowSelection`）；頁面側 **無選取時** 才顯示「新增」、**有選取時** 只顯示「已選 + ButtonGroup」等批次區（見 **`ProjectMembersView`**）。
 - **主題**：**`theme-support.mdc`**，禁止硬編碼背景／邊框色作為主結構色。
-- **工具列左側視覺**（與 **`ui-ux-principles.mdc`** §1.4 一致）：**搜尋最左**；其餘篩選用 **`DataTableFilterPill`**（單選虛線膠囊 + **`PlusCircle`**）、**`DataTableFacetedFilter`**（多選）、**`DataTableDateRangeFilter`**／**`DataTableServerDateRangePill`**（日期），勿混用未對齊的裸 `Select`。
+- **工具列左側視覺**（與 **`ui-ux-principles.mdc`** §1.4 一致）：**搜尋最左**；其餘篩選用 **`DataTableFilterPill`**（單選）、**`DataTableFacetedFilter`**（多選）、**`DataTableDateRangeFilter`**／**`DataTableServerDateRangePill`**（日期），勿混用未對齊的裸 `Select`。
+- **`DataTableFilterPill`（單選）— 與設計稿一致，禁止自造另一套**：
+  - **觸發鈕**：`Button variant="outline" size="sm"`、**`h-8`**、**`border-dashed`**、**`bg-background`**、前綴 **`PlusCircle`**；已選時 **`Separator`** 直線 + **`text-muted-foreground`** 摘要。
+  - **下拉內容**（`PopoverContent` **`w-[260px] p-0`**）：**`Command` + `CommandInput`**（placeholder 預設等於 **`title`**，可傳 **`searchPlaceholder`** 覆寫）→ **`CommandSeparator`** → **`CommandList`**。
+  - **選項列**：左側 **單選圓點**（外圈 `rounded-full border`，選中時 **`border-primary`** + 內 **`size-2 rounded-full bg-primary`**），**禁止**用勾選方塊或與 **`DataTableFacetedFilter`** 相同的多選方塊樣式。
+  - **右側筆數**：選項型別可含 **`count?: number`**；有傳則以 **`font-mono text-xs tabular-nums text-muted-foreground`** 顯示在列尾。**僅在**目前記憶體中的列表能代表該維度完整母體時傳入（例：全量載入的專案／用量列）；若列表已因 **API 分頁**或**他欄伺服器篩選**而為切片，**勿傳 `count`**，以免誤導。
+  - **清除**：當 `modelValue !== allValue` 時，清單底部加 **`CommandSeparator`** + **「清除此篩選」**（設回 **`allValue`** 並關閉 Popover），與分面篩選的清除列對齊。
 
 ## 參考實作
 
