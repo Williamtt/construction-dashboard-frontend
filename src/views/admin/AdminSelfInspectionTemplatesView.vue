@@ -1,31 +1,13 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useVueTable,
-} from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import type { SortingState } from '@tanstack/vue-table'
-import { ref, onMounted, computed, h } from 'vue'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
+import { ref, onMounted, computed, h, watch } from 'vue'
 import { RouterLink } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -35,7 +17,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
+import type { TableListFeatures } from '@/types/data-table'
 import AdminSelfInspectionTemplatesRowActions from '@/views/admin/AdminSelfInspectionTemplatesRowActions.vue'
 import {
   listSelfInspectionTemplates,
@@ -54,7 +40,20 @@ const tenantId = computed(() => authStore.user?.tenantId ?? null)
 
 const list = ref<SelfInspectionTemplateItem[]>([])
 const loading = ref(true)
-const rowSelection = ref<Record<string, boolean>>({})
+
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: true,
+  columnVisibility: false,
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  name: '名稱',
+  description: '說明',
+  blockCount: '區塊數',
+  status: '狀態',
+  updatedAt: '更新時間',
+}
 
 const addDialogOpen = ref(false)
 const addForm = ref({ name: '', description: '' })
@@ -94,39 +93,38 @@ function formatDate(iso: string) {
   })
 }
 
+function statusLabel(status: string): string {
+  return status === 'archived' ? '已封存' : '使用中'
+}
+
+const selfInspectionTemplatesGlobalFilterFn: FilterFn<SelfInspectionTemplateItem> = (
+  row,
+  _columnId,
+  filterValue
+) => {
+  const q = String(filterValue ?? '').trim().toLowerCase()
+  if (!q) return true
+  const t = row.original
+  const dateStr = formatDate(t.updatedAt).toLowerCase()
+  const createdStr = formatDate(t.createdAt).toLowerCase()
+  const parts = [
+    t.name,
+    t.description ?? '',
+    String(t.blockCount),
+    statusLabel(t.status).toLowerCase(),
+    t.status.toLowerCase(),
+    t.createdAt?.toLowerCase() ?? '',
+    t.updatedAt?.toLowerCase() ?? '',
+    dateStr,
+    createdStr,
+  ].map((s) => String(s).toLowerCase())
+  return parts.some((x) => x.includes(q))
+}
+
 function openAdd() {
   addForm.value = { name: '', description: '' }
   addError.value = ''
   addDialogOpen.value = true
-}
-
-async function submitAdd() {
-  if (!addForm.value.name.trim()) {
-    addError.value = '請填寫樣板名稱'
-    return
-  }
-  addLoading.value = true
-  addError.value = ''
-  try {
-    await createSelfInspectionTemplate(
-      {
-        name: addForm.value.name.trim(),
-        description: addForm.value.description.trim() || null,
-      },
-      tenantId.value
-    )
-    addDialogOpen.value = false
-    await fetchList()
-  } catch (err: unknown) {
-    const msg =
-      err && typeof err === 'object' && 'response' in err
-        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
-            ?.message
-        : '新增失敗'
-    addError.value = msg ?? '新增失敗'
-  } finally {
-    addLoading.value = false
-  }
 }
 
 function openEdit(row: SelfInspectionTemplateItem) {
@@ -183,31 +181,36 @@ function goOpen(row: SelfInspectionTemplateItem) {
   })
 }
 
-const sorting = ref<SortingState>([])
+const selectColumn: ColumnDef<SelfInspectionTemplateItem, unknown> = {
+  id: 'select',
+  header: ({ table }) =>
+    h(Checkbox, {
+      checked: table.getIsAllPageRowsSelected()
+        ? true
+        : table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : false,
+      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+      'aria-label': '全選',
+    }),
+  cell: ({ row }) =>
+    h(Checkbox, {
+      checked: row.getIsSelected(),
+      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+      'aria-label': '選取此列',
+    }),
+  enableSorting: false,
+  enableHiding: false,
+}
+
 const columns = computed<ColumnDef<SelfInspectionTemplateItem, unknown>[]>(() => [
-  {
-    id: 'select',
-    header: ({ table }) =>
-      h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected()
-          ? true
-          : table.getIsSomePageRowsSelected()
-            ? 'indeterminate'
-            : false,
-        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
-        'aria-label': '全選',
-      }),
-    cell: ({ row }) =>
-      h(Checkbox, {
-        checked: row.getIsSelected(),
-        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
-        'aria-label': '選取此列',
-      }),
-    enableSorting: false,
-  },
+  selectColumn,
   {
     accessorKey: 'name',
-    header: '名稱',
+    id: 'name',
+    meta: { label: COLUMN_LABELS.name },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, { column, title: COLUMN_LABELS.name, class: 'text-foreground' }),
     cell: ({ row }) =>
       h(
         RouterLink,
@@ -221,43 +224,73 @@ const columns = computed<ColumnDef<SelfInspectionTemplateItem, unknown>[]>(() =>
         },
         () => row.original.name
       ),
+    enableHiding: false,
   },
   {
     accessorKey: 'description',
-    header: '說明',
+    id: 'description',
+    meta: { label: COLUMN_LABELS.description },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.description,
+        class: 'text-foreground',
+      }),
     cell: ({ row }) =>
       h(
         'div',
         {
-          class: 'text-muted-foreground max-w-[220px] truncate',
+          class: 'max-w-[220px] truncate text-muted-foreground',
           title: row.original.description ?? '',
         },
         row.original.description || '—'
       ),
+    enableHiding: false,
   },
   {
     accessorKey: 'blockCount',
-    header: '區塊數',
+    id: 'blockCount',
+    meta: { label: COLUMN_LABELS.blockCount },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.blockCount,
+        class: 'text-foreground',
+      }),
     cell: ({ row }) =>
-      h('div', { class: 'tabular-nums text-muted-foreground text-sm' }, row.original.blockCount),
+      h('div', { class: 'text-sm tabular-nums text-muted-foreground' }, row.original.blockCount),
+    enableHiding: false,
   },
   {
     accessorKey: 'status',
-    header: '狀態',
+    id: 'status',
+    meta: { label: COLUMN_LABELS.status },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, { column, title: COLUMN_LABELS.status, class: 'text-foreground' }),
     cell: ({ row }) =>
       row.original.status === 'archived'
-        ? h(Badge, { variant: 'secondary' }, () => '已封存')
-        : h(Badge, { variant: 'outline' }, () => '使用中'),
+        ? h(Badge, { variant: 'secondary', class: 'font-normal' }, () => '已封存')
+        : h(Badge, { variant: 'outline', class: 'font-normal' }, () => '使用中'),
+    enableHiding: false,
   },
   {
     accessorKey: 'updatedAt',
-    header: '更新時間',
+    id: 'updatedAt',
+    meta: { label: COLUMN_LABELS.updatedAt },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.updatedAt,
+        class: 'text-foreground',
+      }),
     cell: ({ row }) =>
-      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.updatedAt)),
+      h('div', { class: 'text-sm text-muted-foreground' }, formatDate(row.original.updatedAt)),
+    sortingFn: 'alphanumeric',
+    enableHiding: false,
   },
   {
     id: 'actions',
-    header: () => h('div', { class: 'w-[80px]' }),
+    header: () => '',
     cell: ({ row }) =>
       h('div', { class: 'flex justify-end' }, [
         h(AdminSelfInspectionTemplatesRowActions, {
@@ -268,42 +301,36 @@ const columns = computed<ColumnDef<SelfInspectionTemplateItem, unknown>[]>(() =>
         }),
       ]),
     enableSorting: false,
+    enableHiding: false,
   },
 ])
 
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  getFilteredRowModel: getFilteredRowModel(),
-  onSortingChange: (updater) => valueUpdater(updater, sorting),
-  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
-  state: {
-    get sorting() {
-      return sorting.value
-    },
-    get rowSelection() {
-      return rowSelection.value
-    },
-  },
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
   getRowId: (row) => row.id,
-  initialState: {
-    pagination: { pageSize: 10 },
-  },
+  globalFilterFn: selfInspectionTemplatesGlobalFilterFn,
+  initialPageSize: 10,
+})
+
+watch(tenantId, () => {
+  resetTableState()
+  void fetchList()
 })
 
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
 
+const templatesEmptyText = computed(() => '沒有符合條件的資料')
+
+const showTemplatesTable = computed(
+  () => list.value.length > 0 || globalFilter.value.trim().length > 0
+)
+
 function clearSelection() {
-  rowSelection.value = {}
+  table.setRowSelection({})
 }
 
 function openBatchDelete() {
@@ -311,6 +338,36 @@ function openBatchDelete() {
 }
 function closeBatchDelete() {
   if (!batchDeleteLoading.value) batchDeleteOpen.value = false
+}
+
+async function submitAdd() {
+  if (!addForm.value.name.trim()) {
+    addError.value = '請填寫樣板名稱'
+    return
+  }
+  addLoading.value = true
+  addError.value = ''
+  try {
+    await createSelfInspectionTemplate(
+      {
+        name: addForm.value.name.trim(),
+        description: addForm.value.description.trim() || null,
+      },
+      tenantId.value
+    )
+    addDialogOpen.value = false
+    table.setRowSelection({})
+    await fetchList()
+  } catch (err: unknown) {
+    const msg =
+      err && typeof err === 'object' && 'response' in err
+        ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
+            ?.message
+        : '新增失敗'
+    addError.value = msg ?? '新增失敗'
+  } finally {
+    addLoading.value = false
+  }
 }
 
 async function confirmBatchDelete() {
@@ -322,7 +379,7 @@ async function confirmBatchDelete() {
       await deleteSelfInspectionTemplate(id, tenantId.value)
     }
     closeBatchDelete()
-    rowSelection.value = {}
+    table.setRowSelection({})
     await fetchList()
   } finally {
     batchDeleteLoading.value = false
@@ -331,80 +388,68 @@ async function confirmBatchDelete() {
 </script>
 
 <template>
-  <div class="space-y-6">
-    <div>
-      <h1 class="text-xl font-semibold text-foreground">自主檢查樣板</h1>
-      <p class="mt-1 text-sm text-muted-foreground">
-        管理租戶內所有查驗表單樣板；建立後可於樣板內新增區塊，供現場自主檢查或專案引用（後續串接）。
+  <div class="space-y-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">自主檢查樣板</h1>
+      <p class="text-sm text-muted-foreground">
+        管理租戶內所有查驗表單樣板；建立後可於樣板內新增區塊，供現場自主檢查或專案引用（後續串接）。可搜尋名稱、說明、區塊數、狀態與更新時間。
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center justify-end gap-3">
-      <template v-if="hasSelection">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-        <ButtonGroup>
-          <Button variant="outline" @click="clearSelection">
-            取消選取
-          </Button>
-          <Button
-            variant="outline"
-            class="text-destructive hover:text-destructive"
-            @click="openBatchDelete"
-          >
-            <Trash2 class="size-4" />
-            批次刪除
-          </Button>
-        </ButtonGroup>
-      </template>
-      <Button @click="openAdd">
-        <Plus class="mr-2 size-4" />
-        新增樣板
-      </Button>
+    <div class="min-w-0 flex-1">
+      <DataTableFeatureToolbar
+        v-if="!loading"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋名稱、說明、區塊數、狀態、更新時間…"
+        @reset="resetTableState"
+      >
+        <template #actions>
+          <div class="flex flex-wrap items-center justify-end gap-3">
+            <template v-if="hasSelection">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" @click="clearSelection">取消選取</Button>
+                <Button
+                  variant="outline"
+                  class="text-destructive hover:text-destructive"
+                  @click="openBatchDelete"
+                >
+                  <Trash2 class="size-4" />
+                  批次刪除
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button size="sm" class="gap-2" @click="openAdd">
+              <Plus class="size-4" />
+              新增樣板
+            </Button>
+          </div>
+        </template>
+      </DataTableFeatureToolbar>
     </div>
 
     <div class="rounded-lg border border-border bg-card p-4">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <template v-else>
-        <Table>
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
-                  <div class="flex flex-col items-center gap-2">
-                    <ClipboardCheck class="size-10 opacity-50" />
-                    尚無樣板，點擊「新增樣板」開始建立
-                  </div>
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-        <DataTablePagination :table="table" hide-selection-info />
-      </template>
+      <DataTableFeatureSection
+        v-else-if="showTemplatesTable"
+        :table="table"
+        :empty-text="templatesEmptyText"
+        hide-selection-info
+      />
+      <div
+        v-else
+        class="flex flex-col items-center justify-center gap-2 py-16 text-center text-muted-foreground"
+      >
+        <ClipboardCheck class="size-10 opacity-50" />
+        <p class="text-sm">尚無樣板</p>
+        <p class="text-xs">點「新增樣板」開始建立。</p>
+      </div>
     </div>
 
     <Dialog :open="addDialogOpen" @update:open="(v) => (addDialogOpen = v)">

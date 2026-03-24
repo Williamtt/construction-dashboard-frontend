@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch, nextTick } from 'vue'
+import type { ColumnDef } from '@tanstack/vue-table'
+import { ref, computed, watch, nextTick } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Table,
@@ -39,7 +40,10 @@ import {
   listDrawingRevisions,
   DRAWING_REVISION_CATEGORY,
 } from '@/api/drawing-nodes'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
+import type { TableListFeatures } from '@/types/data-table'
 import { uploadFile, getFileBlob } from '@/api/files'
 import {
   ChevronRight,
@@ -83,6 +87,32 @@ const route = useRoute()
 const projectId = computed(() => route.params.projectId as string)
 const drawingsPerm = useProjectModuleActions(projectId, 'project.drawings')
 
+/** 僅供工具列全文搜尋綁定 TanStack globalFilter（樹狀表身仍為自訂 Table） */
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: false,
+  columnVisibility: false,
+}
+const COLUMN_LABELS: Record<string, string> = { _k: '搜尋' }
+const searchToolbarData = ref([{ _k: 0 as const }])
+const searchToolbarColumns = ref<ColumnDef<{ _k: 0 }, unknown>[]>([
+  {
+    accessorKey: '_k',
+    id: '_k',
+    header: () => '',
+    enableSorting: false,
+    enableHiding: false,
+  },
+])
+const { table: searchToolbarTable, globalFilter, hasActiveFilters, resetTableState } =
+  useClientDataTable({
+    data: searchToolbarData,
+    columns: searchToolbarColumns,
+    features: TABLE_FEATURES,
+    getRowId: () => '0',
+    enableRowSelection: false,
+  })
+
 const tree = ref<DrawingNodeTree[]>([])
 const loading = ref(false)
 const listError = ref<string | null>(null)
@@ -110,6 +140,31 @@ function flattenDrawingTree(
 const flattenedList = computed<DrawingFlatItem[]>(() =>
   flattenDrawingTree(tree.value, expandedIds.value, 0, null)
 )
+
+function subtreeContainsMatch(node: DrawingNodeTree, qNorm: string): boolean {
+  if (!qNorm) return true
+  const name = node.name.toLowerCase()
+  if (name.includes(qNorm)) return true
+  if (node.kind === 'leaf' && node.latestFile?.fileName.toLowerCase().includes(qNorm)) return true
+  const typeLabel = node.kind === 'folder' ? '分類' : '圖說'
+  if (typeLabel.includes(qNorm)) return true
+  if (node.kind === 'leaf' && node.latestFile) {
+    const t = formatDateTime(node.latestFile.createdAt).toLowerCase()
+    if (t.includes(qNorm)) return true
+  }
+  for (const c of node.children ?? []) {
+    if (subtreeContainsMatch(c, qNorm)) return true
+  }
+  return false
+}
+
+const filteredFlattenedList = computed(() => {
+  const q = globalFilter.value.trim().toLowerCase()
+  if (!q) return flattenedList.value
+  return flattenedList.value.filter((it) => subtreeContainsMatch(it.node, q))
+})
+
+const searchActive = computed(() => globalFilter.value.trim().length > 0)
 
 function collectNodeAndDescendantIds(node: DrawingNodeTree): Set<string> {
   const ids = new Set<string>([node.id])
@@ -213,8 +268,23 @@ async function fetchTree() {
   }
 }
 
-onMounted(fetchTree)
-watch(projectId, fetchTree)
+watch(
+  projectId,
+  (id) => {
+    if (!id) {
+      tree.value = []
+      listError.value = null
+      return
+    }
+    resetTableState()
+    void fetchTree()
+  },
+  { immediate: true },
+)
+
+watch(globalFilter, (v) => {
+  if (v.trim()) expandAll()
+})
 
 /** ----- 拖曳（同 WBS：pointer + 插入線） ----- */
 const draggingItem = ref<DrawingFlatItem | null>(null)
@@ -256,8 +326,7 @@ async function moveNodeToFlatIndex(nodeId: string, insertBeforeIndex: number) {
   const flat = flattenedList.value
   const currentIndex = flat.findIndex((it) => it.node.id === nodeId)
   if (currentIndex === -1 || currentIndex === insertBeforeIndex) return
-  const refItem =
-    insertBeforeIndex < flat.length ? flat[insertBeforeIndex] : flat[flat.length - 1]
+  const refItem = insertBeforeIndex < flat.length ? flat[insertBeforeIndex] : flat[flat.length - 1]
   if (!refItem) return
   try {
     tree.value = await moveDrawingNode(projectId.value, nodeId, {
@@ -270,6 +339,7 @@ async function moveNodeToFlatIndex(nodeId: string, insertBeforeIndex: number) {
 }
 
 function onDragHandlePointerDown(e: PointerEvent, item: DrawingFlatItem) {
+  if (searchActive.value) return
   if ((e.target as HTMLElement).closest('button')) return
   e.preventDefault()
   const handleEl = e.currentTarget as HTMLElement
@@ -525,60 +595,78 @@ const colCount = 5
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="min-w-0 space-y-4">
     <div>
       <h1 class="text-xl font-semibold tracking-tight text-foreground">圖說管理</h1>
       <p class="mt-1 text-sm text-muted-foreground max-w-3xl">
-        分類節點僅供整理；圖說項目可上傳新版本。<strong class="text-foreground">下載最新</strong>永遠取得該項目目前最新檔，避免現場誤用舊圖。
+        分類節點僅供整理；圖說項目可上傳新版本。<strong class="text-foreground">下載最新</strong
+        >永遠取得該項目目前最新檔，避免現場誤用舊圖。搜尋時會自動展開樹狀並暫停拖曳排序；清空搜尋後可再調整順序。
       </p>
     </div>
 
-    <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
-
-    <div class="flex flex-wrap items-center justify-end gap-2">
-      <span v-if="selectedCount > 0" class="text-sm text-muted-foreground tabular-nums">
-        已選 {{ selectedCount }} 項
-      </span>
-      <ButtonGroup v-if="selectedCount > 0">
-        <Button variant="outline" size="sm" @click="clearSelection">取消選取</Button>
-        <Button
-          v-if="drawingsPerm.canDelete"
-          variant="destructive"
-          size="sm"
-          @click="openBatchDelete"
-        >
-          批次刪除
-        </Button>
-      </ButtonGroup>
-      <Button
-        v-if="drawingsPerm.canCreate"
-        variant="secondary"
-        size="sm"
-        @click="openCreate(null, 'folder')"
-      >
-        新增頂層分類
-      </Button>
-      <Button
-        v-if="drawingsPerm.canCreate"
-        size="sm"
-        @click="openCreate(null, 'leaf')"
-      >
-        新增頂層圖說
-      </Button>
-      <Button variant="outline" size="sm" :disabled="loading" @click="expandAll">全部展開</Button>
-      <Button variant="outline" size="sm" :disabled="loading" @click="collapseAll">全部收合</Button>
+    <div v-if="!drawingsPerm.canRead.value" class="text-sm text-muted-foreground">
+      您沒有圖說管理檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs">project.drawings</code>）。
     </div>
 
-    <div class="rounded-lg border border-border bg-card p-4">
-      <div
-        v-if="loading"
-        class="flex items-center justify-center gap-2 py-12 text-muted-foreground"
+    <template v-else>
+      <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
+
+      <DataTableFeatureToolbar
+        v-if="!loading && projectId"
+        :table="searchToolbarTable"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        :collapse-when-row-selection="false"
+        search-placeholder="搜尋項目名稱、檔名、分類／圖說、上傳時間…"
+        @reset="resetTableState"
       >
-        <Loader2 class="size-5 animate-spin" />
-        載入中…
-      </div>
-      <p v-else-if="listError" class="py-4 text-center text-sm text-destructive">{{ listError }}</p>
-      <Table v-else>
+        <template #actions>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <template v-if="selectedCount > 0">
+              <span class="text-sm text-muted-foreground tabular-nums">已選 {{ selectedCount }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" size="sm" @click="clearSelection">取消選取</Button>
+                <Button
+                  v-if="drawingsPerm.canDelete.value"
+                  variant="outline"
+                  size="sm"
+                  class="text-destructive hover:text-destructive"
+                  @click="openBatchDelete"
+                >
+                  批次刪除
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button variant="outline" size="sm" :disabled="loading" @click="expandAll">全部展開</Button>
+            <Button variant="outline" size="sm" :disabled="loading" @click="collapseAll">全部收合</Button>
+            <Button
+              v-if="drawingsPerm.canCreate.value"
+              variant="secondary"
+              size="sm"
+              @click="openCreate(null, 'folder')"
+            >
+              新增頂層分類
+            </Button>
+            <Button v-if="drawingsPerm.canCreate.value" size="sm" @click="openCreate(null, 'leaf')">
+              新增頂層圖說
+            </Button>
+          </div>
+        </template>
+      </DataTableFeatureToolbar>
+
+      <div class="rounded-lg border border-border bg-card p-4">
+        <div
+          v-if="loading"
+          class="flex items-center justify-center gap-2 py-12 text-muted-foreground"
+        >
+          <Loader2 class="size-8 animate-spin" />
+          載入中…
+        </div>
+        <p v-else-if="listError" class="py-4 text-center text-sm text-destructive">{{ listError }}</p>
+        <div v-else class="min-w-0 overflow-x-auto overscroll-x-contain">
+          <Table>
         <TableHeader>
           <TableRow>
             <TableHead class="w-8 px-1" aria-label="拖移" />
@@ -601,12 +689,19 @@ const colCount = 5
           <template v-if="flattenedList.length === 0">
             <TableRow>
               <TableCell :colspan="colCount" class="py-8 text-center text-muted-foreground">
-                <template v-if="drawingsPerm.canCreate">尚無圖說項目，請新增分類或圖說。</template>
+                <template v-if="drawingsPerm.canCreate.value">尚無圖說項目，請新增分類或圖說。</template>
                 <template v-else>尚無圖說項目。</template>
               </TableCell>
             </TableRow>
           </template>
-          <template v-for="(item, flatIndex) in flattenedList" :key="item.node.id">
+          <template v-else-if="filteredFlattenedList.length === 0">
+            <TableRow>
+              <TableCell :colspan="colCount" class="py-8 text-center text-muted-foreground">
+                沒有符合條件的資料
+              </TableCell>
+            </TableRow>
+          </template>
+          <template v-for="(item, flatIndex) in filteredFlattenedList" :key="item.node.id">
             <tr
               v-if="dropInsertBeforeIndex === flatIndex"
               class="pointer-events-none"
@@ -626,7 +721,7 @@ const colCount = 5
             >
               <TableCell class="w-8 p-1 align-middle">
                 <div
-                  v-if="drawingsPerm.canUpdate"
+                  v-if="drawingsPerm.canUpdate.value && !searchActive"
                   role="button"
                   tabindex="0"
                   class="flex cursor-grab touch-none items-center justify-center rounded p-1 text-muted-foreground/60 hover:bg-muted/80 hover:text-foreground active:cursor-grabbing"
@@ -639,7 +734,9 @@ const colCount = 5
               </TableCell>
               <TableCell class="w-10 p-1 align-middle">
                 <Checkbox
-                  :checked="isRowIndeterminate(item.node) ? 'indeterminate' : isRowChecked(item.node)"
+                  :checked="
+                    isRowIndeterminate(item.node) ? 'indeterminate' : isRowChecked(item.node)
+                  "
                   :aria-label="`勾選 ${item.node.name}`"
                   @update:checked="toggleSelect(item.node)"
                 />
@@ -762,8 +859,10 @@ const colCount = 5
             </TableRow>
           </template>
         </TableBody>
-      </Table>
-    </div>
+          </Table>
+        </div>
+      </div>
+    </template>
 
     <input
       ref="fileInputRef"
@@ -855,11 +954,18 @@ const colCount = 5
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>批次刪除</DialogTitle>
-          <DialogDescription>將刪除已選取的 {{ selectedCount }} 個節點（含子樹與檔案）。此動作無法復原。</DialogDescription>
+          <DialogDescription
+            >將刪除已選取的
+            {{ selectedCount }} 個節點（含子樹與檔案）。此動作無法復原。</DialogDescription
+          >
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="batchDeleteOpen = false">取消</Button>
-          <Button variant="destructive" :disabled="batchDeleteSubmitting" @click="confirmBatchDelete">
+          <Button
+            variant="destructive"
+            :disabled="batchDeleteSubmitting"
+            @click="confirmBatchDelete"
+          >
             <Loader2 v-if="batchDeleteSubmitting" class="mr-2 size-4 animate-spin" />
             刪除
           </Button>
@@ -904,11 +1010,7 @@ const colCount = 5
                 </TableCell>
                 <TableCell class="max-w-[140px] truncate text-sm">{{ row.fileName }}</TableCell>
                 <TableCell class="max-w-[10rem] truncate text-sm text-muted-foreground">
-                  {{
-                    row.uploadedBy?.name?.trim() ||
-                    row.uploadedBy?.email ||
-                    '—'
-                  }}
+                  {{ row.uploadedBy?.name?.trim() || row.uploadedBy?.email || '—' }}
                 </TableCell>
                 <TableCell class="text-right text-xs text-muted-foreground tabular-nums">
                   {{ formatBytes(row.fileSize) }}

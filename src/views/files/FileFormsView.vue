@@ -1,30 +1,12 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useVueTable,
-} from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import type { SortingState } from '@tanstack/vue-table'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
 import { ref, computed, watch, onMounted, h } from 'vue'
 import { useRoute } from 'vue-router'
-import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -33,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import FileFormsRowActions from '@/views/files/FileFormsRowActions.vue'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { ensureProjectPermission } from '@/lib/permission-toast'
@@ -45,6 +26,10 @@ import {
 } from '@/api/form-templates'
 import type { FormTemplateItem } from '@/api/form-templates'
 import { Upload, Loader2, Trash2, Download, FileText } from 'lucide-vue-next'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
+import type { TableListFeatures } from '@/types/data-table'
 
 const route = useRoute()
 const projectId = computed(() => (route.params.projectId as string) ?? '')
@@ -52,11 +37,42 @@ const uploadPerm = useProjectModuleActions(projectId, 'construction.upload')
 
 const list = ref<FormTemplateItem[]>([])
 const loading = ref(true)
-const rowSelection = ref<Record<string, boolean>>({})
-function formatSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+
+/** 僅全文搜尋，無分面／多欄排序／欄位顯示 */
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: false,
+  columnVisibility: false,
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  name: '名稱',
+  description: '描述',
+  fileSize: '檔案大小',
+  isDefault: '類型',
+  updatedAt: '更新時間',
+}
+
+const formsGlobalFilterFn: FilterFn<FormTemplateItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const name = (r.name ?? '').toLowerCase()
+  const desc = (r.description ?? '').toLowerCase()
+  const file = (r.fileName ?? '').toLowerCase()
+  const uploader = (r.uploaderName ?? '').toLowerCase()
+  const mime = (r.mimeType ?? '').toLowerCase()
+  const typeLabel = r.isDefault ? '預設樣板' : '專案樣板'
+  return (
+    name.includes(q) ||
+    desc.includes(q) ||
+    file.includes(q) ||
+    uploader.includes(q) ||
+    mime.includes(q) ||
+    typeLabel.toLowerCase().includes(q)
+  )
 }
 
 const addDialogOpen = ref(false)
@@ -84,6 +100,12 @@ watch(projectId, (id) => {
   if (id) fetchList()
 })
 
+function formatSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('zh-TW', {
     year: 'numeric',
@@ -103,12 +125,6 @@ function canDeleteForRow(row: FormTemplateItem) {
   return rowIsProjectDeletable(row) && uploadPerm.canDelete.value
 }
 
-function openDelete(row: FormTemplateItem) {
-  if (!canDeleteForRow(row)) return
-  deleteTarget.value = row
-  deleteDialogOpen.value = true
-}
-
 async function handleDownload(row: FormTemplateItem) {
   if (!ensureProjectPermission(uploadPerm.canRead.value, 'read')) return
   try {
@@ -124,12 +140,18 @@ async function handleDownload(row: FormTemplateItem) {
   }
 }
 
+function openDelete(row: FormTemplateItem) {
+  if (!canDeleteForRow(row)) return
+  deleteTarget.value = row
+  deleteDialogOpen.value = true
+}
+
 /** 僅專案樣板可刪除；用於判斷選取項是否可批次刪除 */
 const deletableIds = computed(
   () => new Set(list.value.filter((r) => r.isDefault !== true).map((r) => r.id))
 )
 
-const sorting = ref<SortingState>([])
+const hasSelectColumn = computed(() => uploadPerm.canRead.value || uploadPerm.canDelete.value)
 
 const selectColumnForms: ColumnDef<FormTemplateItem, unknown> = {
   id: 'select',
@@ -150,111 +172,109 @@ const selectColumnForms: ColumnDef<FormTemplateItem, unknown> = {
       'aria-label': '選取此列',
     }),
   enableSorting: false,
+  enableHiding: false,
 }
 
 const columns = computed<ColumnDef<FormTemplateItem, unknown>[]>(() => {
   const cols: ColumnDef<FormTemplateItem, unknown>[] = []
-  if (uploadPerm.canRead.value || uploadPerm.canDelete.value) {
+  if (hasSelectColumn.value) {
     cols.push(selectColumnForms)
   }
   cols.push(
-  {
-    accessorKey: 'name',
-    header: '名稱',
-    cell: ({ row }) =>
-      h('div', { class: 'flex items-center gap-2 font-medium' }, [
-        h(FileText, { class: 'size-4 shrink-0 text-muted-foreground' }),
-        h('span', { class: 'truncate', title: row.original.name }, row.original.name),
-      ]),
-  },
-  {
-    accessorKey: 'description',
-    header: '描述',
-    cell: ({ row }) =>
-      h(
-        'div',
-        {
-          class: 'max-w-[220px] truncate text-muted-foreground',
-          title: row.original.description ?? '',
-        },
-        row.original.description || '—'
-      ),
-  },
-  {
-    accessorKey: 'fileSize',
-    header: '檔案大小',
-    cell: ({ row }) =>
-      h('div', { class: 'text-muted-foreground text-sm' }, formatSize(row.original.fileSize ?? 0)),
-  },
-  {
-    accessorKey: 'isDefault',
-    header: '類型',
-    cell: ({ row }) =>
-      h(
-        Badge,
-        {
-          variant: row.original.isDefault ? 'secondary' : 'default',
-          class: 'text-xs',
-        },
-        () => (row.original.isDefault ? '預設樣板' : '專案樣板')
-      ),
-  },
-  {
-    accessorKey: 'updatedAt',
-    header: '更新時間',
-    cell: ({ row }) =>
-      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.updatedAt)),
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[80px]' }),
-    cell: ({ row }) =>
-      h('div', { class: 'flex justify-end' }, [
-        h(FileFormsRowActions, {
-          row: row.original,
-          canDelete: canDeleteForRow,
-          onDownload: handleDownload,
-          onDelete: openDelete,
-        }),
-      ]),
-    enableSorting: false,
-  }
+    {
+      accessorKey: 'name',
+      header: '名稱',
+      cell: ({ row }) =>
+        h('div', { class: 'flex items-center gap-2 font-medium' }, [
+          h(FileText, { class: 'size-4 shrink-0 text-muted-foreground' }),
+          h('span', { class: 'truncate', title: row.original.name }, row.original.name),
+        ]),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'description',
+      header: '描述',
+      cell: ({ row }) =>
+        h(
+          'div',
+          {
+            class: 'max-w-[220px] truncate text-muted-foreground',
+            title: row.original.description ?? '',
+          },
+          row.original.description || '—'
+        ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'fileSize',
+      header: '檔案大小',
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'text-muted-foreground text-sm' },
+          formatSize(row.original.fileSize ?? 0)
+        ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'isDefault',
+      header: '類型',
+      cell: ({ row }) =>
+        h(
+          Badge,
+          {
+            variant: row.original.isDefault ? 'secondary' : 'default',
+            class: 'text-xs',
+          },
+          () => (row.original.isDefault ? '預設樣板' : '專案樣板')
+        ),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      accessorKey: 'updatedAt',
+      header: '更新時間',
+      cell: ({ row }) =>
+        h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.updatedAt)),
+      enableSorting: false,
+      enableHiding: false,
+    },
+    {
+      id: 'actions',
+      header: () => h('div', { class: 'w-[80px]' }),
+      cell: ({ row }) =>
+        h('div', { class: 'flex justify-end' }, [
+          h(FileFormsRowActions, {
+            row: row.original,
+            canDelete: canDeleteForRow,
+            onDownload: handleDownload,
+            onDelete: openDelete,
+          }),
+        ]),
+      enableSorting: false,
+      enableHiding: false,
+    }
   )
   return cols
 })
 
-const columnCount = computed(() => columns.value.length)
-
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  getFilteredRowModel: getFilteredRowModel(),
-  onSortingChange: (updater) => valueUpdater(updater, sorting),
-  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
-  state: {
-    get sorting() {
-      return sorting.value
-    },
-    get rowSelection() {
-      return rowSelection.value
-    },
-  },
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
   getRowId: (row) => row.id,
-  initialState: {
-    pagination: { pageSize: 10 },
-  },
+  globalFilterFn: formsGlobalFilterFn,
+  enableRowSelection: hasSelectColumn,
+  initialPageSize: 10,
 })
 
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
 const selectedCount = computed(() => selectedRows.value.length)
+
 /** 選取項全部為可刪除時才可點批次刪除 */
 const canBatchDelete = computed(() => {
   if (!uploadPerm.canDelete.value) return false
@@ -262,8 +282,18 @@ const canBatchDelete = computed(() => {
   return selectedRows.value.every((r) => deletableIds.value.has(r.original.id))
 })
 
+const formsEmptyText = computed(() => {
+  const q = globalFilter.value.trim()
+  if (list.value.length === 0) {
+    return q
+      ? '沒有符合條件的資料'
+      : '尚無表單樣板。請由後台「表單樣板」新增預設樣板，或在此新增專案樣板。'
+  }
+  return '沒有符合條件的資料'
+})
+
 function clearSelection() {
-  rowSelection.value = {}
+  table.setRowSelection({})
 }
 
 function tryOpenAddDialog() {
@@ -321,12 +351,15 @@ async function confirmDelete() {
 
 const batchDeleteOpen = ref(false)
 const batchDeleteLoading = ref(false)
+
 function openBatchDelete() {
   batchDeleteOpen.value = true
 }
+
 function closeBatchDelete() {
   if (!batchDeleteLoading.value) batchDeleteOpen.value = false
 }
+
 async function confirmBatchDelete() {
   const toDelete = selectedRows.value
     .map((r) => r.original.id)
@@ -337,7 +370,7 @@ async function confirmBatchDelete() {
     for (const id of toDelete) {
       await deleteFormTemplate(id)
     }
-    rowSelection.value = {}
+    table.setRowSelection({})
     closeBatchDelete()
     await fetchList()
   } finally {
@@ -346,6 +379,7 @@ async function confirmBatchDelete() {
 }
 
 const batchDownloadLoading = ref(false)
+
 async function batchDownload() {
   if (!ensureProjectPermission(uploadPerm.canRead.value, 'read')) return
   const items = selectedRows.value.map((r) => r.original)
@@ -374,92 +408,83 @@ async function batchDownload() {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold text-foreground">相關表單</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">相關表單</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         預設樣板由後台管理新增；專案也可在此新增樣板。每個樣板皆有名稱、更新時間與描述供辨識。
       </p>
     </div>
 
-    <!-- 工具列：已選 + ButtonGroup + 新增 全部靠右 -->
-    <div class="flex flex-wrap items-center justify-end gap-3">
-      <template v-if="hasSelection && (uploadPerm.canRead || uploadPerm.canDelete)">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-        <ButtonGroup>
-          <Button variant="outline" @click="clearSelection"> 取消選取 </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            :disabled="batchDownloadLoading"
-            @click="batchDownload"
-          >
-            <Loader2 v-if="batchDownloadLoading" class="mr-1.5 size-4 animate-spin" />
-            <Download v-else class="mr-1.5 size-4" />
-            批次下載
-          </Button>
-          <Button
-            v-if="uploadPerm.canDelete"
-            variant="outline"
-            size="sm"
-            class="text-destructive hover:bg-destructive/10 hover:text-destructive"
-            :disabled="!canBatchDelete"
-            @click="openBatchDelete"
-          >
-            <Trash2 class="mr-1.5 size-4" />
-            批次刪除
-          </Button>
-        </ButtonGroup>
-      </template>
-      <Button :disabled="!projectId" @click="tryOpenAddDialog">
-        <Upload class="mr-2 size-4" />
-        新增專案樣板
-      </Button>
-    </div>
+    <p v-if="!loading && !projectId" class="text-sm text-destructive">缺少專案 ID</p>
+    <template v-else>
+      <DataTableFeatureToolbar
+        v-if="!loading"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋名稱、描述、檔名或類型…"
+        @reset="resetTableState"
+      >
+        <template #actions>
+          <div class="flex flex-wrap items-center gap-3">
+            <template v-if="hasSelection && (uploadPerm.canRead || uploadPerm.canDelete)">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" @click="clearSelection">取消選取</Button>
+                <Button variant="outline" :disabled="batchDownloadLoading" @click="batchDownload">
+                  <Loader2 v-if="batchDownloadLoading" class="mr-1.5 size-4 animate-spin" />
+                  <Download v-else class="mr-1.5 size-4" />
+                  批次下載
+                </Button>
+                <Button
+                  v-if="uploadPerm.canDelete"
+                  variant="outline"
+                  class="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                  :disabled="!canBatchDelete"
+                  @click="openBatchDelete"
+                >
+                  <Trash2 class="mr-1.5 size-4" />
+                  批次刪除
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button
+              v-if="uploadPerm.canCreate && !hasSelection"
+              size="sm"
+              variant="default"
+              class="gap-2"
+              :disabled="!projectId"
+              @click="tryOpenAddDialog"
+            >
+              <Upload class="size-4" />
+              新增專案樣板
+            </Button>
+          </div>
+        </template>
+      </DataTableFeatureToolbar>
 
-    <div class="rounded-lg border border-border bg-card p-4">
-      <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
-        <Loader2 class="size-8 animate-spin" />
+      <div class="rounded-lg border border-border bg-card">
+        <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 class="size-8 animate-spin" />
+        </div>
+        <DataTableFeatureSection
+          v-else-if="list.length > 0 || globalFilter.trim()"
+          :table="table"
+          :hide-selection-info="!hasSelectColumn"
+          :empty-text="formsEmptyText"
+        />
+        <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <p class="text-sm">尚無表單樣板</p>
+          <p v-if="uploadPerm.canCreate" class="mt-1 text-xs">
+            請由後台新增預設樣板，或使用「新增專案樣板」
+          </p>
+        </div>
       </div>
-      <template v-else>
-        <Table>
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="columnCount" class="h-24 text-center text-muted-foreground">
-                  尚無表單樣板。請由後台「表單樣板」新增預設樣板，或在此新增專案樣板。
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-        <DataTablePagination :table="table" />
-      </template>
-    </div>
+    </template>
 
-    <!-- 新增專案樣板 Dialog -->
     <input
       ref="fileInputRef"
       type="file"
@@ -504,7 +529,6 @@ async function batchDownload() {
       </DialogContent>
     </Dialog>
 
-    <!-- 刪除確認 -->
     <Dialog :open="deleteDialogOpen" @update:open="(v) => (deleteDialogOpen = v)">
       <DialogContent>
         <DialogHeader>
@@ -514,9 +538,9 @@ async function batchDownload() {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" :disabled="deleteLoading" @click="deleteDialogOpen = false"
-            >取消</Button
-          >
+          <Button variant="outline" :disabled="deleteLoading" @click="deleteDialogOpen = false">
+            取消
+          </Button>
           <Button variant="destructive" :disabled="deleteLoading" @click="confirmDelete">
             <Loader2 v-if="deleteLoading" class="mr-2 size-4 animate-spin" />
             刪除
@@ -525,7 +549,6 @@ async function batchDownload() {
       </DialogContent>
     </Dialog>
 
-    <!-- 批次刪除確認 -->
     <Dialog :open="batchDeleteOpen" @update:open="(v) => !v && closeBatchDelete()">
       <DialogContent>
         <DialogHeader>
@@ -535,9 +558,9 @@ async function batchDownload() {
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" :disabled="batchDeleteLoading" @click="closeBatchDelete"
-            >取消</Button
-          >
+          <Button variant="outline" :disabled="batchDeleteLoading" @click="closeBatchDelete">
+            取消
+          </Button>
           <Button variant="destructive" :disabled="batchDeleteLoading" @click="confirmBatchDelete">
             <Loader2 v-if="batchDeleteLoading" class="mr-2 size-4 animate-spin" />
             刪除

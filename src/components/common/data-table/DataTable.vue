@@ -150,7 +150,7 @@ const table = useVueTable({
       </Table>
     </div>
 
-    <!-- 分頁 -->
+    <!-- 分頁（已在橫向捲動容器外；父層 space-y-4 與表格區隔） -->
     <DataTablePagination :table="table" />
   </div>
 </template>

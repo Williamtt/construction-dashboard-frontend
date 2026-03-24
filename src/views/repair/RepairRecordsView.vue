@@ -73,9 +73,7 @@ const STATUS_LABELS: Record<RepairRequestStatus, string> = {
   completed: '已完成',
 }
 
-const totalPages = computed(() =>
-  meta.value ? Math.ceil(meta.value.total / limit.value) : 0
-)
+const totalPages = computed(() => (meta.value ? Math.ceil(meta.value.total / limit.value) : 0))
 
 function formatDateTime(iso: string) {
   if (!iso) return '—'
@@ -117,9 +115,7 @@ async function loadList() {
   errorMessage.value = ''
   try {
     const st =
-      statusFilter.value === ALL_STATUS
-        ? undefined
-        : (statusFilter.value as RepairRequestStatus)
+      statusFilter.value === ALL_STATUS ? undefined : (statusFilter.value as RepairRequestStatus)
     const res = await listRepairRequests(pid, {
       page: page.value,
       limit: limit.value,
@@ -217,8 +213,7 @@ const columns = computed<ColumnDef<RepairRequestItem, unknown>[]>(() => [
     accessorKey: 'problemCategory',
     id: 'problemCategory',
     header: () => '問題類別',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.original.problemCategory || '—'),
+    cell: ({ row }) => h('div', { class: 'text-foreground' }, row.original.problemCategory || '—'),
   },
   {
     id: 'isSecondRepair',
@@ -259,7 +254,11 @@ const columns = computed<ColumnDef<RepairRequestItem, unknown>[]>(() => [
     id: 'updatedAt',
     header: () => '最後更新',
     cell: ({ row }) =>
-      h('span', { class: 'tabular-nums text-muted-foreground text-sm' }, formatDateTime(row.original.updatedAt)),
+      h(
+        'span',
+        { class: 'tabular-nums text-muted-foreground text-sm' },
+        formatDateTime(row.original.updatedAt)
+      ),
   },
   {
     id: 'actions',
@@ -346,13 +345,17 @@ async function confirmBatchDelete() {
   }
 }
 
-watch(projectId, (id) => {
-  if (!id) return
-  page.value = 1
-  rowSelection.value = {}
-  loadStats()
-  loadList()
-}, { immediate: true })
+watch(
+  projectId,
+  (id) => {
+    if (!id) return
+    page.value = 1
+    rowSelection.value = {}
+    loadStats()
+    loadList()
+  },
+  { immediate: true }
+)
 
 watch(statusFilter, () => {
   page.value = 1
@@ -450,46 +453,48 @@ watch(statusFilter, () => {
       </div>
     </div>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <p v-if="errorMessage" class="mb-3 text-sm text-destructive">{{ errorMessage }}</p>
       <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <Table v-if="list.length > 0">
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
-                  此頁無資料
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
         <template v-if="list.length > 0">
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                    <FlexRender
+                      v-if="!header.isPlaceholder"
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <template v-if="table.getRowModel().rows?.length">
+                  <TableRow
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
+                    :data-state="row.getIsSelected() ? 'selected' : undefined"
+                  >
+                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                    </TableCell>
+                  </TableRow>
+                </template>
+                <template v-else>
+                  <TableRow>
+                    <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
+                      此頁無資料
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+          </div>
           <div class="mt-4">
             <DataTablePagination :table="table" />
           </div>
@@ -507,12 +512,17 @@ watch(statusFilter, () => {
       </template>
     </div>
 
-    <Dialog v-model:open="removeDialogOpen" @update:open="(v: boolean) => !v && closeRemoveDialog()">
+    <Dialog
+      v-model:open="removeDialogOpen"
+      @update:open="(v: boolean) => !v && closeRemoveDialog()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>刪除報修單</DialogTitle>
           <DialogDescription>
-            確定要刪除此報修單嗎？客戶「{{ removingItem?.customerName }}」的報修資料與執行紀錄將一併刪除且無法復原。
+            確定要刪除此報修單嗎？客戶「{{
+              removingItem?.customerName
+            }}」的報修資料與執行紀錄將一併刪除且無法復原。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -535,11 +545,7 @@ watch(statusFilter, () => {
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeBatchDelete">取消</Button>
-          <Button
-            variant="destructive"
-            :disabled="batchDeleteLoading"
-            @click="confirmBatchDelete"
-          >
+          <Button variant="destructive" :disabled="batchDeleteLoading" @click="confirmBatchDelete">
             <Loader2 v-if="batchDeleteLoading" class="mr-2 size-4 animate-spin" />
             刪除
           </Button>

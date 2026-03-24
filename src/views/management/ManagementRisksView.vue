@@ -32,12 +32,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import {
-  getIssueRisks,
-  createIssueRisk,
-  updateIssueRisk,
-  deleteIssueRisk,
-} from '@/api/issue-risks'
+import { getIssueRisks, createIssueRisk, updateIssueRisk, deleteIssueRisk } from '@/api/issue-risks'
 import { getProjectMembers } from '@/api/project'
 import { listProjectWbs } from '@/api/wbs'
 import type { WbsNode } from '@/types/wbs'
@@ -179,7 +174,9 @@ function openCreateDialog() {
   formOpen.value = true
   loadMembers()
   if (wbsTree.value.length === 0) {
-    listProjectWbs(getProjectId()).then((tree) => { wbsTree.value = tree })
+    listProjectWbs(getProjectId()).then((tree) => {
+      wbsTree.value = tree
+    })
   }
 }
 
@@ -195,7 +192,9 @@ function openEditDialog(row: IssueRiskItem) {
   formOpen.value = true
   loadMembers()
   if (wbsTree.value.length === 0) {
-    listProjectWbs(getProjectId()).then((tree) => { wbsTree.value = tree })
+    listProjectWbs(getProjectId()).then((tree) => {
+      wbsTree.value = tree
+    })
   }
 }
 
@@ -358,35 +357,58 @@ const columns = computed<ColumnDef<IssueRiskItem, unknown>[]>(() => [
     id: 'description',
     header: () => '議題說明／現況說明',
     cell: ({ row }) =>
-      h('div', { class: 'max-w-[280px] truncate text-foreground', title: row.original.description }, row.original.description || '—'),
+      h(
+        'div',
+        { class: 'max-w-[280px] truncate text-foreground', title: row.original.description },
+        row.original.description || '—'
+      ),
   },
   {
     accessorKey: 'assignee',
     id: 'assignee',
     header: () => '負責人',
     cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.original.assignee?.name || row.original.assignee?.email || '—'),
+      h(
+        'div',
+        { class: 'text-foreground' },
+        row.original.assignee?.name || row.original.assignee?.email || '—'
+      ),
   },
   {
     accessorKey: 'urgency',
     id: 'urgency',
     header: () => '緊急程度',
     cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, URGENCY_LABELS[row.original.urgency] ?? row.original.urgency),
+      h(
+        'div',
+        { class: 'text-foreground' },
+        URGENCY_LABELS[row.original.urgency] ?? row.original.urgency
+      ),
   },
   {
     accessorKey: 'wbsTasks',
     id: 'wbsTasks',
     header: () => '影像任務',
     cell: ({ row }) =>
-      h('div', { class: 'max-w-[240px] truncate text-foreground', title: formatWbsTasksDisplay(row.original.wbsTasks) }, formatWbsTasksDisplay(row.original.wbsTasks)),
+      h(
+        'div',
+        {
+          class: 'max-w-[240px] truncate text-foreground',
+          title: formatWbsTasksDisplay(row.original.wbsTasks),
+        },
+        formatWbsTasksDisplay(row.original.wbsTasks)
+      ),
   },
   {
     accessorKey: 'status',
     id: 'status',
     header: () => '狀態',
     cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, STATUS_LABELS[row.original.status] ?? row.original.status),
+      h(
+        'div',
+        { class: 'text-foreground' },
+        STATUS_LABELS[row.original.status] ?? row.original.status
+      ),
   },
   {
     id: 'actions',
@@ -465,9 +487,13 @@ async function confirmBatchDelete() {
   }
 }
 
-watch(projectId, (id) => {
-  if (id) loadList()
-}, { immediate: true })
+watch(
+  projectId,
+  (id) => {
+    if (id) loadList()
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
@@ -537,54 +563,59 @@ watch(projectId, (id) => {
       </Button>
     </div>
 
-    <div class="rounded-lg border border-border bg-card p-4">
+    <div class="rounded-lg border border-border bg-card">
       <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
       <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <Table v-if="list.length > 0">
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
-                  尚無議題風險
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
         <template v-if="list.length > 0">
-          <DataTablePagination :table="table" hide-selection-info />
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                    <FlexRender
+                      v-if="!header.isPlaceholder"
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <template v-if="table.getRowModel().rows?.length">
+                  <TableRow
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
+                    :data-state="row.getIsSelected() ? 'selected' : undefined"
+                  >
+                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                    </TableCell>
+                  </TableRow>
+                </template>
+                <template v-else>
+                  <TableRow>
+                    <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
+                      此頁無資料
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+          </div>
+          <div class="mt-4">
+            <DataTablePagination :table="table" hide-selection-info />
+          </div>
         </template>
         <div
           v-else
-          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
+          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
         >
+          <ListTree class="size-10 opacity-50" />
           <p class="text-sm">尚無議題風險</p>
-          <p class="mt-1 text-xs">請點「新增議題」建立第一筆</p>
+          <p class="text-xs text-muted-foreground">請點「新增議題」建立第一筆</p>
         </div>
       </template>
     </div>
@@ -666,7 +697,9 @@ watch(projectId, (id) => {
               ref="wbsInlineBlockRef"
               class="rounded-lg border border-border bg-muted/30 p-3 space-y-2"
             >
-              <p class="text-xs font-medium text-muted-foreground">點擊項目可勾選／取消（僅葉節點）</p>
+              <p class="text-xs font-medium text-muted-foreground">
+                點擊項目可勾選／取消（僅葉節點）
+              </p>
               <div v-if="wbsTreeLoading" class="flex items-center justify-center py-6">
                 <Loader2 class="size-6 animate-spin text-muted-foreground" />
               </div>
@@ -694,10 +727,22 @@ watch(projectId, (id) => {
                 </p>
               </div>
               <div class="flex gap-2">
-                <Button type="button" variant="outline" size="sm" class="flex-1" @click="closeWbsInline">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="flex-1"
+                  @click="closeWbsInline"
+                >
                   取消
                 </Button>
-                <Button type="button" variant="secondary" size="sm" class="flex-1" @click="confirmWbsSelector">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  class="flex-1"
+                  @click="confirmWbsSelector"
+                >
                   確定
                 </Button>
               </div>
@@ -715,12 +760,16 @@ watch(projectId, (id) => {
     </Dialog>
 
     <!-- 刪除確認 -->
-    <Dialog v-model:open="removeDialogOpen" @update:open="(v: boolean) => !v && closeRemoveDialog()">
+    <Dialog
+      v-model:open="removeDialogOpen"
+      @update:open="(v: boolean) => !v && closeRemoveDialog()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>刪除議題</DialogTitle>
           <DialogDescription>
-            確定要刪除此議題嗎？「{{ removingItem?.description?.slice(0, 50) }}{{ (removingItem?.description?.length ?? 0) > 50 ? '…' : '' }}」將無法復原。
+            確定要刪除此議題嗎？「{{ removingItem?.description?.slice(0, 50)
+            }}{{ (removingItem?.description?.length ?? 0) > 50 ? '…' : '' }}」將無法復原。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -744,11 +793,7 @@ watch(projectId, (id) => {
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeBatchDelete">取消</Button>
-          <Button
-            variant="destructive"
-            :disabled="batchDeleteLoading"
-            @click="confirmBatchDelete"
-          >
+          <Button variant="destructive" :disabled="batchDeleteLoading" @click="confirmBatchDelete">
             <Loader2 v-if="batchDeleteLoading" class="mr-2 size-4 animate-spin" />
             刪除
           </Button>

@@ -933,7 +933,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
         </div>
 
         <template v-else>
-          <div class="rounded-lg border border-border bg-card p-4">
+          <div class="rounded-lg border border-border bg-card">
             <div
               class="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between"
             >
@@ -947,18 +947,14 @@ watch([projectId, baseImportId], () => loadBaseItems())
                   autocomplete="off"
                 />
                 <p class="text-xs text-muted-foreground">
-                  確認匯入後會新增一版（Excel 變更）；名稱不預設，請自行填寫，之後可在匯入紀錄明細修改。
+                  確認匯入後會新增一版（Excel
+                  變更）；名稱不預設，請自行填寫，之後可在匯入紀錄明細修改。
                 </p>
               </div>
               <div class="flex shrink-0 flex-wrap justify-end gap-3">
                 <Button
                   type="button"
-                  :disabled="
-                    confirmLoading ||
-                    !perm.canCreate.value ||
-                    loadingItems ||
-                    !!loadError
-                  "
+                  :disabled="confirmLoading || !perm.canCreate.value || loadingItems || !!loadError"
                   @click="onConfirmImport"
                 >
                   <Loader2 v-if="confirmLoading" class="mr-2 size-4 animate-spin" />
@@ -1105,7 +1101,8 @@ watch([projectId, baseImportId], () => loadBaseItems())
               <div class="border-b border-border px-4 py-3">
                 <h2 class="text-base font-medium text-foreground">對應結果（工項表）</h2>
                 <p class="mt-1 text-xs text-muted-foreground">
-                  <span class="text-foreground">列順序</span>：依清冊階層（先父後子、深度優先），同層清冊列依
+                  <span class="text-foreground">列順序</span
+                  >：依清冊階層（先父後子、深度優先），同層清冊列依
                   <code class="rounded bg-muted px-1">itemKey</code>
                   遞增；手動掛載列排在該父層清冊子列之後。親子以
                   <code class="rounded bg-muted px-1">parentItemKey</code>

@@ -21,8 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Loader2, Search } from 'lucide-vue-next'
+import { KeyRound, Loader2, Search } from 'lucide-vue-next'
 import { fetchLoginLogs, type LoginLogItem } from '@/api/platform'
+import { localDateEndIso, localDateStartIso } from '@/lib/utils'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 
 const list = ref<LoginLogItem[]>([])
@@ -30,7 +31,7 @@ const meta = ref<{ page: number; limit: number; total: number } | null>(null)
 const loading = ref(true)
 const page = ref(1)
 const limit = ref(20)
-const emailFilter = ref('')
+const queryFilter = ref('')
 const successFilter = ref<string>('all')
 const fromDate = ref('')
 const toDate = ref('')
@@ -38,7 +39,7 @@ const toDate = ref('')
 const totalPages = computed(() => (meta.value ? Math.ceil(meta.value.total / limit.value) : 0))
 const hasFilters = computed(
   () =>
-    emailFilter.value.trim() !== '' ||
+    queryFilter.value.trim() !== '' ||
     successFilter.value !== 'all' ||
     fromDate.value !== '' ||
     toDate.value !== ''
@@ -50,7 +51,7 @@ async function load() {
     const params: {
       page: number
       limit: number
-      email?: string
+      q?: string
       success?: boolean
       from?: string
       to?: string
@@ -58,11 +59,11 @@ async function load() {
       page: page.value,
       limit: limit.value,
     }
-    if (emailFilter.value.trim()) params.email = emailFilter.value.trim()
+    if (queryFilter.value.trim()) params.q = queryFilter.value.trim()
     if (successFilter.value === 'true') params.success = true
     if (successFilter.value === 'false') params.success = false
-    if (fromDate.value) params.from = fromDate.value
-    if (toDate.value) params.to = toDate.value
+    if (fromDate.value) params.from = localDateStartIso(fromDate.value)
+    if (toDate.value) params.to = localDateEndIso(toDate.value)
     const res = await fetchLoginLogs(params)
     list.value = res.list
     meta.value = res.meta ?? null
@@ -80,7 +81,7 @@ function applyFilters() {
 }
 
 function clearFilters() {
-  emailFilter.value = ''
+  queryFilter.value = ''
   successFilter.value = 'all'
   fromDate.value = ''
   toDate.value = ''
@@ -180,29 +181,29 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight text-foreground">登入紀錄</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">登入紀錄</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        檢視平台登入嘗試（成功與失敗），可依 Email、結果、日期篩選。
+        檢視平台登入嘗試（成功與失敗），可依關鍵字、登入結果、時間區間篩選。
       </p>
     </div>
 
     <!-- 工具列：篩選在左（無勾選列，故無右側批次操作） -->
     <div class="flex flex-wrap items-center justify-between gap-4">
       <div class="flex flex-wrap items-center gap-3">
-        <div class="relative w-56">
+        <div class="relative w-64 min-w-[12rem]">
           <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            v-model="emailFilter"
-            placeholder="Email"
+            v-model="queryFilter"
+            placeholder="Email、IP、失敗原因…"
             class="pl-9 bg-background"
             @keyup.enter="applyFilters"
           />
         </div>
         <Select v-model="successFilter">
           <SelectTrigger class="w-[120px] bg-background">
-            <SelectValue placeholder="結果" />
+            <SelectValue placeholder="登入結果" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部</SelectItem>
@@ -224,41 +225,49 @@ onMounted(load)
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <div class="overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                  <FlexRender
-                    v-if="!header.isPlaceholder"
-                    :render="header.column.columnDef.header"
-                    :props="header.getContext()"
-                  />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <template v-if="table.getRowModel().rows?.length">
-                <TableRow
-                  v-for="row in table.getRowModel().rows"
-                  :key="row.id"
-                >
-                  <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                    <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                  </TableCell>
+        <template v-if="meta && meta.total > 0">
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                    <FlexRender
+                      v-if="!header.isPlaceholder"
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </TableHead>
                 </TableRow>
-              </template>
-              <template v-else>
-                <TableRow>
-                  <TableCell :colspan="5" class="h-24 text-center text-muted-foreground">
-                    尚無登入紀錄或目前篩選無結果。
-                  </TableCell>
-                </TableRow>
-              </template>
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                <template v-if="table.getRowModel().rows?.length">
+                  <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
+                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                    </TableCell>
+                  </TableRow>
+                </template>
+                <template v-else>
+                  <TableRow>
+                    <TableCell :colspan="5" class="h-24 text-center text-muted-foreground">
+                      此頁無資料
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+          </div>
+          <div class="mt-4">
+            <DataTablePagination v-if="meta" :table="table" hide-selection-info />
+          </div>
+        </template>
+        <div
+          v-else
+          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
+        >
+          <KeyRound class="size-10 opacity-50" />
+          <p class="text-sm">尚無登入紀錄或目前篩選無結果。</p>
         </div>
-        <DataTablePagination v-if="meta" :table="table" hide-selection-info />
       </template>
     </div>
   </div>

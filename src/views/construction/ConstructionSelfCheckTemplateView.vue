@@ -283,8 +283,8 @@ const table = useVueTable({
       </ButtonGroup>
     </div>
 
-    <div class="rounded-lg border border-border bg-card">
-      <div v-if="listError" class="border-b border-border px-4 py-3 text-sm text-destructive">
+    <div class="rounded-lg border border-border bg-card p-4">
+      <div v-if="listError" class="mb-3 text-sm text-destructive">
         {{ listError }}
       </div>
       <div
@@ -295,38 +295,55 @@ const table = useVueTable({
         <span>載入紀錄…</span>
       </div>
       <template v-else>
-        <Table>
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id" class="whitespace-nowrap">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() && 'selected'"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <TableRow v-else>
-              <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
-                尚無查驗紀錄，請按「新增查驗紀錄」開始填寫。
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-        <DataTablePagination v-if="meta && meta.total > 0" :table="table" hide-selection-info />
+        <template v-if="meta && meta.total > 0">
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <TableHead
+                    v-for="header in headerGroup.headers"
+                    :key="header.id"
+                    class="whitespace-nowrap"
+                  >
+                    <FlexRender
+                      v-if="!header.isPlaceholder"
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <template v-if="table.getRowModel().rows.length">
+                  <TableRow
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
+                    :data-state="row.getIsSelected() && 'selected'"
+                  >
+                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                    </TableCell>
+                  </TableRow>
+                </template>
+                <TableRow v-else>
+                  <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
+                    此頁無資料
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <div class="mt-4">
+            <DataTablePagination :table="table" hide-selection-info />
+          </div>
+        </template>
+        <div
+          v-else
+          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
+        >
+          <ClipboardList class="size-10 opacity-50" />
+          <p class="text-sm">尚無查驗紀錄，請按「新增查驗紀錄」開始填寫。</p>
+        </div>
       </template>
     </div>
   </div>

@@ -41,7 +41,7 @@ import {
   deleteProjectResource,
 } from '@/api/resources'
 import type { ProjectResourceItem, ProjectResourceType } from '@/types/resource'
-import { Plus, Loader2 } from 'lucide-vue-next'
+import { Package, Plus, Loader2 } from 'lucide-vue-next'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import ManagementResourcesRowActions from '@/views/management/ManagementResourcesRowActions.vue'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
@@ -233,14 +233,12 @@ const columns = computed<ColumnDef<ProjectResourceItem, unknown>[]>(() => {
     id: 'select',
     header: ({ table }) =>
       h(Checkbox, {
-        checked:
-          table.getIsAllPageRowsSelected()
-            ? true
-            : table.getIsSomePageRowsSelected()
-              ? 'indeterminate'
-              : false,
-        'onUpdate:checked': (v: boolean | 'indeterminate') =>
-          table.toggleAllPageRowsSelected(!!v),
+        checked: table.getIsAllPageRowsSelected()
+          ? true
+          : table.getIsSomePageRowsSelected()
+            ? 'indeterminate'
+            : false,
+        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
         'aria-label': '全選',
       }),
     cell: ({ row }) =>
@@ -259,79 +257,80 @@ const columns = computed<ColumnDef<ProjectResourceItem, unknown>[]>(() => {
   }
 
   cols.push(
-  {
-    accessorKey: 'name',
-    id: 'name',
-    header: () => '名稱',
-    cell: ({ row }) =>
-      h('div', { class: 'font-medium text-foreground' }, row.original.name),
-  },
-  {
-    accessorKey: 'unit',
-    id: 'unit',
-    header: () => '單位',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.original.unit),
-  },
-  {
-    accessorKey: 'unitCost',
-    id: 'unitCost',
-    header: () => '單位成本',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground tabular-nums' }, String(row.original.unitCost)),
-  },
-  {
-    accessorKey: 'capacityType',
-    id: 'capacityType',
-    header: () => '容量類型',
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, row.original.capacityType ?? '—'),
-  },
-  {
-    accessorKey: 'dailyCapacity',
-    id: 'dailyCapacity',
-    header: () => '每日容量',
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'text-foreground tabular-nums' },
-        row.original.dailyCapacity != null ? String(row.original.dailyCapacity) : '—'
-      ),
-  },
-  {
-    accessorKey: 'vendor',
-    id: 'vendor',
-    header: () => '廠商',
-    cell: ({ row }) =>
-      h('div', { class: 'max-w-[160px] truncate text-foreground', title: row.original.vendor ?? '' }, row.original.vendor ?? '—'),
-  },
-  {
-    accessorKey: 'description',
-    id: 'description',
-    header: () => '說明',
-    cell: ({ row }) =>
-      h(
-        'div',
-        {
-          class: 'max-w-[200px] truncate text-foreground',
-          title: row.original.description ?? '',
-        },
-        row.original.description ?? '—'
-      ),
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[4rem]' }),
-    cell: ({ row }) =>
-      h(ManagementResourcesRowActions, {
-        row: row.original,
-        canEdit: resourcePerm.canUpdate.value,
-        canRemove: resourcePerm.canDelete.value,
-        onEdit: openEditDialog,
-        onRemove: openRemoveDialog,
-      }),
-    enableSorting: false,
-  },
+    {
+      accessorKey: 'name',
+      id: 'name',
+      header: () => '名稱',
+      cell: ({ row }) => h('div', { class: 'font-medium text-foreground' }, row.original.name),
+    },
+    {
+      accessorKey: 'unit',
+      id: 'unit',
+      header: () => '單位',
+      cell: ({ row }) => h('div', { class: 'text-foreground' }, row.original.unit),
+    },
+    {
+      accessorKey: 'unitCost',
+      id: 'unitCost',
+      header: () => '單位成本',
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground tabular-nums' }, String(row.original.unitCost)),
+    },
+    {
+      accessorKey: 'capacityType',
+      id: 'capacityType',
+      header: () => '容量類型',
+      cell: ({ row }) => h('div', { class: 'text-foreground' }, row.original.capacityType ?? '—'),
+    },
+    {
+      accessorKey: 'dailyCapacity',
+      id: 'dailyCapacity',
+      header: () => '每日容量',
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'text-foreground tabular-nums' },
+          row.original.dailyCapacity != null ? String(row.original.dailyCapacity) : '—'
+        ),
+    },
+    {
+      accessorKey: 'vendor',
+      id: 'vendor',
+      header: () => '廠商',
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'max-w-[160px] truncate text-foreground', title: row.original.vendor ?? '' },
+          row.original.vendor ?? '—'
+        ),
+    },
+    {
+      accessorKey: 'description',
+      id: 'description',
+      header: () => '說明',
+      cell: ({ row }) =>
+        h(
+          'div',
+          {
+            class: 'max-w-[200px] truncate text-foreground',
+            title: row.original.description ?? '',
+          },
+          row.original.description ?? '—'
+        ),
+    },
+    {
+      id: 'actions',
+      header: () => h('div', { class: 'w-[4rem]' }),
+      cell: ({ row }) =>
+        h(ManagementResourcesRowActions, {
+          row: row.original,
+          canEdit: resourcePerm.canUpdate.value,
+          canRemove: resourcePerm.canDelete.value,
+          onEdit: openEditDialog,
+          onRemove: openRemoveDialog,
+        }),
+      enableSorting: false,
+    }
   )
 
   return cols
@@ -451,54 +450,67 @@ watch(
           </Button>
         </div>
 
-        <div class="rounded-lg border border-border bg-card p-4">
+        <div class="rounded-lg border border-border bg-card">
           <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
-          <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+          <div
+            v-else-if="loading"
+            class="flex items-center justify-center py-12 text-muted-foreground"
+          >
             <Loader2 class="size-8 animate-spin" />
           </div>
           <template v-else>
-            <Table v-if="list.length > 0">
-              <TableHeader>
-                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                    <FlexRender
-                      v-if="!header.isPlaceholder"
-                      :render="header.column.columnDef.header"
-                      :props="header.getContext()"
-                    />
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <template v-if="table.getRowModel().rows?.length">
-                  <TableRow
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                    :data-state="row.getIsSelected() ? 'selected' : undefined"
-                  >
-                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                    </TableCell>
-                  </TableRow>
-                </template>
-                <template v-else>
-                  <TableRow>
-                    <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
-                      尚無資源
-                    </TableCell>
-                  </TableRow>
-                </template>
-              </TableBody>
-            </Table>
             <template v-if="list.length > 0">
-              <DataTablePagination :table="table" hide-selection-info />
+              <div class="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                      <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                        <FlexRender
+                          v-if="!header.isPlaceholder"
+                          :render="header.column.columnDef.header"
+                          :props="header.getContext()"
+                        />
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    <template v-if="table.getRowModel().rows?.length">
+                      <TableRow
+                        v-for="row in table.getRowModel().rows"
+                        :key="row.id"
+                        :data-state="row.getIsSelected() ? 'selected' : undefined"
+                      >
+                        <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                          <FlexRender
+                            :render="cell.column.columnDef.cell"
+                            :props="cell.getContext()"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    </template>
+                    <template v-else>
+                      <TableRow>
+                        <TableCell :colspan="9" class="h-24 text-center text-muted-foreground">
+                          此頁無資料
+                        </TableCell>
+                      </TableRow>
+                    </template>
+                  </TableBody>
+                </Table>
+              </div>
+              <div class="mt-4">
+                <DataTablePagination :table="table" hide-selection-info />
+              </div>
             </template>
             <div
               v-else
-              class="flex flex-col items-center justify-center py-16 text-muted-foreground"
+              class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
             >
+              <Package class="size-10 opacity-50" />
               <p class="text-sm">尚無資源</p>
-              <p class="mt-1 text-xs">請點「新增{{ TAB_LABELS[activeTab] }}」建立第一筆</p>
+              <p class="text-xs text-muted-foreground">
+                請點「新增{{ TAB_LABELS[activeTab] }}」建立第一筆
+              </p>
             </div>
           </template>
         </div>
@@ -539,7 +551,11 @@ watch(
           </div>
           <div class="space-y-2">
             <Label for="form-capacity-type">容量類型（選填）</Label>
-            <Input id="form-capacity-type" v-model="formCapacityType" placeholder="例：工時、台班" />
+            <Input
+              id="form-capacity-type"
+              v-model="formCapacityType"
+              placeholder="例：工時、台班"
+            />
           </div>
           <div class="space-y-2">
             <Label for="form-daily-capacity">每日容量（選填）</Label>
@@ -578,7 +594,10 @@ watch(
     </Dialog>
 
     <!-- 單筆刪除確認 -->
-    <Dialog v-model:open="removeDialogOpen" @update:open="(v: boolean) => !v && closeRemoveDialog()">
+    <Dialog
+      v-model:open="removeDialogOpen"
+      @update:open="(v: boolean) => !v && closeRemoveDialog()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>確認刪除</DialogTitle>

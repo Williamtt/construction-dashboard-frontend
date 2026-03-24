@@ -14,11 +14,30 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
-import { Loader2, BarChart3 } from 'lucide-vue-next'
+import { Input } from '@/components/ui/input'
+import { Loader2, BarChart3, Search } from 'lucide-vue-next'
 import { fetchUsage, type TenantUsageItem } from '@/api/platform'
 
 const list = ref<TenantUsageItem[]>([])
 const loading = ref(true)
+const searchQuery = ref('')
+
+const filteredList = computed(() => {
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return list.value
+  return list.value.filter((row) => {
+    const name = row.name.toLowerCase()
+    const slug = (row.slug ?? '').toLowerCase()
+    const statusLabel = row.status === 'active' ? '啟用' : '停用'
+    return (
+      name.includes(q) ||
+      slug.includes(q) ||
+      statusLabel.includes(q) ||
+      row.status.toLowerCase().includes(q) ||
+      row.id.toLowerCase().includes(q)
+    )
+  })
+})
 
 function storageDisplay(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -58,7 +77,11 @@ const isExpired = (row: TenantUsageItem): boolean => {
 
 function formatDate(iso: string | null): string {
   if (!iso) return '—'
-  return new Date(iso).toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  return new Date(iso).toLocaleDateString('zh-TW', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
 }
 
 async function load() {
@@ -90,13 +113,22 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
     cell: ({ row }) => {
       const r = row.original
       const badges = [
-        h(Badge, { variant: r.status === 'active' ? 'default' : 'secondary' }, () => r.status === 'active' ? '啟用' : '停用'),
+        h(Badge, { variant: r.status === 'active' ? 'default' : 'secondary' }, () =>
+          r.status === 'active' ? '啟用' : '停用'
+        ),
       ]
       if (isExpired(r)) {
         badges.push(h(Badge, { variant: 'destructive', class: 'ml-1' }, () => '已到期'))
       } else if (isExpiringSoon(r)) {
         badges.push(
-          h(Badge, { variant: 'outline', class: 'ml-1 border-amber-500 text-amber-600 dark:text-amber-400' }, () => '即將到期')
+          h(
+            Badge,
+            {
+              variant: 'outline',
+              class: 'ml-1 border-amber-500 text-amber-600 dark:text-amber-400',
+            },
+            () => '即將到期'
+          )
         )
       }
       return h('div', badges)
@@ -109,7 +141,9 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
       const r = row.original
       return h('span', { class: 'tabular-nums text-foreground' }, [
         r.userCount,
-        r.userLimit != null ? h('span', { class: 'text-muted-foreground' }, ` / ${r.userLimit}`) : null,
+        r.userLimit != null
+          ? h('span', { class: 'text-muted-foreground' }, ` / ${r.userLimit}`)
+          : null,
       ])
     },
   },
@@ -142,13 +176,17 @@ const columns = computed<ColumnDef<TenantUsageItem, unknown>[]>(() => [
     accessorKey: 'expiresAt',
     header: () => '到期日',
     cell: ({ row }) =>
-      h('span', { class: 'tabular-nums text-muted-foreground' }, formatDate(row.original.expiresAt)),
+      h(
+        'span',
+        { class: 'tabular-nums text-muted-foreground' },
+        formatDate(row.original.expiresAt)
+      ),
   },
 ])
 
 const table = useVueTable({
   get data() {
-    return list.value
+    return filteredList.value
   },
   get columns() {
     return columns.value
@@ -165,15 +203,26 @@ onMounted(load)
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div>
-      <h1 class="text-2xl font-semibold tracking-tight text-foreground">用量總覽</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">用量總覽</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         各租戶的使用者數、專案數與儲存用量；可檢視是否接近或超過配額、到期日。
       </p>
     </div>
 
-    <!-- 表格區塊（規範：rounded-lg border bg-card） -->
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div class="relative w-64 min-w-[12rem]">
+        <Search class="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          v-model="searchQuery"
+          placeholder="租戶名稱、slug、狀態…"
+          class="pl-9 bg-background"
+        />
+      </div>
+    </div>
+
+    <!-- 表格區塊（規範：rounded-lg border bg-card p-4） -->
     <div class="rounded-lg border border-border bg-card p-4">
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
@@ -182,6 +231,13 @@ onMounted(load)
         <div v-if="!list.length" class="py-16 text-center text-sm text-muted-foreground">
           <BarChart3 class="mx-auto mb-2 size-10 opacity-50" />
           <p>尚無租戶或用量資料。</p>
+        </div>
+        <div
+          v-else-if="!filteredList.length"
+          class="py-16 text-center text-sm text-muted-foreground"
+        >
+          <BarChart3 class="mx-auto mb-2 size-10 opacity-50" />
+          <p>目前搜尋無符合的租戶。</p>
         </div>
         <template v-else>
           <div class="overflow-x-auto">
@@ -199,10 +255,7 @@ onMounted(load)
               </TableHeader>
               <TableBody>
                 <template v-if="table.getRowModel().rows?.length">
-                  <TableRow
-                    v-for="row in table.getRowModel().rows"
-                    :key="row.id"
-                  >
+                  <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
                     <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
                       <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
                     </TableCell>
@@ -218,7 +271,9 @@ onMounted(load)
               </TableBody>
             </Table>
           </div>
-          <DataTablePagination :table="table" hide-selection-info />
+          <div class="mt-4">
+            <DataTablePagination :table="table" hide-selection-info />
+          </div>
         </template>
       </template>
     </div>

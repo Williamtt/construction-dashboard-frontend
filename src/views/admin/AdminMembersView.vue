@@ -1,16 +1,6 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useVueTable,
-} from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import type { SortingState } from '@tanstack/vue-table'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
 import { ref, computed, onMounted, watch, h } from 'vue'
-import { valueUpdater } from '@/lib/utils'
 import { apiClient } from '@/api/client'
 import { API_PATH } from '@/constants'
 import { useAuthStore } from '@/stores/auth'
@@ -20,14 +10,6 @@ import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -45,7 +27,11 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
+import type { TableListFeatures } from '@/types/data-table'
 import AdminMembersRowActions from '@/views/admin/AdminMembersRowActions.vue'
 import PermissionMatrixForm from '@/components/common/PermissionMatrixForm.vue'
 import type { AdminUserItem } from '@/types'
@@ -71,7 +57,6 @@ type MemberTypeOption = 'internal' | 'external'
 const authStore = useAuthStore()
 const adminStore = useAdminStore()
 const list = ref<AdminUserItem[]>([])
-const rowSelection = ref<Record<string, boolean>>({})
 const loading = ref(true)
 const ALL_MEMBERS_VALUE = '__all__'
 const memberTypeFilter = ref<string>(ALL_MEMBERS_VALUE)
@@ -185,6 +170,41 @@ function formatDate(iso: string | undefined): string {
   })
 }
 
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: true,
+  columnVisibility: false,
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  nameEmail: '姓名 / Email',
+  systemRole: '系統角色',
+  memberType: '成員類型',
+  status: '狀態',
+  createdAt: '建立日期',
+}
+
+const membersGlobalFilterFn: FilterFn<AdminUserItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '').trim().toLowerCase()
+  if (!q) return true
+  const u = row.original
+  const dateStr = formatDate(u.createdAt).toLowerCase()
+  const parts = [
+    u.name ?? '',
+    u.email,
+    systemRoleLabel(u.systemRole).toLowerCase(),
+    u.systemRole.toLowerCase(),
+    memberTypeLabel(u.memberType).toLowerCase(),
+    u.memberType.toLowerCase(),
+    statusLabel(u.status).toLowerCase(),
+    (u.status ?? 'active').toLowerCase(),
+    u.createdAt?.toLowerCase() ?? '',
+    u.updatedAt?.toLowerCase() ?? '',
+    dateStr,
+  ].map((s) => String(s).toLowerCase())
+  return parts.some((x) => x.includes(q))
+}
+
 /** 平台關閉之模組（權限矩陣列鎖定，與租戶資訊頁一致） */
 const platformDisabledModuleIds = ref<PermissionModuleId[]>([])
 
@@ -231,14 +251,6 @@ onMounted(() => {
   void loadMembers()
 })
 
-watch(
-  () => adminStore.selectedTenantId,
-  () => {
-    void loadPlatformModuleEntitlements()
-    void loadMembers()
-  }
-)
-
 function resetForm() {
   form.value = {
     email: '',
@@ -249,6 +261,197 @@ function resetForm() {
   }
   errorMessage.value = ''
 }
+
+const batchDeleteOpen = ref(false)
+const batchDeleteLoading = ref(false)
+const batchDeleteError = ref('')
+function openBatchDelete() {
+  batchDeleteError.value = ''
+  batchDeleteOpen.value = true
+}
+function closeBatchDelete() {
+  batchDeleteOpen.value = false
+  batchDeleteError.value = ''
+}
+
+const selectColumn: ColumnDef<AdminUserItem, unknown> = {
+  id: 'select',
+  header: ({ table }) =>
+    h(Checkbox, {
+      checked: table.getIsAllPageRowsSelected()
+        ? true
+        : table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : false,
+      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+      'aria-label': '全選',
+    }),
+  cell: ({ row }) =>
+    h(Checkbox, {
+      checked: row.getIsSelected(),
+      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+      'aria-label': '選取此列',
+    }),
+  enableSorting: false,
+  enableHiding: false,
+}
+
+const columns = computed<ColumnDef<AdminUserItem, unknown>[]>(() => [
+  selectColumn,
+  {
+    id: 'nameEmail',
+    accessorFn: (row) => `${row.name ?? ''} ${row.email}`,
+    meta: { label: COLUMN_LABELS.nameEmail },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.nameEmail,
+        class: 'text-foreground',
+      }),
+    cell: ({ row }) => {
+      const u = row.original
+      return h('div', { class: 'font-medium text-foreground' }, [
+        h('span', {}, u.name || '—'),
+        h('span', { class: 'block text-xs text-muted-foreground' }, u.email),
+      ])
+    },
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'systemRole',
+    id: 'systemRole',
+    meta: { label: COLUMN_LABELS.systemRole },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.systemRole,
+        class: 'text-foreground',
+      }),
+    cell: ({ row }) =>
+      h('div', { class: 'text-muted-foreground' }, systemRoleLabel(row.original.systemRole)),
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'memberType',
+    id: 'memberType',
+    meta: { label: COLUMN_LABELS.memberType },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.memberType,
+        class: 'text-foreground',
+      }),
+    cell: ({ row }) =>
+      h(
+        Badge,
+        {
+          variant: row.original.memberType === 'external' ? 'secondary' : 'default',
+          class: 'font-normal',
+        },
+        () => memberTypeLabel(row.original.memberType)
+      ),
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'status',
+    id: 'status',
+    meta: { label: COLUMN_LABELS.status },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.status,
+        class: 'text-foreground',
+      }),
+    cell: ({ row }) =>
+      h(
+        Badge,
+        {
+          variant: (row.original.status ?? 'active') === 'suspended' ? 'secondary' : 'default',
+          class: 'font-normal',
+        },
+        () => statusLabel(row.original.status)
+      ),
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'createdAt',
+    id: 'createdAt',
+    meta: { label: COLUMN_LABELS.createdAt },
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: COLUMN_LABELS.createdAt,
+        class: 'text-foreground',
+      }),
+    cell: ({ row }) =>
+      h('div', { class: 'text-sm text-muted-foreground' }, formatDate(row.original.createdAt)),
+    sortingFn: 'alphanumeric',
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    header: () => '',
+    cell: ({ row }) =>
+      h('div', { class: 'flex justify-end' }, [
+        h(AdminMembersRowActions, {
+          row: row.original,
+          showPermissionTemplate: row.original.systemRole !== 'platform_admin',
+          onView: openViewDialog,
+          onToggleStatus: toggleMemberStatus,
+          onPermissionTemplate: openPermissionTemplateDialog,
+        }),
+      ]),
+    enableSorting: false,
+    enableHiding: false,
+  },
+])
+
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
+  getRowId: (row) => row.id,
+  globalFilterFn: membersGlobalFilterFn,
+  initialPageSize: 10,
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
+
+function clearSelection() {
+  table.setRowSelection({})
+}
+
+const membersEmptyText = computed(() => {
+  if (list.value.length === 0 && memberTypeFilter.value !== ALL_MEMBERS_VALUE) {
+    return '此類型尚無成員'
+  }
+  return '沒有符合條件的資料'
+})
+
+const showMembersTable = computed(
+  () =>
+    list.value.length > 0 ||
+    globalFilter.value.trim().length > 0 ||
+    memberTypeFilter.value !== ALL_MEMBERS_VALUE
+)
+
+watch(memberTypeFilter, () => {
+  resetTableState()
+  void loadMembers()
+})
+
+watch(
+  () => adminStore.selectedTenantId,
+  () => {
+    if (authStore.isPlatformAdmin) {
+      resetTableState()
+      void loadPlatformModuleEntitlements()
+      void loadMembers()
+    }
+  }
+)
 
 async function submitCreate() {
   const email = form.value.email?.trim()
@@ -284,6 +487,7 @@ async function submitCreate() {
     await apiClient.post<ApiResponse<AdminUserItem>>(API_PATH.ADMIN_USERS, body)
     dialogOpen.value = false
     resetForm()
+    table.setRowSelection({})
     await loadMembers()
   } catch (err: unknown) {
     const res =
@@ -299,131 +503,6 @@ async function submitCreate() {
 function onOpenChange(open: boolean) {
   dialogOpen.value = open
   if (!open) resetForm()
-}
-
-const batchDeleteOpen = ref(false)
-const batchDeleteLoading = ref(false)
-const batchDeleteError = ref('')
-function openBatchDelete() {
-  batchDeleteError.value = ''
-  batchDeleteOpen.value = true
-}
-function closeBatchDelete() {
-  batchDeleteOpen.value = false
-  batchDeleteError.value = ''
-}
-const sorting = ref<SortingState>([])
-const columns = computed<ColumnDef<AdminUserItem, unknown>[]>(() => [
-  {
-    id: 'select',
-    header: ({ table }) =>
-      h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected()
-          ? true
-          : table.getIsSomePageRowsSelected()
-            ? 'indeterminate'
-            : false,
-        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
-        'aria-label': '全選',
-      }),
-    cell: ({ row }) =>
-      h(Checkbox, {
-        checked: row.getIsSelected(),
-        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
-        'aria-label': '選取此列',
-      }),
-    enableSorting: false,
-  },
-  {
-    id: 'nameEmail',
-    header: '姓名 / Email',
-    cell: ({ row }) => {
-      const u = row.original
-      return h('div', { class: 'font-medium text-foreground' }, [
-        h('span', {}, u.name || '—'),
-        h('span', { class: 'block text-xs text-muted-foreground' }, u.email),
-      ])
-    },
-  },
-  {
-    accessorKey: 'systemRole',
-    header: '系統角色',
-    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, systemRoleLabel(row.original.systemRole)),
-  },
-  {
-    accessorKey: 'memberType',
-    header: '成員類型',
-    cell: ({ row }) =>
-      h(Badge, {
-        variant: row.original.memberType === 'external' ? 'secondary' : 'default',
-        class: 'font-normal',
-      }, () => memberTypeLabel(row.original.memberType)),
-  },
-  {
-    accessorKey: 'status',
-    header: '狀態',
-    cell: ({ row }) =>
-      h(Badge, {
-        variant: (row.original.status ?? 'active') === 'suspended' ? 'secondary' : 'default',
-        class: 'font-normal',
-      }, () => statusLabel(row.original.status)),
-  },
-  {
-    accessorKey: 'createdAt',
-    header: '建立日期',
-    cell: ({ row }) =>
-      h('div', { class: 'text-muted-foreground text-sm' }, formatDate(row.original.createdAt)),
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[80px]' }),
-    cell: ({ row }) =>
-      h('div', { class: 'flex justify-end' }, [
-        h(AdminMembersRowActions, {
-          row: row.original,
-          showPermissionTemplate: row.original.systemRole !== 'platform_admin',
-          onView: openViewDialog,
-          onToggleStatus: toggleMemberStatus,
-          onPermissionTemplate: openPermissionTemplateDialog,
-        }),
-      ]),
-    enableSorting: false,
-  },
-])
-
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  getFilteredRowModel: getFilteredRowModel(),
-  onSortingChange: (updater) => valueUpdater(updater, sorting),
-  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
-  state: {
-    get sorting() {
-      return sorting.value
-    },
-    get rowSelection() {
-      return rowSelection.value
-    },
-  },
-  getRowId: (row) => row.id,
-  initialState: {
-    pagination: { pageSize: 10 },
-  },
-})
-
-const selectedRows = computed(() => table.getSelectedRowModel().rows)
-const hasSelection = computed(() => selectedRows.value.length > 0)
-const selectedCount = computed(() => selectedRows.value.length)
-
-function clearSelection() {
-  rowSelection.value = {}
 }
 
 const permDialogOpen = ref(false)
@@ -515,7 +594,7 @@ async function confirmBatchDelete() {
       await apiClient.delete(`${API_PATH.ADMIN_USERS}/${id}`)
     }
     closeBatchDelete()
-    rowSelection.value = {}
+    table.setRowSelection({})
     await loadMembers()
   } catch (err: unknown) {
     const res =
@@ -530,51 +609,59 @@ async function confirmBatchDelete() {
 </script>
 
 <template>
-  <div class="space-y-6">
+  <div class="space-y-4">
     <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-foreground">成員管理</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">成員管理</h1>
       <p class="text-sm text-muted-foreground">
-        管理本租戶使用者：區分內部／外部成員。可於「權限範本」設定加入專案時複製的模組權限；專案內亦可由租戶／平台管理員覆寫單一成員。
+        管理本租戶使用者：區分內部／外部成員。可於「權限範本」設定加入專案時複製的模組權限；專案內亦可由租戶／平台管理員覆寫單一成員。可搜尋姓名、Email、角色、類型、狀態與日期。
       </p>
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <Select v-model="memberTypeFilter" @update:model-value="loadMembers">
-          <SelectTrigger class="w-[140px] bg-background">
-            <SelectValue placeholder="全部成員" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem :value="ALL_MEMBERS_VALUE">全部成員</SelectItem>
-            <SelectItem value="internal">內部成員</SelectItem>
-            <SelectItem value="external">外部成員</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div class="flex flex-wrap items-center gap-3">
-        <template v-if="hasSelection">
-          <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
-          <ButtonGroup>
-            <Button variant="outline" @click="clearSelection">
-              取消選取
-            </Button>
-            <Button
-              variant="outline"
-              class="text-destructive hover:text-destructive"
-              @click="openBatchDelete"
-            >
-              <Trash2 class="size-4" />
-              批次刪除
-            </Button>
-          </ButtonGroup>
-        </template>
-        <Dialog :open="dialogOpen" @update:open="onOpenChange">
-          <DialogTrigger as-child>
-            <Button class="gap-2">
-              <Plus class="size-4" />
-              新增成員
-            </Button>
-          </DialogTrigger>
+    <div class="flex flex-wrap items-center gap-4">
+      <Select v-model="memberTypeFilter">
+        <SelectTrigger class="w-[140px] shrink-0 bg-background">
+          <SelectValue placeholder="全部成員" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem :value="ALL_MEMBERS_VALUE">全部成員</SelectItem>
+          <SelectItem value="internal">內部成員</SelectItem>
+          <SelectItem value="external">外部成員</SelectItem>
+        </SelectContent>
+      </Select>
+      <div class="min-w-0 flex-1">
+        <DataTableFeatureToolbar
+          v-if="!loading"
+          :table="table"
+          :features="TABLE_FEATURES"
+          :column-labels="COLUMN_LABELS"
+          :has-active-filters="hasActiveFilters"
+          :global-filter="globalFilter"
+          search-placeholder="搜尋姓名、Email、角色、類型、狀態、建立日期…"
+          @reset="resetTableState"
+        >
+          <template #actions>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+              <template v-if="hasSelection">
+                <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+                <ButtonGroup>
+                  <Button variant="outline" @click="clearSelection">取消選取</Button>
+                  <Button
+                    variant="outline"
+                    class="text-destructive hover:text-destructive"
+                    @click="openBatchDelete"
+                  >
+                    <Trash2 class="size-4" />
+                    批次刪除
+                  </Button>
+                </ButtonGroup>
+              </template>
+              <Dialog :open="dialogOpen" @update:open="onOpenChange">
+                <DialogTrigger as-child>
+                  <Button size="sm" class="gap-2">
+                    <Plus class="size-4" />
+                    新增成員
+                  </Button>
+                </DialogTrigger>
           <DialogContent class="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>新增成員</DialogTitle>
@@ -663,6 +750,9 @@ async function confirmBatchDelete() {
             </form>
           </DialogContent>
         </Dialog>
+            </div>
+          </template>
+        </DataTableFeatureToolbar>
       </div>
     </div>
 
@@ -670,42 +760,18 @@ async function confirmBatchDelete() {
       <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
-      <template v-else>
-        <Table>
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
-                  尚無成員，或目前篩選無結果。點擊「新增成員」建立第一筆。
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-        <DataTablePagination :table="table" />
-      </template>
+      <DataTableFeatureSection
+        v-else-if="showMembersTable"
+        :table="table"
+        :empty-text="membersEmptyText"
+      />
+      <div
+        v-else
+        class="flex flex-col items-center justify-center py-16 text-center text-muted-foreground"
+      >
+        <p class="text-sm">尚無成員</p>
+        <p class="mt-1 text-xs">點「新增成員」建立第一筆。</p>
+      </div>
     </div>
 
     <Dialog :open="batchDeleteOpen" @update:open="(v: boolean) => !v && closeBatchDelete()">
@@ -804,12 +870,17 @@ async function confirmBatchDelete() {
     </Dialog>
 
     <!-- 租戶權限範本（新進專案時複製） -->
-    <Dialog :open="permDialogOpen" @update:open="(v: boolean) => !v && closePermissionTemplateDialog()">
+    <Dialog
+      :open="permDialogOpen"
+      @update:open="(v: boolean) => !v && closePermissionTemplateDialog()"
+    >
       <DialogContent
         class="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col gap-4 overflow-hidden sm:max-w-7xl sm:w-full"
       >
         <DialogHeader class="shrink-0">
-          <DialogTitle>權限範本 — {{ permMember?.name || permMember?.email || '成員' }}</DialogTitle>
+          <DialogTitle
+            >權限範本 — {{ permMember?.name || permMember?.email || '成員' }}</DialogTitle
+          >
           <DialogDescription>
             此矩陣為「加入專案時」複製到該成員的預設模組權限；不影響已存在專案內已覆寫的權限。表頭勾選可全選／取消該欄（略過不可編輯的儲存格）。
             標示「平台未開通」之列由平台設定關閉，與租戶資訊頁模組開通狀態一致，無法在此勾選。
@@ -856,7 +927,11 @@ async function confirmBatchDelete() {
             </div>
             <p v-if="permError" class="shrink-0 text-sm text-destructive">{{ permError }}</p>
             <DialogFooter class="shrink-0 border-t border-border pt-4">
-              <Button variant="outline" :disabled="permSaving" @click="closePermissionTemplateDialog">
+              <Button
+                variant="outline"
+                :disabled="permSaving"
+                @click="closePermissionTemplateDialog"
+              >
                 取消
               </Button>
               <Button :disabled="permSaving" @click="savePermissionTemplate">

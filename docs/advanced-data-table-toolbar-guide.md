@@ -98,7 +98,7 @@
    - `useDataTableState()`：`sorting`、`columnFilters`、`columnVisibility`、`rowSelection` + `valueUpdater`。
    - `DataTableShell.vue`：只負責 `Table` 渲染與 `FlexRender`（接收已建立好的 `table`）。
 3. **擴充共用工具列**（優先）：
-   - **`DataTableToolbarShell.vue`**：已定案實作——**`#filters` slot** 放各頁自訂的搜尋／分面／日期；**`#actions` slot**（可選）放右側額外按鈕；內建 **flex-1 間隔**、**重設**（`hasActiveFilters` + `@reset`）、**多欄排序**、**欄位顯示（Command）**。既有簡易版仍為 **`DataTableToolbar.vue`**（單欄搜尋 + 舊版欄位選單）。
+   - **`DataTableToolbarShell.vue`**：已定案實作——**`#filters` slot** 放各頁自訂的搜尋／分面／日期；內建 **flex-1 間隔**、**重設**（`hasActiveFilters` + `@reset`）、**多欄排序**、**欄位顯示（Command）**、最後 **`#actions`**（**新增／上傳／建立** 與批次區放此，整列最右；主要 CTA 建議 **`size="sm"`**）。既有簡易版仍為 **`DataTableToolbar.vue`**（單欄搜尋 + 舊版欄位選單）。完整約定見 **`docs/data-table-list-views.md`**。
    - **`DataTableFacetedFilter.vue`**、**`DataTableMultiSortPopover.vue`**、**`DataTableColumnVisibilityCommand.vue`** 等可與 Shell 組合使用。
    - 升級 **`DataTableViewOptions.vue`**（可選）：可改為 Command 搜尋欄位名（與參考圖一致）；進階頁已改用 `DataTableColumnVisibilityCommand`。
 4. **目錄約定**（建議）：

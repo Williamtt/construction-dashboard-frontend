@@ -40,7 +40,8 @@ export interface LoginLogItem {
 export async function fetchLoginLogs(params?: {
   page?: number
   limit?: number
-  email?: string
+  /** 關鍵字：Email／IP／失敗原因 */
+  q?: string
   success?: boolean
   from?: string
   to?: string
@@ -70,6 +71,8 @@ export async function fetchAuditLogs(params?: {
   action?: string
   resourceType?: string
   tenantId?: string
+  /** 關鍵字：操作者 Email／姓名、動作、資源類型、資源 ID、IP */
+  search?: string
   from?: string
   to?: string
 }) {
@@ -202,7 +205,12 @@ export interface PlatformAnnouncementItem {
   updatedAt: string
 }
 
-export async function fetchPlatformAnnouncements(params?: { page?: number; limit?: number }) {
+export async function fetchPlatformAnnouncements(params?: {
+  page?: number
+  limit?: number
+  /** 關鍵字：標題、內文 */
+  q?: string
+}) {
   const { data } = await apiClient.get<PaginatedResponse<PlatformAnnouncementItem>>(
     API_PATH.PLATFORM_ANNOUNCEMENTS,
     { params }

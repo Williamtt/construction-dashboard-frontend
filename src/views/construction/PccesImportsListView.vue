@@ -1,16 +1,9 @@
 <script setup lang="ts">
-import { ref, computed, watch, onMounted } from 'vue'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
+import { computed, h, ref, watch } from 'vue'
 import { useRoute, RouterLink } from 'vue-router'
 import { isAxiosError } from 'axios'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +19,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
 import { ROUTE_NAME } from '@/constants/routes'
 import {
   listPccesImports,
@@ -38,16 +34,9 @@ import {
 import { getApiErrorMessage } from '@/lib/api-error'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import {
-  Loader2,
-  Plus,
-  ChevronDown,
-  MoreHorizontal,
-  Eye,
-  Trash2,
-  CheckCircle2,
-  Download,
-} from 'lucide-vue-next'
+import type { TableListFeatures } from '@/types/data-table'
+import PccesImportsRowActions from '@/views/construction/PccesImportsRowActions.vue'
+import { Loader2, Plus, ChevronDown, Download } from 'lucide-vue-next'
 
 const route = useRoute()
 const projectId = computed(() => (route.params.projectId as string) ?? '')
@@ -61,6 +50,24 @@ const deleteTarget = ref<PccesImportSummary | null>(null)
 const deleteLoading = ref(false)
 const approvingId = ref<string | null>(null)
 const downloadingChangeListTemplate = ref(false)
+
+/** 僅全文搜尋，無分面／多欄排序／欄位顯示 */
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: false,
+  columnVisibility: false,
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  version: '版次',
+  versionName: '版本名稱',
+  fileName: '檔名',
+  documentType: '類型',
+  counts: '筆數',
+  createdAt: '匯入時間',
+  effective: '生效（日誌）',
+  approval: '核定',
+}
 
 /** 全量 XML 上傳（與明細頁帶入的 context 對齊） */
 const uploadXmlRoute = computed(() => ({
@@ -77,19 +84,6 @@ const excelChangeFromLatestRoute = computed(() => ({
     list.value.length > 0 ? { baseImportId: list.value[0].id } : ({} as Record<string, string>),
 }))
 
-async function fetchList() {
-  if (!projectId.value) return
-  loading.value = true
-  try {
-    list.value = await listPccesImports(projectId.value)
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(() => fetchList())
-watch(projectId, () => fetchList())
-
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('zh-TW', {
     year: 'numeric',
@@ -105,6 +99,46 @@ function formatDailyLogEffective(row: PccesImportSummary) {
   if (!row.approvedAt) return '—'
   if (row.approvalEffectiveAt) return formatDate(row.approvalEffectiveAt)
   return `同核定 ${formatDate(row.approvedAt)}`
+}
+
+const pccesImportsGlobalFilterFn: FilterFn<PccesImportSummary> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const versionStr = `第 ${r.version} 版`.toLowerCase()
+  const label = displayPccesVersionLabel(r).toLowerCase()
+  const file = (r.fileName ?? '').toLowerCase()
+  const docType = (r.documentType ?? '').toLowerCase()
+  const counts = `${r.itemCount}（葉節點 ${r.generalCount}）`.toLowerCase()
+  const createdIso = r.createdAt.toLowerCase()
+  const createdLocal = new Date(r.createdAt).toLocaleString('zh-TW').toLowerCase()
+  const effectiveLower = formatDailyLogEffective(r).toLowerCase()
+  const approval = r.approvedAt ? '已核定' : '待核定'
+  return [
+    versionStr,
+    label,
+    file,
+    docType,
+    counts,
+    createdIso,
+    createdLocal,
+    effectiveLower,
+    approval,
+  ].some((p) => p.includes(q))
+}
+
+async function load() {
+  if (!projectId.value) return
+  loading.value = true
+  try {
+    list.value = await listPccesImports(projectId.value)
+  } catch {
+    list.value = []
+  } finally {
+    loading.value = false
+  }
 }
 
 function openDelete(row: PccesImportSummary) {
@@ -128,7 +162,7 @@ async function approveImport(row: PccesImportSummary) {
   try {
     await approvePccesImport(projectId.value, row.id)
     toast.success(`第 ${row.version} 版已核定`)
-    await fetchList()
+    await load()
   } catch (e) {
     const msg = isAxiosError(e)
       ? (e.response?.data as { error?: { message?: string } })?.error?.message
@@ -163,7 +197,7 @@ async function confirmDelete() {
     await deletePccesImport(projectId.value, deleteTarget.value.id)
     toast.success(`已刪除第 ${deleteTarget.value.version} 版匯入`)
     closeDeleteDialog()
-    await fetchList()
+    await load()
   } catch (e) {
     const msg = isAxiosError(e)
       ? (e.response?.data as { error?: { message?: string } })?.error?.message
@@ -173,12 +207,140 @@ async function confirmDelete() {
     deleteLoading.value = false
   }
 }
+
+const columns = computed<ColumnDef<PccesImportSummary, unknown>[]>(() => [
+  {
+    id: 'version',
+    accessorFn: (r) => r.version,
+    header: () => '版次',
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'tabular-nums font-medium text-muted-foreground' },
+        `第 ${row.original.version} 版`
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'versionName',
+    header: () => '版本名稱',
+    cell: ({ row }) =>
+      h('span', { class: 'font-medium text-foreground' }, displayPccesVersionLabel(row.original)),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'fileName',
+    id: 'fileName',
+    header: () => '檔名',
+    cell: ({ row }) => h('span', { class: 'text-foreground' }, row.original.fileName),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'documentType',
+    id: 'documentType',
+    header: () => '類型',
+    cell: ({ row }) =>
+      h('span', { class: 'text-muted-foreground' }, row.original.documentType ?? '—'),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'counts',
+    header: () => '筆數',
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'tabular-nums text-sm text-muted-foreground' },
+        `${row.original.itemCount}（葉節點 ${row.original.generalCount}）`
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'createdAt',
+    id: 'createdAt',
+    header: () => '匯入時間',
+    cell: ({ row }) =>
+      h('span', { class: 'text-sm text-muted-foreground' }, formatDate(row.original.createdAt)),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'effective',
+    header: () => '生效（日誌）',
+    cell: ({ row }) =>
+      h('span', { class: 'text-xs text-muted-foreground' }, formatDailyLogEffective(row.original)),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'approval',
+    header: () => h('div', { class: 'text-center' }, '核定'),
+    cell: ({ row }) =>
+      row.original.approvedAt
+        ? h('div', { class: 'text-center text-sm text-muted-foreground' }, '已核定')
+        : h('div', { class: 'text-center text-sm font-medium text-foreground' }, '待核定'),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    header: () => '',
+    cell: ({ row }) =>
+      h(PccesImportsRowActions, {
+        row: row.original,
+        projectId: projectId.value,
+        showApprove: perm.canUpdate.value && !row.original.approvedAt,
+        canDelete: perm.canDelete.value,
+        approvingId: approvingId.value,
+        onApprove: approveImport,
+        onDelete: openDelete,
+      }),
+    enableSorting: false,
+    enableHiding: false,
+  },
+])
+
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
+  getRowId: (row) => row.id,
+  globalFilterFn: pccesImportsGlobalFilterFn,
+  enableRowSelection: false,
+  initialPageSize: 20,
+})
+
+watch(
+  projectId,
+  (id) => {
+    if (!id) {
+      list.value = []
+      loading.value = false
+      return
+    }
+    resetTableState()
+    void load()
+  },
+  { immediate: true }
+)
+
+const importsEmptyText = computed(() => {
+  const q = globalFilter.value.trim()
+  if (list.value.length === 0) {
+    return q ? '沒有符合條件的資料' : '尚無匯入紀錄'
+  }
+  return '沒有符合條件的資料'
+})
 </script>
 
 <template>
   <div class="min-w-0 space-y-4">
     <div>
-      <h1 class="text-xl font-semibold text-foreground">PCCES 匯入紀錄</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">PCCES 匯入紀錄</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         依版次新到舊排列；第 1 版顯示為「原契約」，其餘版本名稱於上傳或 Excel
         確認時自訂，可於明細修改。各版可另填「核定生效時間」供施工日誌依填表日對應契約欄位版本。可刪除整次匯入（軟刪除，無法復原）。
@@ -186,164 +348,106 @@ async function confirmDelete() {
     </div>
 
     <div v-if="!perm.canRead.value" class="text-sm text-muted-foreground">
-      您沒有 PCCES 匯入檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs">construction.pcces</code>）。
+      您沒有 PCCES 匯入檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs"
+        >construction.pcces</code
+      >）。
     </div>
 
     <template v-else>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <Button
-          variant="outline"
-          :disabled="downloadingChangeListTemplate || loading"
-          @click="downloadChangeListTemplateFile"
-        >
-          <Download
-            class="size-4"
-            :class="{ 'animate-pulse': downloadingChangeListTemplate }"
-            aria-hidden="true"
-          />
-          {{ downloadingChangeListTemplate ? '下載中…' : '下載樣板' }}
-        </Button>
-        <template v-if="perm.canCreate.value">
-          <Button v-if="loading" disabled class="gap-2">
-            <Loader2 class="size-4 animate-spin" />
-            載入中…
-          </Button>
-          <Button v-else-if="list.length === 0" class="gap-2" as-child>
-            <RouterLink :to="uploadXmlRoute" class="inline-flex items-center gap-2">
-              <Plus class="size-4" />
-              首次匯入（XML）
-            </RouterLink>
-          </Button>
-          <DropdownMenu v-else>
-            <DropdownMenuTrigger as-child>
-              <Button type="button" class="gap-2">
-                <Plus class="size-4" />
-                新增版本
-                <ChevronDown class="size-4 opacity-70" aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" class="w-[min(20rem,calc(100vw-2rem))]">
-              <DropdownMenuItem as-child class="cursor-pointer">
-                <RouterLink :to="uploadXmlRoute" class="flex w-full flex-col items-start gap-0.5 py-2">
-                  <span class="font-medium">上傳 PCCES XML</span>
-                  <span class="text-xs font-normal text-muted-foreground">
-                    完整 eTender 標單；與 Excel 變更產生的版本不同
-                  </span>
-                </RouterLink>
-              </DropdownMenuItem>
-              <DropdownMenuItem as-child class="cursor-pointer">
-                <RouterLink
-                  :to="excelChangeFromLatestRoute"
-                  class="flex w-full flex-col items-start gap-0.5 py-2"
-                >
-                  <span class="font-medium">Excel 變更</span>
-                  <span class="text-xs font-normal text-muted-foreground">
-                    以目前列表最上方（最新）版本為基底；若要以其他版為基底，請至該版明細頁使用「Excel 變更」
-                  </span>
-                </RouterLink>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </template>
-      </div>
-
-      <div
-        class="min-w-0 overflow-x-auto rounded-lg border border-border bg-card p-4 overscroll-x-contain"
+      <DataTableFeatureToolbar
+        v-if="!loading && projectId"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋版次、版本名稱、檔名、類型、筆數、匯入／生效時間、核定狀態…"
+        @reset="resetTableState"
       >
+        <template #actions>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              :disabled="downloadingChangeListTemplate || loading"
+              @click="downloadChangeListTemplateFile"
+            >
+              <Download
+                class="size-4"
+                :class="{ 'animate-pulse': downloadingChangeListTemplate }"
+                aria-hidden="true"
+              />
+              {{ downloadingChangeListTemplate ? '下載中…' : '下載樣板' }}
+            </Button>
+            <template v-if="perm.canCreate.value">
+              <Button v-if="list.length === 0" size="sm" class="gap-2" as-child>
+                <RouterLink :to="uploadXmlRoute" class="inline-flex items-center gap-2">
+                  <Plus class="size-4" />
+                  首次匯入（XML）
+                </RouterLink>
+              </Button>
+              <DropdownMenu v-else>
+                <DropdownMenuTrigger as-child>
+                  <Button type="button" size="sm" class="gap-2">
+                    <Plus class="size-4" />
+                    新增版本
+                    <ChevronDown class="size-4 opacity-70" aria-hidden="true" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" class="w-[min(20rem,calc(100vw-2rem))]">
+                  <DropdownMenuItem as-child class="cursor-pointer">
+                    <RouterLink
+                      :to="uploadXmlRoute"
+                      class="flex w-full flex-col items-start gap-0.5 py-2"
+                    >
+                      <span class="font-medium">上傳 PCCES XML</span>
+                      <span class="text-xs font-normal text-muted-foreground">
+                        完整 eTender 標單；與 Excel 變更產生的版本不同
+                      </span>
+                    </RouterLink>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem as-child class="cursor-pointer">
+                    <RouterLink
+                      :to="excelChangeFromLatestRoute"
+                      class="flex w-full flex-col items-start gap-0.5 py-2"
+                    >
+                      <span class="font-medium">Excel 變更</span>
+                      <span class="text-xs font-normal text-muted-foreground">
+                        以目前列表最上方（最新）版本為基底；若要以其他版為基底，請至該版明細頁使用「Excel
+                        變更」
+                      </span>
+                    </RouterLink>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </template>
+          </div>
+        </template>
+      </DataTableFeatureToolbar>
+
+      <div class="rounded-lg border border-border bg-card">
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <div v-else-if="list.length === 0" class="text-sm text-muted-foreground">
-          尚無匯入紀錄。
+        <DataTableFeatureSection
+          v-else-if="projectId && (list.length > 0 || globalFilter.trim())"
+          :table="table"
+          hide-selection-info
+          :empty-text="importsEmptyText"
+        />
+        <div
+          v-else-if="!loading"
+          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
+        >
+          <p class="text-sm">尚無匯入紀錄。</p>
           <RouterLink
             v-if="perm.canCreate.value"
             :to="uploadXmlRoute"
-            class="text-primary underline-offset-4 hover:underline"
+            class="mt-2 text-sm text-primary underline-offset-4 hover:underline"
           >
             前往首次匯入
           </RouterLink>
         </div>
-        <!-- 由卡片負責水平捲動，避免寬表格撐開 main 造成整頁橫向捲動 -->
-        <Table v-else :scroll-container="false">
-          <TableHeader>
-            <TableRow>
-              <TableHead class="min-w-[8rem]">版次</TableHead>
-              <TableHead>版本名稱</TableHead>
-              <TableHead>檔名</TableHead>
-              <TableHead>類型</TableHead>
-              <TableHead>筆數</TableHead>
-              <TableHead>匯入時間</TableHead>
-              <TableHead class="min-w-[10rem]">生效（日誌）</TableHead>
-              <TableHead class="text-center">核定</TableHead>
-              <TableHead class="text-end">操作</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow v-for="row in list" :key="row.id">
-              <TableCell class="tabular-nums font-medium text-muted-foreground">
-                第 {{ row.version }} 版
-              </TableCell>
-              <TableCell class="font-medium text-foreground">
-                {{ displayPccesVersionLabel(row) }}
-              </TableCell>
-              <TableCell>{{ row.fileName }}</TableCell>
-              <TableCell class="text-muted-foreground">{{ row.documentType ?? '—' }}</TableCell>
-              <TableCell class="tabular-nums text-sm text-muted-foreground">
-                {{ row.itemCount }}（葉節點 {{ row.generalCount }}）
-              </TableCell>
-              <TableCell class="text-sm text-muted-foreground">{{ formatDate(row.createdAt) }}</TableCell>
-              <TableCell class="text-xs text-muted-foreground">{{ formatDailyLogEffective(row) }}</TableCell>
-              <TableCell class="text-center text-sm">
-                <span v-if="row.approvedAt" class="text-muted-foreground">已核定</span>
-                <span v-else class="font-medium text-foreground">待核定</span>
-              </TableCell>
-              <TableCell class="text-end">
-                <DropdownMenu>
-                  <DropdownMenuTrigger as-child>
-                    <Button variant="ghost" size="icon" class="size-8 shrink-0" aria-label="更多">
-                      <MoreHorizontal class="size-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" class="w-44">
-                    <DropdownMenuItem as-child class="cursor-pointer gap-2">
-                      <RouterLink
-                        :to="{
-                          name: ROUTE_NAME.PROJECT_CONSTRUCTION_PCCES_VERSION_DETAIL,
-                          params: { projectId, importId: row.id },
-                        }"
-                        class="flex items-center gap-2"
-                      >
-                        <Eye class="size-4" />
-                        查看工項
-                      </RouterLink>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="perm.canUpdate.value && !row.approvedAt"
-                      class="cursor-pointer gap-2"
-                      :disabled="approvingId === row.id"
-                      @click="approveImport(row)"
-                    >
-                      <Loader2
-                        v-if="approvingId === row.id"
-                        class="size-4 animate-spin"
-                      />
-                      <CheckCircle2 v-else class="size-4" />
-                      核定此版本
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      v-if="perm.canDelete.value"
-                      class="cursor-pointer gap-2 text-destructive focus:text-destructive"
-                      @click="openDelete(row)"
-                    >
-                      <Trash2 class="size-4" />
-                      刪除此版本
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
       </div>
     </template>
 
@@ -352,7 +456,8 @@ async function confirmDelete() {
         <AlertDialogHeader>
           <AlertDialogTitle>刪除此匯入版本？</AlertDialogTitle>
           <AlertDialogDescription>
-            將一併移除第 {{ deleteTarget?.version }} 版的所有工項與歸檔 XML（軟刪除，後台無法復原）。
+            將一併移除第 {{ deleteTarget?.version }} 版的所有工項與歸檔
+            XML（軟刪除，後台無法復原）。
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

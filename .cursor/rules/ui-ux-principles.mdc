@@ -49,6 +49,7 @@ alwaysApply: true
 - **表格上方工具列（緊貼表格區塊之上）**
   - 外層：`flex flex-wrap items-center gap-3`；**無左側篩選時**用 `justify-end`，主要動作（**新增／上傳／建立**）放在**最右側**，與檔案管理「新增檔案」、報修「新增報修」同一邏輯。
   - **有左側篩選時**：外層改 `justify-between`，左篩選、右側為「已選 + ButtonGroup + 新增」見 §四。
+  - **TanStack 標準工具列**（**`DataTableFeatureToolbar`**／**`DataTableToolbarShell`**）：主要 CTA 一律放 **`#actions`**；shell 內建順序為 **…多欄排序 → 欄位顯示 → `#actions`**，故 **新增／上傳／建立** 在整列 **最右**（詳見 **`data-table-list-views.mdc`** 與 **`docs/data-table-list-views.md`**）。該按鈕請設 **`size="sm"`** 與列上 `h-8` 控制項對齊。
 - **表格區塊**
   - 使用 `rounded-lg border border-border bg-card p-4` 包住表格（與 §三「表格區塊邊框」一致）；**不要**再用 Card 包一層標題+表（避免雙層 Card）。
   - 載入中：區塊內 `flex items-center justify-center py-12 text-muted-foreground`，`Loader2` 建議 `size-8`（與檔案管理一致）。
@@ -58,7 +59,8 @@ alwaysApply: true
 
 ## 二、按鈕（Button）
 
-- **預設尺寸**：全站 Button 預設為 `size="sm"`（已在 `src/components/ui/button/index.ts` 的 `defaultVariants` 設定）。不需在每個按鈕重複寫 `size="sm"`，除非要使用 `size="icon"` 或 `size="lg"`。
+- **預設尺寸**：依 **`src/components/ui/button/index.ts`** 的 `defaultVariants`；一般頁面不需為了「變小」而到處覆寫。
+- **列表頁表格上方工具列（DataTableFeatureToolbar 列）**：**新增／上傳／建立** 等主要按鈕請**明確**設 **`size="sm"`**，與該列搜尋框、重設鈕等 **`h-8`** 高度一致（見 **`data-table-list-views.mdc`**）。
 - **多選工具列按鈕**：使用 **ButtonGroup** 元件包住多個按鈕（例如「取消選取」「批次刪除」），勿自訂外層 `div` 加 border 或額外 class；按鈕用 `variant="outline"` 即可，ButtonGroup 會處理視覺群組。
   - 引用：`import { ButtonGroup } from '@/components/ui/button-group'`
 
@@ -122,7 +124,7 @@ alwaysApply: true
 - [ ] **專案內路徑**：連結使用 `buildProjectPath(projectId, pathSuffix)` 或具名路由，不手動拼字串。
 - [ ] **表格**：第一欄為勾選、操作收合在「更多」、檔案類有檔案大小與檔名 icon；有篩選時不雙重 Card；寬表不出現整頁橫向捲動（見 **table-scroll-layout.mdc**）。
 - [ ] **多選**：多選工具列在表格外上方、用 ButtonGroup；篩選在左、已選+ButtonGroup+新增/上傳**全部在右**相鄰。
-- [ ] **按鈕**：未特別需求時不覆寫 size（預設 sm）；多選列使用 ButtonGroup。
+- [ ] **按鈕**：多選列使用 ButtonGroup；使用 **DataTableFeatureToolbar** 時，**新增／上傳** 設 **`size="sm"`** 且放在 **`#actions`**（最右）。
 - [ ] **主題**：未使用硬編碼色、淺色／深色皆已檢查可讀性。
 - [ ] **API**：使用專案內 API client、錯誤依 api-contract 處理（如 401 導向登入）。
 - [ ] **元件**：有對應共用元件時一律使用（如分頁用 DataTablePagination、統計卡用 StateCard），未在頁面內重做相同 UI。

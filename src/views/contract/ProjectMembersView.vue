@@ -1,28 +1,10 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import {
-  getCoreRowModel,
-  getFilteredRowModel,
-  getPaginationRowModel,
-  getSortedRowModel,
-  useVueTable,
-} from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import type { SortingState } from '@tanstack/vue-table'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
 import { ref, computed, watch, h } from 'vue'
 import { useRoute } from 'vue-router'
-import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -47,11 +29,18 @@ import {
   removeProjectMember,
 } from '@/api/project'
 import { getAdminTenantModuleEntitlements } from '@/api/admin'
-import { effectivePlatformDisabledModuleIds, type PermissionModuleId } from '@/constants/permission-modules'
+import {
+  effectivePlatformDisabledModuleIds,
+  type PermissionModuleId,
+} from '@/constants/permission-modules'
 import type { ProjectMemberItem, ProjectMemberAvailableItem } from '@/types'
+import type { TableListFeatures } from '@/types/data-table'
 import { Plus, Loader2 } from 'lucide-vue-next'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
 import ProjectMembersRowActions from '@/views/contract/ProjectMembersRowActions.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
 import PermissionMatrixForm from '@/components/common/PermissionMatrixForm.vue'
 import {
   fetchProjectMemberPermissionOverrides,
@@ -105,8 +94,52 @@ const removing = ref(false)
 
 const togglingStatusId = ref<string | null>(null)
 
-const sorting = ref<SortingState>([])
-const rowSelection = ref<Record<string, boolean>>({})
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: true,
+  columnVisibility: true,
+}
+
+const COLUMN_LABELS: Record<string, string> = {
+  name: '姓名',
+  email: 'Email',
+  systemRole: '系統角色',
+  memberType: '成員類型',
+  accountStatus: '帳號狀態',
+  projectStatus: '專案狀態',
+}
+
+const SYSTEM_ROLE_FACET_OPTIONS = [
+  { value: 'platform_admin', label: '平台管理員' },
+  { value: 'tenant_admin', label: '租戶管理員' },
+  { value: 'project_user', label: '專案使用者' },
+] as const
+
+const MEMBER_TYPE_FACET_OPTIONS = [
+  { value: 'internal', label: '內部成員' },
+  { value: 'external', label: '外部成員' },
+] as const
+
+const ACCOUNT_STATUS_FACET_OPTIONS = [
+  { value: 'active', label: '使用中' },
+  { value: 'suspended', label: '已停用' },
+] as const
+
+const PROJECT_STATUS_FACET_OPTIONS = [
+  { value: 'active', label: '使用中' },
+  { value: 'suspended', label: '已停用' },
+] as const
+
+const membersGlobalFilterFn: FilterFn<ProjectMemberItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const m = row.original
+  const name = (m.user.name ?? '').toLowerCase()
+  const email = m.user.email.toLowerCase()
+  return name.includes(q) || email.includes(q)
+}
 
 function systemRoleLabel(role: string): string {
   const map: Record<string, string> = {
@@ -206,6 +239,163 @@ function closeRemoveDialog() {
   removingMember.value = null
 }
 
+const selectColumn: ColumnDef<ProjectMemberItem, unknown> = {
+  id: 'select',
+  header: ({ table }) =>
+    h(Checkbox, {
+      checked: table.getIsAllPageRowsSelected()
+        ? true
+        : table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : false,
+      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+      'aria-label': '全選',
+    }),
+  cell: ({ row }) =>
+    h(Checkbox, {
+      checked: row.getIsSelected(),
+      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+      'aria-label': '選取此列',
+    }),
+  enableSorting: false,
+  enableHiding: false,
+}
+
+const columns = computed<ColumnDef<ProjectMemberItem, unknown>[]>(() => {
+  const dataCols: ColumnDef<ProjectMemberItem, unknown>[] = [
+    {
+      accessorKey: 'user.name',
+      id: 'name',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: '姓名', class: 'text-foreground' }),
+      meta: { label: '姓名', searchable: true },
+      cell: ({ row }) =>
+        h('div', { class: 'font-medium text-foreground' }, row.original.user.name || '—'),
+    },
+    {
+      accessorKey: 'user.email',
+      id: 'email',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: 'Email', class: 'text-foreground' }),
+      meta: { label: 'Email', searchable: true },
+      cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.user.email),
+    },
+    {
+      accessorKey: 'user.systemRole',
+      id: 'systemRole',
+      filterFn: 'arrIncludesSome',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: '系統角色', class: 'text-foreground' }),
+      meta: {
+        label: '系統角色',
+        filter: {
+          type: 'faceted',
+          title: '系統角色',
+          options: [...SYSTEM_ROLE_FACET_OPTIONS],
+        },
+      },
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, systemRoleLabel(row.original.user.systemRole)),
+    },
+    {
+      accessorKey: 'user.memberType',
+      id: 'memberType',
+      filterFn: 'arrIncludesSome',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: '成員類型', class: 'text-foreground' }),
+      meta: {
+        label: '成員類型',
+        filter: {
+          type: 'faceted',
+          title: '成員類型',
+          options: [...MEMBER_TYPE_FACET_OPTIONS],
+        },
+      },
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, memberTypeLabel(row.original.user.memberType)),
+    },
+    {
+      accessorKey: 'user.status',
+      id: 'accountStatus',
+      filterFn: 'arrIncludesSome',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: '帳號狀態', class: 'text-foreground' }),
+      meta: {
+        label: '帳號狀態',
+        filter: {
+          type: 'faceted',
+          title: '帳號狀態',
+          options: [...ACCOUNT_STATUS_FACET_OPTIONS],
+        },
+      },
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, statusLabel(row.original.user.status)),
+    },
+    {
+      accessorKey: 'status',
+      id: 'projectStatus',
+      filterFn: 'arrIncludesSome',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, { column, title: '專案狀態', class: 'text-foreground' }),
+      meta: {
+        label: '專案狀態',
+        filter: {
+          type: 'faceted',
+          title: '專案狀態',
+          options: [...PROJECT_STATUS_FACET_OPTIONS],
+        },
+      },
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, projectStatusLabel(row.original.status)),
+    },
+    {
+      id: 'actions',
+      header: () => h('div', { class: 'w-[4rem]' }),
+      cell: ({ row }) => {
+        const showPermMatrix =
+          canManageMemberPermissionMatrix.value && row.original.user.systemRole !== 'platform_admin'
+        const anyRowAction = canUpdateMembers.value || canDeleteMembers.value || showPermMatrix
+        if (!anyRowAction) {
+          return h('span', { class: 'text-xs text-muted-foreground' }, '—')
+        }
+        return h(ProjectMembersRowActions, {
+          row: row.original,
+          togglingStatusId: togglingStatusId.value,
+          canUpdateMembership: canUpdateMembers.value,
+          canRemoveMember: canDeleteMembers.value,
+          canEditPermissions: showPermMatrix,
+          onToggleStatus: (r: ProjectMemberItem) => toggleMemberStatus(r),
+          onRemove: (r: ProjectMemberItem) => openRemoveDialog(r),
+          onEditPermissions: (r: ProjectMemberItem) => openProjectPermDialog(r),
+        })
+      },
+      enableSorting: false,
+      enableHiding: false,
+    },
+  ]
+  const withSelect =
+    canUpdateMembers.value || canDeleteMembers.value ? [selectColumn, ...dataCols] : dataCols
+  return withSelect
+})
+
+const hasSelectColumn = computed(() => canUpdateMembers.value || canDeleteMembers.value)
+
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
+  getRowId: (row) => row.id,
+  globalFilterFn: membersGlobalFilterFn,
+  enableRowSelection: hasSelectColumn,
+})
+
+const selectedRows = computed(() => table.getSelectedRowModel().rows)
+const hasSelection = computed(() => selectedRows.value.length > 0)
+
+function clearSelection() {
+  table.setRowSelection({})
+}
+
 async function confirmRemove() {
   const member = removingMember.value
   if (!member) return
@@ -214,7 +404,7 @@ async function confirmRemove() {
   try {
     await removeProjectMember(getProjectId(), member.userId)
     closeRemoveDialog()
-    rowSelection.value = {}
+    table.setRowSelection({})
     await loadMembers()
   } catch {
     errorMessage.value = '移除失敗'
@@ -315,138 +505,6 @@ async function resetProjectPermOverrides() {
   }
 }
 
-const selectColumn: ColumnDef<ProjectMemberItem, unknown> = {
-  id: 'select',
-  header: ({ table }) =>
-    h(Checkbox, {
-      checked: table.getIsAllPageRowsSelected()
-        ? true
-        : table.getIsSomePageRowsSelected()
-          ? 'indeterminate'
-          : false,
-      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
-      'aria-label': '全選',
-    }),
-  cell: ({ row }) =>
-    h(Checkbox, {
-      checked: row.getIsSelected(),
-      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
-      'aria-label': '選取此列',
-    }),
-  enableSorting: false,
-}
-
-const columns = computed<ColumnDef<ProjectMemberItem, unknown>[]>(() => {
-  const dataCols: ColumnDef<ProjectMemberItem, unknown>[] = [
-    {
-      accessorKey: 'user.name',
-      id: 'name',
-      header: () => '姓名',
-      cell: ({ row }) =>
-        h('div', { class: 'font-medium text-foreground' }, row.original.user.name || '—'),
-    },
-    {
-      accessorKey: 'user.email',
-      id: 'email',
-      header: () => 'Email',
-      cell: ({ row }) =>
-        h('div', { class: 'text-muted-foreground' }, row.original.user.email),
-    },
-    {
-      accessorKey: 'user.systemRole',
-      id: 'systemRole',
-      header: () => '系統角色',
-      cell: ({ row }) =>
-        h('div', { class: 'text-foreground' }, systemRoleLabel(row.original.user.systemRole)),
-    },
-    {
-      accessorKey: 'user.memberType',
-      id: 'memberType',
-      header: () => '成員類型',
-      cell: ({ row }) =>
-        h('div', { class: 'text-foreground' }, memberTypeLabel(row.original.user.memberType)),
-    },
-    {
-      accessorKey: 'user.status',
-      id: 'accountStatus',
-      header: () => '帳號狀態',
-      cell: ({ row }) =>
-        h('div', { class: 'text-foreground' }, statusLabel(row.original.user.status)),
-    },
-    {
-      accessorKey: 'status',
-      id: 'projectStatus',
-      header: () => '專案狀態',
-      cell: ({ row }) =>
-        h('div', { class: 'text-foreground' }, projectStatusLabel(row.original.status)),
-    },
-    {
-      id: 'actions',
-      header: () => h('div', { class: 'w-[4rem]' }),
-      cell: ({ row }) => {
-        const showPermMatrix =
-          canManageMemberPermissionMatrix.value &&
-          row.original.user.systemRole !== 'platform_admin'
-        const anyRowAction =
-          canUpdateMembers.value || canDeleteMembers.value || showPermMatrix
-        if (!anyRowAction) {
-          return h('span', { class: 'text-xs text-muted-foreground' }, '—')
-        }
-        return h(ProjectMembersRowActions, {
-          row: row.original,
-          togglingStatusId: togglingStatusId.value,
-          canUpdateMembership: canUpdateMembers.value,
-          canRemoveMember: canDeleteMembers.value,
-          canEditPermissions: showPermMatrix,
-          onToggleStatus: (r: ProjectMemberItem) => toggleMemberStatus(r),
-          onRemove: (r: ProjectMemberItem) => openRemoveDialog(r),
-          onEditPermissions: (r: ProjectMemberItem) => openProjectPermDialog(r),
-        })
-      },
-      enableSorting: false,
-    },
-  ]
-  const withSelect =
-    canUpdateMembers.value || canDeleteMembers.value ? [selectColumn, ...dataCols] : dataCols
-  return withSelect
-})
-
-const columnCount = computed(() => columns.value.length)
-
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  getPaginationRowModel: getPaginationRowModel(),
-  getFilteredRowModel: getFilteredRowModel(),
-  getSortedRowModel: getSortedRowModel(),
-  onSortingChange: (updater) => valueUpdater(updater, sorting),
-  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
-  state: {
-    get sorting() {
-      return sorting.value
-    },
-    get rowSelection() {
-      return rowSelection.value
-    },
-  },
-  getRowId: (row) => row.id,
-  initialState: {
-    pagination: { pageSize: 10 },
-  },
-})
-
-const selectedRows = computed(() => table.getSelectedRowModel().rows)
-const hasSelection = computed(() => selectedRows.value.length > 0)
-
-function clearSelection() {
-  rowSelection.value = {}
-}
-
 const batchSuspendOpen = ref(false)
 const batchSuspendLoading = ref(false)
 
@@ -471,7 +529,7 @@ async function confirmBatchSuspend() {
       await setProjectMemberStatus(getProjectId(), r.original.userId, 'suspended')
     }
     closeBatchSuspend()
-    rowSelection.value = {}
+    table.setRowSelection({})
     await loadMembers()
   } catch {
     errorMessage.value = '批次停用失敗'
@@ -537,7 +595,7 @@ async function confirmBatchRemove() {
       await removeProjectMember(getProjectId(), m.userId)
     }
     closeBatchRemove()
-    rowSelection.value = {}
+    table.setRowSelection({})
     await loadMembers()
   } catch {
     errorMessage.value = '批次移除失敗'
@@ -546,110 +604,99 @@ async function confirmBatchRemove() {
   }
 }
 
-watch(projectId, (id) => {
-  if (id) {
-    void loadMembers()
-    void loadPlatformModuleEntitlements()
-  }
-}, { immediate: true })
+watch(
+  projectId,
+  (id) => {
+    if (id) {
+      void loadMembers()
+      void loadPlatformModuleEntitlements()
+    }
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
   <div class="space-y-4">
-    <p class="text-sm text-muted-foreground">
-      專案成員來自租戶成員，可將同租戶的成員加入此專案；一成員可參與多個專案。
-      <template v-if="canShowMemberToolbar">
-        成員名單與新增／停用／移除依「專案成員」模組權限；租戶／平台管理員不受細粒度限制。
-        「專案權限」矩陣覆寫僅租戶管理員或平台管理員可編輯。
-      </template>
-      <template v-else-if="canReadMembers">您目前僅能檢視名單。</template>
-    </p>
-
-    <!-- 工具列：已選 + ButtonGroup + 新增成員在右 -->
-    <div
-      v-if="canShowMemberToolbar"
-      class="flex flex-wrap items-center justify-end gap-3"
-    >
-      <template v-if="hasSelection && (canUpdateMembers || canDeleteMembers)">
-        <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
-        <ButtonGroup>
-          <Button variant="outline" @click="clearSelection">取消選取</Button>
-          <Button
-            v-if="canUpdateMembers"
-            variant="outline"
-            :disabled="!selectedRows.some((r) => r.original.status === 'active')"
-            @click="openBatchSuspend"
-          >
-            批次停用
-          </Button>
-          <Button
-            v-if="canDeleteMembers"
-            variant="outline"
-            class="text-destructive hover:text-destructive"
-            @click="openBatchRemove"
-          >
-            批次移除
-          </Button>
-        </ButtonGroup>
-      </template>
-      <Button v-if="canCreateMembers" variant="default" @click="openAddDialog">
-        <Plus class="mr-2 size-4" />
-        新增成員
-      </Button>
-    </div>
-
-    <!-- 表格區塊（無 Card 包覆，依規範使用 rounded-lg border border-border bg-card p-4） -->
-    <div class="rounded-lg border border-border bg-card p-4">
-      <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
-      <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
-        <Loader2 class="size-8 animate-spin" />
-      </div>
-      <template v-else>
-        <Table v-if="list.length > 0">
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="columnCount" class="h-24 text-center text-muted-foreground">
-                  尚無專案成員
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-        <template v-if="list.length > 0">
-          <DataTablePagination :table="table" />
+    <div>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">專案成員</h1>
+      <p class="mt-1 text-sm text-muted-foreground">
+        專案成員來自租戶成員，可將同租戶的成員加入此專案；一成員可參與多個專案。
+        <template v-if="canShowMemberToolbar">
+          成員名單與新增／停用／移除依「專案成員」模組權限；租戶／平台管理員不受細粒度限制。
+          「專案權限」矩陣覆寫僅租戶管理員或平台管理員可編輯。
         </template>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
-        >
-          <p class="text-sm">尚無專案成員</p>
-          <p v-if="canCreateMembers" class="mt-1 text-xs">請從「新增成員」加入同租戶的成員</p>
-        </div>
-      </template>
+        <template v-else-if="canReadMembers">您目前僅能檢視名單。</template>
+      </p>
     </div>
+
+    <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
+    <template v-else>
+      <DataTableFeatureToolbar
+        v-if="!loading"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋姓名或 Email…"
+        @reset="resetTableState"
+      >
+        <template #actions>
+          <div v-if="canShowMemberToolbar" class="flex flex-wrap items-center gap-3">
+            <template v-if="hasSelection && (canUpdateMembers || canDeleteMembers)">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" @click="clearSelection">取消選取</Button>
+                <Button
+                  v-if="canUpdateMembers"
+                  variant="outline"
+                  :disabled="!selectedRows.some((r) => r.original.status === 'active')"
+                  @click="openBatchSuspend"
+                >
+                  批次停用
+                </Button>
+                <Button
+                  v-if="canDeleteMembers"
+                  variant="outline"
+                  class="text-destructive hover:text-destructive"
+                  @click="openBatchRemove"
+                >
+                  批次移除
+                </Button>
+              </ButtonGroup>
+            </template>
+            <Button
+              v-if="canCreateMembers && !hasSelection"
+              size="sm"
+              variant="default"
+              @click="openAddDialog"
+            >
+              <Plus class="mr-2 size-4" />
+              新增成員
+            </Button>
+          </div>
+        </template>
+      </DataTableFeatureToolbar>
+
+      <div class="rounded-lg border border-border bg-card">
+        <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 class="size-8 animate-spin" />
+        </div>
+        <template v-else>
+          <DataTableFeatureSection
+            v-if="list.length > 0"
+            :table="table"
+            :hide-selection-info="!hasSelectColumn"
+            empty-text="沒有符合條件的資料"
+          />
+          <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
+            <p class="text-sm">尚無專案成員</p>
+            <p v-if="canCreateMembers" class="mt-1 text-xs">請從「新增成員」加入同租戶的成員</p>
+          </div>
+        </template>
+      </div>
+    </template>
 
     <!-- 新增成員 Dialog -->
     <Dialog v-model:open="addDialogOpen" @update:open="(v: boolean) => !v && closeAddDialog()">
@@ -674,28 +721,22 @@ watch(projectId, (id) => {
                 <SelectValue placeholder="請選擇成員" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem
-                  v-for="u in availableUsers"
-                  :key="u.id"
-                  :value="u.id"
-                >
+                <SelectItem v-for="u in availableUsers" :key="u.id" :value="u.id">
                   {{ u.name || u.email }} ({{ u.email }})
                 </SelectItem>
               </SelectContent>
             </Select>
-            <p v-if="availableUsers.length === 0 && !availableLoading" class="text-xs text-muted-foreground">
+            <p
+              v-if="availableUsers.length === 0 && !availableLoading"
+              class="text-xs text-muted-foreground"
+            >
               無可加入的成員（同租戶成員已全在專案中，或專案未綁定租戶）
             </p>
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" @click="closeAddDialog">
-            取消
-          </Button>
-          <Button
-            :disabled="!selectedUserId || adding"
-            @click="submitAdd"
-          >
+          <Button variant="outline" @click="closeAddDialog"> 取消 </Button>
+          <Button :disabled="!selectedUserId || adding" @click="submitAdd">
             <Loader2 v-if="adding" class="mr-2 size-4 animate-spin" />
             新增
           </Button>
@@ -704,23 +745,22 @@ watch(projectId, (id) => {
     </Dialog>
 
     <!-- 移除確認 Dialog -->
-    <Dialog v-model:open="removeDialogOpen" @update:open="(v: boolean) => !v && closeRemoveDialog()">
+    <Dialog
+      v-model:open="removeDialogOpen"
+      @update:open="(v: boolean) => !v && closeRemoveDialog()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>移除專案成員</DialogTitle>
           <DialogDescription>
-            確定要將「{{ removingMember?.user.name || removingMember?.user.email }}」移出此專案嗎？移出後該成員將無法再存取此專案。
+            確定要將「{{
+              removingMember?.user.name || removingMember?.user.email
+            }}」移出此專案嗎？移出後該成員將無法再存取此專案。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
-          <Button variant="outline" @click="closeRemoveDialog">
-            取消
-          </Button>
-          <Button
-            variant="destructive"
-            :disabled="removing"
-            @click="confirmRemove"
-          >
+          <Button variant="outline" @click="closeRemoveDialog"> 取消 </Button>
+          <Button variant="destructive" :disabled="removing" @click="confirmRemove">
             <Loader2 v-if="removing" class="mr-2 size-4 animate-spin" />
             移除
           </Button>
@@ -729,20 +769,22 @@ watch(projectId, (id) => {
     </Dialog>
 
     <!-- 批次停用確認 -->
-    <Dialog v-model:open="batchSuspendOpen" @update:open="(v: boolean) => !v && closeBatchSuspend()">
+    <Dialog
+      v-model:open="batchSuspendOpen"
+      @update:open="(v: boolean) => !v && closeBatchSuspend()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>批次停用</DialogTitle>
           <DialogDescription>
-            確定要停用所選的 {{ selectedRows.filter((r) => r.original.status === 'active').length }} 位成員嗎？停用後將無法存取此專案。
+            確定要停用所選的
+            {{ selectedRows.filter((r) => r.original.status === 'active').length }}
+            位成員嗎？停用後將無法存取此專案。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeBatchSuspend">取消</Button>
-          <Button
-            :disabled="batchSuspendLoading"
-            @click="confirmBatchSuspend"
-          >
+          <Button :disabled="batchSuspendLoading" @click="confirmBatchSuspend">
             <Loader2 v-if="batchSuspendLoading" class="mr-2 size-4 animate-spin" />
             停用
           </Button>
@@ -761,11 +803,7 @@ watch(projectId, (id) => {
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeBatchRemove">取消</Button>
-          <Button
-            variant="destructive"
-            :disabled="batchRemoveLoading"
-            @click="confirmBatchRemove"
-          >
+          <Button variant="destructive" :disabled="batchRemoveLoading" @click="confirmBatchRemove">
             <Loader2 v-if="batchRemoveLoading" class="mr-2 size-4 animate-spin" />
             移除
           </Button>
@@ -774,7 +812,10 @@ watch(projectId, (id) => {
     </Dialog>
 
     <!-- 專案成員模組權限覆寫 -->
-    <Dialog :open="projectPermDialogOpen" @update:open="(v: boolean) => !v && closeProjectPermDialog()">
+    <Dialog
+      :open="projectPermDialogOpen"
+      @update:open="(v: boolean) => !v && closeProjectPermDialog()"
+    >
       <DialogContent
         class="flex max-h-[92vh] w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] flex-col gap-4 overflow-hidden sm:max-w-7xl sm:w-full"
       >
@@ -789,7 +830,9 @@ watch(projectId, (id) => {
               v-if="projectPermHighlightModuleIds.length > 0 && !projectPermLoading"
               class="mt-2 block text-foreground"
             >
-              目前有 {{ projectPermHighlightModuleIds.length }} 個模組與租戶範本／角色預設不同，列上以「專案客製」標籤與底色標示；編輯勾選後會即時更新標示。
+              目前有
+              {{ projectPermHighlightModuleIds.length }}
+              個模組與租戶範本／角色預設不同，列上以「專案客製」標籤與底色標示；編輯勾選後會即時更新標示。
             </span>
           </DialogDescription>
         </DialogHeader>
@@ -806,7 +849,9 @@ watch(projectId, (id) => {
                 :platform-disabled-module-ids="platformDisabledModuleIds"
               />
             </div>
-            <p v-if="projectPermError" class="shrink-0 text-sm text-destructive">{{ projectPermError }}</p>
+            <p v-if="projectPermError" class="shrink-0 text-sm text-destructive">
+              {{ projectPermError }}
+            </p>
             <DialogFooter
               class="shrink-0 flex flex-col gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"
             >
@@ -825,7 +870,10 @@ watch(projectId, (id) => {
                 <Loader2 v-if="projectPermResetting" class="mr-2 size-4 animate-spin" />
                 重設為租戶範本
               </Button>
-              <Button :disabled="projectPermSaving || projectPermResetting" @click="saveProjectPermOverrides">
+              <Button
+                :disabled="projectPermSaving || projectPermResetting"
+                @click="saveProjectPermOverrides"
+              >
                 <Loader2 v-if="projectPermSaving" class="mr-2 size-4 animate-spin" />
                 儲存
               </Button>

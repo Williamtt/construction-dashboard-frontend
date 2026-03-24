@@ -326,58 +326,62 @@ const createdAtColumn = computed(() => table.getColumn('createdAt'))
         </template>
       </DataTableToolbarShell>
 
-      <div class="rounded-lg border border-border bg-card">
-        <Table>
-          <TableHeader>
-            <TableRow
-              v-for="headerGroup in table.getHeaderGroups()"
-              :key="headerGroup.id"
-              class="hover:bg-transparent"
-            >
-              <TableHead
-                v-for="header in headerGroup.headers"
-                :key="header.id"
-                class="text-foreground"
-              >
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows.length">
+      <div class="rounded-lg border border-border bg-card p-4">
+        <div class="overflow-x-auto">
+          <Table>
+            <TableHeader>
               <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
+                v-for="headerGroup in table.getHeaderGroups()"
+                :key="headerGroup.id"
+                class="hover:bg-transparent"
               >
-                <TableCell
-                  v-for="cell in row.getVisibleCells()"
-                  :key="cell.id"
+                <TableHead
+                  v-for="header in headerGroup.headers"
+                  :key="header.id"
+                  class="text-foreground"
                 >
                   <FlexRender
-                    :render="cell.column.columnDef.cell"
-                    :props="cell.getContext()"
+                    v-if="!header.isPlaceholder"
+                    :render="header.column.columnDef.header"
+                    :props="header.getContext()"
                   />
+                </TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              <template v-if="table.getRowModel().rows.length">
+                <TableRow
+                  v-for="row in table.getRowModel().rows"
+                  :key="row.id"
+                  :data-state="row.getIsSelected() ? 'selected' : undefined"
+                >
+                  <TableCell
+                    v-for="cell in row.getVisibleCells()"
+                    :key="cell.id"
+                  >
+                    <FlexRender
+                      :render="cell.column.columnDef.cell"
+                      :props="cell.getContext()"
+                    />
+                  </TableCell>
+                </TableRow>
+              </template>
+              <TableRow v-else>
+                <TableCell
+                  :colspan="columns.length"
+                  class="h-24 text-center text-muted-foreground"
+                >
+                  沒有符合條件的資料
                 </TableCell>
               </TableRow>
-            </template>
-            <TableRow v-else>
-              <TableCell
-                :colspan="columns.length"
-                class="h-24 text-center text-muted-foreground"
-              >
-                沒有符合條件的資料
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+            </TableBody>
+          </Table>
+        </div>
       </div>
 
-      <DataTablePagination :table="table" />
+      <div class="mt-4">
+        <DataTablePagination :table="table" />
+      </div>
     </div>
   </div>
 </template>

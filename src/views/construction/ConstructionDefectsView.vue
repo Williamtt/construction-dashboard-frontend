@@ -1,22 +1,11 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import { getCoreRowModel, useVueTable } from '@tanstack/vue-table'
-import { FlexRender } from '@tanstack/vue-table'
-import { ref, computed, watch, h } from 'vue'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
+import { computed, h, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { valueUpdater } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { ButtonGroup } from '@/components/ui/button-group'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import {
   Dialog,
   DialogContent,
@@ -33,8 +22,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
 import {
-  listDefectImprovements,
+  listAllDefectImprovements,
   getDefectImprovement,
   createDefectImprovement,
   updateDefectImprovement,
@@ -42,9 +35,9 @@ import {
 } from '@/api/defect-improvements'
 import { uploadFile } from '@/api/files'
 import type { DefectItem, DefectPriority, DefectStatus } from '@/types/defect-improvement'
+import type { TableListFeatures } from '@/types/data-table'
 import { Plus, Loader2, ClipboardList, CircleDot, CheckCircle2 } from 'lucide-vue-next'
 import StateCard from '@/components/common/StateCard.vue'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
 import ConstructionDefectsRowActions from '@/views/construction/ConstructionDefectsRowActions.vue'
 import { ROUTE_NAME } from '@/constants/routes'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
@@ -57,18 +50,25 @@ const projectId = computed(() => (route.params.projectId as string) ?? '')
 const defectPerm = useProjectModuleActions(projectId, 'construction.defect')
 
 const list = ref<DefectItem[]>([])
-const meta = ref<{ page: number; limit: number; total: number } | null>(null)
 const loading = ref(true)
-const statsLoading = ref(true)
 const errorMessage = ref('')
 
-const page = ref(1)
-const limit = ref(20)
-const statusFilter = ref<'all' | DefectStatus>('all')
+/** 全文搜尋 + 狀態／優先度分面 + 更新時間區間；無欄位顯示開關；表頭可排序（更新時間） */
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: true,
+  columnVisibility: false,
+}
 
-const statsTotal = ref(0)
-const statsInProgress = ref(0)
-const statsCompleted = ref(0)
+const COLUMN_LABELS: Record<string, string> = {
+  description: '問題說明',
+  discoveredBy: '發現人',
+  priority: '優先度',
+  floor: '樓層',
+  location: '位置',
+  status: '狀態',
+  updatedAt: '更新時間',
+}
 
 const formOpen = ref(false)
 const formMode = ref<'create' | 'edit'>('create')
@@ -92,8 +92,6 @@ const removing = ref(false)
 const batchDeleteOpen = ref(false)
 const batchDeleteLoading = ref(false)
 
-const rowSelection = ref<Record<string, boolean>>({})
-
 const PRIORITY_LABELS: Record<DefectPriority, string> = {
   low: '低',
   medium: '中',
@@ -103,60 +101,6 @@ const PRIORITY_LABELS: Record<DefectPriority, string> = {
 const STATUS_LABELS: Record<DefectStatus, string> = {
   in_progress: '進行中',
   completed: '已完成',
-}
-
-const totalPages = computed(() => (meta.value ? Math.ceil(meta.value.total / limit.value) : 0))
-
-function apiStatusParam(): DefectStatus | undefined {
-  return statusFilter.value === 'all' ? undefined : statusFilter.value
-}
-
-async function loadStats() {
-  const pid = projectId.value
-  if (!pid) return
-  statsLoading.value = true
-  try {
-    const [all, prog, done] = await Promise.all([
-      listDefectImprovements(pid, { page: 1, limit: 1 }),
-      listDefectImprovements(pid, { status: 'in_progress', page: 1, limit: 1 }),
-      listDefectImprovements(pid, { status: 'completed', page: 1, limit: 1 }),
-    ])
-    statsTotal.value = all.meta.total
-    statsInProgress.value = prog.meta.total
-    statsCompleted.value = done.meta.total
-  } catch {
-    statsTotal.value = 0
-    statsInProgress.value = 0
-    statsCompleted.value = 0
-  } finally {
-    statsLoading.value = false
-  }
-}
-
-async function loadList() {
-  const pid = projectId.value
-  if (!pid) return
-  loading.value = true
-  errorMessage.value = ''
-  try {
-    const res = await listDefectImprovements(pid, {
-      page: page.value,
-      limit: limit.value,
-      ...(apiStatusParam() ? { status: apiStatusParam() } : {}),
-    })
-    list.value = res.data
-    meta.value = res.meta
-  } catch {
-    list.value = []
-    meta.value = null
-    errorMessage.value = '無法載入缺失改善列表'
-  } finally {
-    loading.value = false
-  }
-}
-
-async function refreshAll() {
-  await Promise.all([loadStats(), loadList()])
 }
 
 function formatDateTime(iso: string) {
@@ -169,6 +113,49 @@ function formatDateTime(iso: string) {
     minute: '2-digit',
   })
 }
+
+function defectUpdatedDateOnly(iso: string): string {
+  return iso.slice(0, 10)
+}
+
+const defectsGlobalFilterFn: FilterFn<DefectItem> = (row, _columnId, filterValue) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const parts = [
+    r.description,
+    r.discoveredBy,
+    PRIORITY_LABELS[r.priority] ?? r.priority,
+    r.floor ?? '',
+    r.location ?? '',
+    STATUS_LABELS[r.status] ?? r.status,
+    r.updatedAt.toLowerCase(),
+    formatDateTime(r.updatedAt).toLowerCase(),
+    r.createdAt.toLowerCase(),
+    formatDateTime(r.createdAt).toLowerCase(),
+  ].map((s) => String(s).toLowerCase())
+  return parts.some((p) => p.includes(q))
+}
+
+async function load() {
+  if (!projectId.value) return
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    list.value = await listAllDefectImprovements(projectId.value)
+  } catch {
+    list.value = []
+    errorMessage.value = '無法載入缺失改善列表'
+  } finally {
+    loading.value = false
+  }
+}
+
+const statsTotal = computed(() => list.value.length)
+const statsInProgress = computed(() => list.value.filter((d) => d.status === 'in_progress').length)
+const statsCompleted = computed(() => list.value.filter((d) => d.status === 'completed').length)
 
 function openCreateDialog() {
   if (!ensureProjectPermission(defectPerm.canCreate.value, 'create')) return
@@ -240,6 +227,203 @@ async function onFormPhotosChange(e: Event) {
   }
 }
 
+function goView(row: DefectItem) {
+  if (!ensureProjectPermission(defectPerm.canRead.value, 'read')) return
+  router.push({
+    name: ROUTE_NAME.PROJECT_CONSTRUCTION_DEFECT_DETAIL,
+    params: { projectId: projectId.value, defectId: row.id },
+  })
+}
+
+function openRemoveDialog(row: DefectItem) {
+  removingItem.value = row
+  removeDialogOpen.value = true
+}
+
+function closeRemoveDialog() {
+  removeDialogOpen.value = false
+  removingItem.value = null
+}
+
+const selectColumn: ColumnDef<DefectItem, unknown> = {
+  id: 'select',
+  header: ({ table }) =>
+    h(Checkbox, {
+      checked: table.getIsAllPageRowsSelected()
+        ? true
+        : table.getIsSomePageRowsSelected()
+          ? 'indeterminate'
+          : false,
+      'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
+      'aria-label': '全選',
+    }),
+  cell: ({ row }) =>
+    h(Checkbox, {
+      checked: row.getIsSelected(),
+      'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
+      'aria-label': '選取此列',
+    }),
+  enableSorting: false,
+  enableHiding: false,
+}
+
+const columns = computed<ColumnDef<DefectItem, unknown>[]>(() => [
+  selectColumn,
+  {
+    accessorKey: 'description',
+    id: 'description',
+    header: () => '問題說明',
+    cell: ({ row }) =>
+      h(
+        'div',
+        { class: 'max-w-[240px] truncate text-foreground', title: row.original.description },
+        row.original.description || '—'
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'discoveredBy',
+    id: 'discoveredBy',
+    header: () => '發現人',
+    cell: ({ row }) => h('div', { class: 'text-foreground' }, row.original.discoveredBy),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'priority',
+    id: 'priority',
+    header: () => '優先度',
+    meta: {
+      label: '優先度',
+      filter: {
+        type: 'faceted',
+        title: '優先度',
+        options: [
+          { label: '低', value: 'low' },
+          { label: '中', value: 'medium' },
+          { label: '高', value: 'high' },
+        ],
+      },
+    },
+    filterFn: 'arrIncludesSome',
+    cell: ({ row }) =>
+      h(
+        Badge,
+        { variant: 'secondary', class: 'font-normal' },
+        () => PRIORITY_LABELS[row.original.priority] ?? row.original.priority
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'floor',
+    id: 'floor',
+    header: () => '樓層',
+    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.floor || '—'),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'location',
+    id: 'location',
+    header: () => '位置',
+    cell: ({ row }) =>
+      h(
+        'div',
+        {
+          class: 'max-w-[140px] truncate text-muted-foreground',
+          title: row.original.location ?? '',
+        },
+        row.original.location || '—'
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'status',
+    id: 'status',
+    header: () => '狀態',
+    meta: {
+      label: '狀態',
+      filter: {
+        type: 'faceted',
+        title: '狀態',
+        options: [
+          { label: '進行中', value: 'in_progress' },
+          { label: '已完成', value: 'completed' },
+        ],
+      },
+    },
+    filterFn: 'arrIncludesSome',
+    cell: ({ row }) =>
+      h(
+        Badge,
+        {
+          variant: row.original.status === 'completed' ? 'default' : 'outline',
+          class: 'font-normal',
+        },
+        () => STATUS_LABELS[row.original.status] ?? row.original.status
+      ),
+    enableSorting: false,
+    enableHiding: false,
+  },
+  {
+    accessorKey: 'updatedAt',
+    id: 'updatedAt',
+    header: ({ column }) =>
+      h(DataTableColumnHeader, {
+        column,
+        title: '更新時間',
+        class: 'text-foreground',
+      }),
+    meta: {
+      label: '更新時間',
+      filter: { type: 'dateRange', title: '更新時間' },
+    },
+    filterFn: (row, _columnId, raw) => {
+      const v = raw as { from?: string; to?: string } | undefined
+      if (!v?.from && !v?.to) return true
+      const day = defectUpdatedDateOnly(row.original.updatedAt)
+      if (v.from && day < v.from) return false
+      if (v.to && day > v.to) return false
+      return true
+    },
+    sortingFn: 'alphanumeric',
+    cell: ({ row }) =>
+      h(
+        'span',
+        { class: 'tabular-nums text-muted-foreground' },
+        formatDateTime(row.original.updatedAt)
+      ),
+    enableHiding: false,
+  },
+  {
+    id: 'actions',
+    header: () => '',
+    cell: ({ row }) =>
+      h(ConstructionDefectsRowActions, {
+        row: row.original,
+        canEdit: defectPerm.canUpdate.value,
+        canRemove: defectPerm.canDelete.value,
+        onView: goView,
+        onEdit: openEditDialog,
+        onRemove: openRemoveDialog,
+      }),
+    enableSorting: false,
+    enableHiding: false,
+  },
+])
+
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
+  getRowId: (row) => row.id,
+  globalFilterFn: defectsGlobalFilterFn,
+  initialPageSize: 20,
+})
+
 async function submitForm() {
   if (formMode.value === 'create') {
     if (!ensureProjectPermission(defectPerm.canCreate.value, 'create')) return
@@ -282,39 +466,14 @@ async function submitForm() {
       })
     }
     closeFormDialog()
-    rowSelection.value = {}
-    page.value = 1
-    await refreshAll()
+    table.setRowSelection({})
+    await load()
   } catch (err: unknown) {
     const ax = err as { response?: { data?: { error?: { message?: string } } } }
     formError.value = ax.response?.data?.error?.message ?? '儲存失敗'
   } finally {
     formSubmitting.value = false
   }
-}
-
-function goView(row: DefectItem) {
-  if (!ensureProjectPermission(defectPerm.canRead.value, 'read')) return
-  router.push({
-    name: ROUTE_NAME.PROJECT_CONSTRUCTION_DEFECT_DETAIL,
-    params: { projectId: projectId.value, defectId: row.id },
-  })
-}
-
-function onRowClick(e: MouseEvent, item: DefectItem) {
-  const t = e.target as HTMLElement
-  if (t.closest('button, a, input, [role="checkbox"], [data-slot="checkbox"]')) return
-  goView(item)
-}
-
-function openRemoveDialog(row: DefectItem) {
-  removingItem.value = row
-  removeDialogOpen.value = true
-}
-
-function closeRemoveDialog() {
-  removeDialogOpen.value = false
-  removingItem.value = null
 }
 
 async function confirmRemove() {
@@ -325,8 +484,8 @@ async function confirmRemove() {
   try {
     await deleteDefectImprovement(projectId.value, item.id)
     closeRemoveDialog()
-    rowSelection.value = {}
-    await refreshAll()
+    table.setRowSelection({})
+    await load()
   } catch {
     errorMessage.value = '刪除失敗'
   } finally {
@@ -334,147 +493,12 @@ async function confirmRemove() {
   }
 }
 
-const columns = computed<ColumnDef<DefectItem, unknown>[]>(() => [
-  {
-    id: 'select',
-    header: ({ table }) =>
-      h(Checkbox, {
-        checked: table.getIsAllPageRowsSelected()
-          ? true
-          : table.getIsSomePageRowsSelected()
-            ? 'indeterminate'
-            : false,
-        'onUpdate:checked': (v: boolean | 'indeterminate') => table.toggleAllPageRowsSelected(!!v),
-        'aria-label': '全選',
-      }),
-    cell: ({ row }) =>
-      h(Checkbox, {
-        checked: row.getIsSelected(),
-        'onUpdate:checked': (v: boolean | 'indeterminate') => row.toggleSelected(!!v),
-        'aria-label': '選取此列',
-      }),
-    enableSorting: false,
-  },
-  {
-    accessorKey: 'description',
-    id: 'description',
-    header: () => '問題說明',
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'max-w-[240px] truncate text-foreground', title: row.original.description },
-        row.original.description || '—'
-      ),
-  },
-  {
-    accessorKey: 'discoveredBy',
-    id: 'discoveredBy',
-    header: () => '發現人',
-    cell: ({ row }) => h('div', { class: 'text-foreground' }, row.original.discoveredBy),
-  },
-  {
-    accessorKey: 'priority',
-    id: 'priority',
-    header: () => '優先度',
-    cell: ({ row }) =>
-      h(
-        Badge,
-        { variant: 'secondary', class: 'font-normal' },
-        () => PRIORITY_LABELS[row.original.priority] ?? row.original.priority
-      ),
-  },
-  {
-    accessorKey: 'floor',
-    id: 'floor',
-    header: () => '樓層',
-    cell: ({ row }) => h('div', { class: 'text-muted-foreground' }, row.original.floor || '—'),
-  },
-  {
-    accessorKey: 'location',
-    id: 'location',
-    header: () => '位置',
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'max-w-[140px] truncate text-muted-foreground', title: row.original.location ?? '' },
-        row.original.location || '—'
-      ),
-  },
-  {
-    accessorKey: 'status',
-    id: 'status',
-    header: () => '狀態',
-    cell: ({ row }) =>
-      h(
-        Badge,
-        {
-          variant: row.original.status === 'completed' ? 'default' : 'outline',
-          class: 'font-normal',
-        },
-        () => STATUS_LABELS[row.original.status] ?? row.original.status
-      ),
-  },
-  {
-    accessorKey: 'updatedAt',
-    id: 'updatedAt',
-    header: () => '更新時間',
-    cell: ({ row }) =>
-      h('span', { class: 'tabular-nums text-muted-foreground' }, formatDateTime(row.original.updatedAt)),
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[4rem]' }),
-    cell: ({ row }) =>
-      h(ConstructionDefectsRowActions, {
-        row: row.original,
-        canEdit: defectPerm.canUpdate.value,
-        canRemove: defectPerm.canDelete.value,
-        onView: goView,
-        onEdit: openEditDialog,
-        onRemove: openRemoveDialog,
-      }),
-    enableSorting: false,
-  },
-])
-
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  manualPagination: true,
-  get pageCount() {
-    return totalPages.value || 1
-  },
-  state: {
-    get pagination() {
-      return { pageIndex: page.value - 1, pageSize: limit.value }
-    },
-    get rowSelection() {
-      return rowSelection.value
-    },
-  },
-  onPaginationChange: (updater) => {
-    const prev = { pageIndex: page.value - 1, pageSize: limit.value }
-    const next = typeof updater === 'function' ? updater(prev) : updater
-    if (next) {
-      page.value = next.pageIndex + 1
-      limit.value = next.pageSize
-      loadList()
-    }
-  },
-  onRowSelectionChange: (updater) => valueUpdater(updater, rowSelection),
-  getRowId: (row) => row.id,
-})
-
 const selectedRows = computed(() => table.getSelectedRowModel().rows)
 const hasSelection = computed(() => selectedRows.value.length > 0)
+const selectedCount = computed(() => selectedRows.value.length)
 
 function clearSelection() {
-  rowSelection.value = {}
+  table.setRowSelection({})
 }
 
 function openBatchDelete() {
@@ -495,8 +519,8 @@ async function confirmBatchDelete() {
       await deleteDefectImprovement(projectId.value, item.id)
     }
     closeBatchDelete()
-    rowSelection.value = {}
-    await refreshAll()
+    table.setRowSelection({})
+    await load()
   } catch {
     errorMessage.value = '批次刪除失敗'
   } finally {
@@ -504,144 +528,139 @@ async function confirmBatchDelete() {
   }
 }
 
-watch(statusFilter, () => {
-  page.value = 1
-  loadList()
+watch(
+  projectId,
+  (id) => {
+    if (!id) {
+      list.value = []
+      loading.value = false
+      return
+    }
+    resetTableState()
+    void load()
+  },
+  { immediate: true }
+)
+
+const defectsEmptyText = computed(() => {
+  const q = globalFilter.value.trim()
+  if (list.value.length === 0) {
+    return q ? '沒有符合條件的資料' : '尚無缺失紀錄'
+  }
+  return '沒有符合條件的資料'
 })
 
-watch(projectId, (id) => {
-  if (id) {
-    page.value = 1
-    rowSelection.value = {}
-    refreshAll()
-  }
-}, { immediate: true })
+const showDefectsTable = computed(
+  () =>
+    !!projectId.value &&
+    (list.value.length > 0 || globalFilter.value.trim() || hasActiveFilters.value)
+)
 </script>
 
 <template>
   <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold text-foreground">缺失改善</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">缺失改善</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        檢視與管理專案缺失紀錄；可於手機現場新增照片與執行紀錄，此處可統籌列表與狀態。
+        檢視與管理專案缺失紀錄；可於手機現場新增照片與執行紀錄，此處可統籌列表與狀態。支援全文搜尋，並可篩選狀態、優先度與更新時間區間。
       </p>
     </div>
 
-    <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      <StateCard title="總筆數">
-        <template #icon>
-          <ClipboardList class="size-6 text-muted-foreground" />
-        </template>
-        <p v-if="statsLoading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
-        <p v-else class="text-3xl font-bold tabular-nums text-foreground">
-          {{ statsTotal }}
-        </p>
-        <p class="mt-1 text-xs text-muted-foreground">本專案缺失改善總數</p>
-      </StateCard>
-      <StateCard title="進行中">
-        <template #icon>
-          <CircleDot class="size-6 text-muted-foreground" />
-        </template>
-        <p v-if="statsLoading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
-        <p v-else class="text-3xl font-bold tabular-nums text-foreground">
-          {{ statsInProgress }}
-        </p>
-        <p class="mt-1 text-xs text-muted-foreground">狀態為進行中</p>
-      </StateCard>
-      <StateCard title="已完成">
-        <template #icon>
-          <CheckCircle2 class="size-6 text-muted-foreground" />
-        </template>
-        <p v-if="statsLoading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
-        <p v-else class="text-3xl font-bold tabular-nums text-foreground">
-          {{ statsCompleted }}
-        </p>
-        <p class="mt-1 text-xs text-muted-foreground">狀態為已完成</p>
-      </StateCard>
+    <div v-if="!defectPerm.canRead.value" class="text-sm text-muted-foreground">
+      您沒有缺失改善檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs"
+        >construction.defect</code
+      >）。
     </div>
 
-    <div class="flex flex-wrap items-center justify-between gap-4">
-      <div class="flex flex-wrap items-center gap-3">
-        <span class="text-sm text-muted-foreground">狀態</span>
-        <Select v-model="statusFilter">
-          <SelectTrigger class="w-[140px] bg-background">
-            <SelectValue placeholder="狀態" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部</SelectItem>
-            <SelectItem value="in_progress">進行中</SelectItem>
-            <SelectItem value="completed">已完成</SelectItem>
-          </SelectContent>
-        </Select>
+    <template v-else>
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StateCard title="總筆數">
+          <template #icon>
+            <ClipboardList class="size-6 text-muted-foreground" />
+          </template>
+          <p v-if="loading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
+          <p v-else class="text-3xl font-bold tabular-nums text-foreground">
+            {{ statsTotal }}
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">本專案缺失改善總數（載入後統計）</p>
+        </StateCard>
+        <StateCard title="進行中">
+          <template #icon>
+            <CircleDot class="size-6 text-muted-foreground" />
+          </template>
+          <p v-if="loading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
+          <p v-else class="text-3xl font-bold tabular-nums text-foreground">
+            {{ statsInProgress }}
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">狀態為進行中</p>
+        </StateCard>
+        <StateCard title="已完成">
+          <template #icon>
+            <CheckCircle2 class="size-6 text-muted-foreground" />
+          </template>
+          <p v-if="loading" class="text-3xl font-bold tabular-nums text-muted-foreground">…</p>
+          <p v-else class="text-3xl font-bold tabular-nums text-foreground">
+            {{ statsCompleted }}
+          </p>
+          <p class="mt-1 text-xs text-muted-foreground">狀態為已完成</p>
+        </StateCard>
       </div>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <template v-if="hasSelection">
-          <span class="text-sm text-muted-foreground">已選 {{ selectedRows.length }} 項</span>
-          <ButtonGroup>
-            <Button variant="outline" @click="clearSelection">取消選取</Button>
+
+      <DataTableFeatureToolbar
+        v-if="!loading && projectId"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋問題說明、發現人、樓層、位置、狀態、優先度、時間…"
+        @reset="resetTableState"
+      >
+        <template #actions>
+          <div class="flex flex-wrap items-center justify-end gap-3">
+            <template v-if="hasSelection">
+              <span class="text-sm text-muted-foreground">已選 {{ selectedCount }} 項</span>
+              <ButtonGroup>
+                <Button variant="outline" @click="clearSelection">取消選取</Button>
+                <Button
+                  v-if="defectPerm.canDelete.value"
+                  variant="outline"
+                  class="text-destructive hover:text-destructive"
+                  @click="openBatchDelete"
+                >
+                  批次刪除
+                </Button>
+              </ButtonGroup>
+            </template>
             <Button
-              v-if="defectPerm.canDelete"
-              variant="outline"
-              class="text-destructive hover:text-destructive"
-              @click="openBatchDelete"
+              v-if="defectPerm.canCreate.value && !hasSelection"
+              size="sm"
+              class="gap-2"
+              @click="openCreateDialog"
             >
-              批次刪除
+              <Plus class="size-4" />
+              新增缺失
             </Button>
-          </ButtonGroup>
-        </template>
-        <Button @click="openCreateDialog">
-          <Plus class="mr-2 size-4" />
-          新增缺失
-        </Button>
-      </div>
-    </div>
-
-    <div class="rounded-lg border border-border bg-card p-4">
-      <p v-if="errorMessage" class="mb-2 text-sm text-destructive">{{ errorMessage }}</p>
-      <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
-        <Loader2 class="size-8 animate-spin" />
-      </div>
-      <template v-else>
-        <Table v-if="list.length > 0">
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <TableRow
-              v-for="row in table.getRowModel().rows"
-              :key="row.id"
-              :data-state="row.getIsSelected() ? 'selected' : undefined"
-              class="cursor-pointer"
-              @click="onRowClick($event, row.original)"
-            >
-              <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-              </TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
-        <template v-if="list.length > 0">
-          <div class="mt-4">
-            <DataTablePagination :table="table" hide-selection-info />
           </div>
         </template>
-        <div
-          v-else
-          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
-        >
+      </DataTableFeatureToolbar>
+
+      <div class="rounded-lg border border-border bg-card">
+        <p v-if="errorMessage" class="mb-2 text-sm text-destructive">{{ errorMessage }}</p>
+        <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
+          <Loader2 class="size-8 animate-spin" />
+        </div>
+        <DataTableFeatureSection
+          v-else-if="showDefectsTable"
+          :table="table"
+          :empty-text="defectsEmptyText"
+        />
+        <div v-else class="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <p class="text-sm">尚無缺失紀錄</p>
           <p class="mt-1 text-xs">可點「新增缺失」或於手機現場建立</p>
         </div>
-      </template>
-    </div>
+      </div>
+    </template>
 
     <Dialog v-model:open="formOpen" @update:open="(v: boolean) => !v && closeFormDialog()">
       <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg">
@@ -731,7 +750,12 @@ watch(projectId, (id) => {
               @change="onFormPhotosChange"
             />
             <div class="flex flex-wrap items-center gap-2">
-              <Button type="button" variant="outline" :disabled="uploading" @click="fileInputRef?.click()">
+              <Button
+                type="button"
+                variant="outline"
+                :disabled="uploading"
+                @click="fileInputRef?.click()"
+              >
                 {{ uploading ? '上傳中…' : '選擇圖片' }}
               </Button>
               <span v-if="formAttachmentIds.length" class="text-xs text-muted-foreground">
@@ -750,13 +774,14 @@ watch(projectId, (id) => {
       </DialogContent>
     </Dialog>
 
-    <Dialog v-model:open="removeDialogOpen" @update:open="(v: boolean) => !v && closeRemoveDialog()">
+    <Dialog
+      v-model:open="removeDialogOpen"
+      @update:open="(v: boolean) => !v && closeRemoveDialog()"
+    >
       <DialogContent class="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>刪除缺失</DialogTitle>
-          <DialogDescription>
-            確定刪除此筆缺失？執行紀錄一併刪除且無法復原。
-          </DialogDescription>
+          <DialogDescription> 確定刪除此筆缺失？執行紀錄一併刪除且無法復原。 </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button variant="outline" @click="closeRemoveDialog">取消</Button>
@@ -772,7 +797,7 @@ watch(projectId, (id) => {
         <DialogHeader>
           <DialogTitle>批次刪除</DialogTitle>
           <DialogDescription>
-            確定刪除已選的 {{ selectedRows.length }} 筆缺失？無法復原。
+            確定刪除已選的 {{ selectedCount }} 筆缺失？無法復原。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

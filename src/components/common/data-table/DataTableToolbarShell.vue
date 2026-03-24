@@ -36,11 +36,6 @@ const emit = defineEmits<{
       :table="table"
     />
     <div class="hidden min-w-[1rem] flex-1 md:block" />
-    <!-- 右側額外按鈕（匯出、新增等） -->
-    <slot
-      name="actions"
-      :table="table"
-    />
     <Button
       v-if="hasActiveFilters"
       variant="ghost"
@@ -60,6 +55,11 @@ const emit = defineEmits<{
       v-if="showColumnVisibility"
       :table="table"
       :column-labels="columnLabels"
+    />
+    <!-- 最右側：已選／批次、新增／上傳等主要動作（對齊列表頁工具列規範） -->
+    <slot
+      name="actions"
+      :table="table"
     />
   </div>
 </template>

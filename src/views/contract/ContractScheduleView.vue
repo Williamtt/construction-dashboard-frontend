@@ -334,87 +334,88 @@ const columns = computed<ColumnDef<ScheduleAdjustmentRow, unknown>[]>(() => {
   }
 
   cols.push(
-  {
-    accessorKey: 'applyDate',
-    header: ({ column }) =>
-      h(DataTableColumnHeader, {
-        column: column as Column<unknown, unknown>,
-        title: '申請日期',
-      }),
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'font-medium text-foreground' },
-        formatApplyDate(row.getValue('applyDate') as string)
-      ),
-  },
-  {
-    accessorKey: 'type',
-    header: ({ column }) =>
-      h(DataTableColumnHeader, {
-        column: column as Column<unknown, unknown>,
-        title: '類型',
-      }),
-    cell: ({ row }) =>
-      h('div', { class: 'text-foreground' }, typeLabel(row.getValue('type') as string)),
-  },
-  {
-    accessorKey: 'applyDays',
-    header: ({ column }) =>
-      h(DataTableColumnHeader, {
-        column: column as Column<unknown, unknown>,
-        title: '申請天數',
-      }),
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'tabular-nums text-foreground' },
-        `${row.getValue('applyDays') as number} 天`
-      ),
-  },
-  {
-    accessorKey: 'approvedDays',
-    header: ({ column }) =>
-      h(DataTableColumnHeader, {
-        column: column as Column<unknown, unknown>,
-        title: '核定天數',
-      }),
-    cell: ({ row }) =>
-      h(
-        'div',
-        { class: 'tabular-nums text-foreground' },
-        `${row.getValue('approvedDays') as number} 天`
-      ),
-  },
-  {
-    accessorKey: 'status',
-    header: ({ column }) =>
-      h(DataTableColumnHeader, {
-        column: column as Column<unknown, unknown>,
-        title: '申請狀態',
-      }),
-    cell: ({ row }) => {
-      const s = row.getValue('status') as string
-      const variant = s === 'approved' ? 'default' : s === 'rejected' ? 'destructive' : 'secondary'
-      return h(Badge, { variant }, () => statusLabel(s))
-    },
-  },
-  {
-    id: 'actions',
-    header: () => h('div', { class: 'w-[80px]' }),
-    cell: ({ row }) =>
-      h('div', { class: 'flex' }, [
-        h(ScheduleRowActions, {
-          row: row.original,
-          canEdit: durationPerm.canUpdate.value,
-          canDelete: durationPerm.canDelete.value,
-          onEdit: (r) => openForEdit(r),
-          onView: (r) => openForView(r),
-          onDelete: (r) => openDelete(r),
+    {
+      accessorKey: 'applyDate',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, {
+          column: column as Column<unknown, unknown>,
+          title: '申請日期',
         }),
-      ]),
-    enableSorting: false,
-  },
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'font-medium text-foreground' },
+          formatApplyDate(row.getValue('applyDate') as string)
+        ),
+    },
+    {
+      accessorKey: 'type',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, {
+          column: column as Column<unknown, unknown>,
+          title: '類型',
+        }),
+      cell: ({ row }) =>
+        h('div', { class: 'text-foreground' }, typeLabel(row.getValue('type') as string)),
+    },
+    {
+      accessorKey: 'applyDays',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, {
+          column: column as Column<unknown, unknown>,
+          title: '申請天數',
+        }),
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'tabular-nums text-foreground' },
+          `${row.getValue('applyDays') as number} 天`
+        ),
+    },
+    {
+      accessorKey: 'approvedDays',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, {
+          column: column as Column<unknown, unknown>,
+          title: '核定天數',
+        }),
+      cell: ({ row }) =>
+        h(
+          'div',
+          { class: 'tabular-nums text-foreground' },
+          `${row.getValue('approvedDays') as number} 天`
+        ),
+    },
+    {
+      accessorKey: 'status',
+      header: ({ column }) =>
+        h(DataTableColumnHeader, {
+          column: column as Column<unknown, unknown>,
+          title: '申請狀態',
+        }),
+      cell: ({ row }) => {
+        const s = row.getValue('status') as string
+        const variant =
+          s === 'approved' ? 'default' : s === 'rejected' ? 'destructive' : 'secondary'
+        return h(Badge, { variant }, () => statusLabel(s))
+      },
+    },
+    {
+      id: 'actions',
+      header: () => h('div', { class: 'w-[80px]' }),
+      cell: ({ row }) =>
+        h('div', { class: 'flex' }, [
+          h(ScheduleRowActions, {
+            row: row.original,
+            canEdit: durationPerm.canUpdate.value,
+            canDelete: durationPerm.canDelete.value,
+            onEdit: (r) => openForEdit(r),
+            onView: (r) => openForView(r),
+            onDelete: (r) => openDelete(r),
+          }),
+        ]),
+      enableSorting: false,
+    }
   )
 
   return cols
@@ -731,45 +732,58 @@ async function confirmBatchDelete() {
 
     <!-- 表格區塊（無 Card 包覆） -->
     <div class="rounded-lg border border-border bg-card p-4">
-      <p v-if="errorMessage" class="p-4 text-sm text-destructive">{{ errorMessage }}</p>
+      <p v-if="errorMessage" class="mb-3 text-sm text-destructive">{{ errorMessage }}</p>
       <div v-else-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
         <Loader2 class="size-8 animate-spin" />
       </div>
       <template v-else>
-        <Table>
-          <TableHeader>
-            <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-              <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                <FlexRender
-                  v-if="!header.isPlaceholder"
-                  :render="header.column.columnDef.header"
-                  :props="header.getContext()"
-                />
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            <template v-if="table.getRowModel().rows?.length">
-              <TableRow
-                v-for="row in table.getRowModel().rows"
-                :key="row.id"
-                :data-state="row.getIsSelected() ? 'selected' : undefined"
-              >
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </template>
-            <template v-else>
-              <TableRow>
-                <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
-                  尚無工期調整紀錄
-                </TableCell>
-              </TableRow>
-            </template>
-          </TableBody>
-        </Table>
-        <DataTablePagination :table="table" />
+        <template v-if="list.length > 0">
+          <div class="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
+                  <TableHead v-for="header in headerGroup.headers" :key="header.id">
+                    <FlexRender
+                      v-if="!header.isPlaceholder"
+                      :render="header.column.columnDef.header"
+                      :props="header.getContext()"
+                    />
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <template v-if="table.getRowModel().rows?.length">
+                  <TableRow
+                    v-for="row in table.getRowModel().rows"
+                    :key="row.id"
+                    :data-state="row.getIsSelected() ? 'selected' : undefined"
+                  >
+                    <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
+                      <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
+                    </TableCell>
+                  </TableRow>
+                </template>
+                <template v-else>
+                  <TableRow>
+                    <TableCell :colspan="7" class="h-24 text-center text-muted-foreground">
+                      此頁無資料
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+          </div>
+          <div class="mt-4">
+            <DataTablePagination :table="table" />
+          </div>
+        </template>
+        <div
+          v-else
+          class="flex flex-col items-center justify-center gap-2 py-16 text-muted-foreground"
+        >
+          <CalendarRange class="size-10 opacity-50" />
+          <p class="text-sm">尚無工期調整紀錄</p>
+        </div>
       </template>
     </div>
   </div>

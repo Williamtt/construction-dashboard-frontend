@@ -1,6 +1,7 @@
 export * from './api'
 export * from './auth'
 export * from './common'
+export * from './data-table'
 export * from './contract'
 export * from './dashboard'
 export * from './monitoring'

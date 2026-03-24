@@ -8,3 +8,5 @@ export { default as DataTableDateRangeFilter } from './DataTableDateRangeFilter.
 export { default as DataTableMultiSortPopover } from './DataTableMultiSortPopover.vue'
 export { default as DataTableColumnVisibilityCommand } from './DataTableColumnVisibilityCommand.vue'
 export { default as DataTableToolbarShell } from './DataTableToolbarShell.vue'
+export { default as DataTableFeatureToolbar } from './DataTableFeatureToolbar.vue'
+export { default as DataTableFeatureSection } from './DataTableFeatureSection.vue'

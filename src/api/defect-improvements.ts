@@ -27,6 +27,24 @@ export async function listDefectImprovements(
   return { data: data.data ?? [], meta }
 }
 
+/** 分頁拉齊該專案全部缺失（供前端搜尋／篩選／分頁） */
+export async function listAllDefectImprovements(
+  projectId: string,
+  options?: { maxPages?: number }
+): Promise<DefectItem[]> {
+  const maxPages = options?.maxPages ?? 200
+  const out: DefectItem[] = []
+  let page = 1
+  const limit = 100
+  for (let i = 0; i < maxPages; i++) {
+    const res = await listDefectImprovements(projectId, { page, limit })
+    out.push(...res.data)
+    if (res.data.length === 0 || res.data.length < limit || out.length >= res.meta.total) break
+    page++
+  }
+  return out
+}
+
 /** 單一缺失（含照片） */
 export async function getDefectImprovement(
   projectId: string,

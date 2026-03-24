@@ -1,56 +1,78 @@
 <script setup lang="ts">
-import type { ColumnDef } from '@tanstack/vue-table'
-import { getCoreRowModel, useVueTable, FlexRender } from '@tanstack/vue-table'
-import { computed, h, onMounted, ref } from 'vue'
+import type { ColumnDef, FilterFn } from '@tanstack/vue-table'
+import { computed, h, ref, watch } from 'vue'
 import { useRoute, RouterLink, type RouteLocationRaw } from 'vue-router'
 import { Button } from '@/components/ui/button'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
-import DataTablePagination from '@/components/common/data-table/DataTablePagination.vue'
+import DataTableColumnHeader from '@/components/common/data-table/DataTableColumnHeader.vue'
+import DataTableFeatureSection from '@/components/common/data-table/DataTableFeatureSection.vue'
+import DataTableFeatureToolbar from '@/components/common/data-table/DataTableFeatureToolbar.vue'
+import { useClientDataTable } from '@/composables/useClientDataTable'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
 import { CONSTRUCTION_DAILY_LOG_BREADCRUMB_STATE_KEY } from '@/lib/construction-daily-log-breadcrumb'
 import { formatThousands } from '@/lib/format-number'
 import {
-  listConstructionDailyLogs,
+  listAllConstructionDailyLogs,
   type ConstructionDailyLogListItemDto,
 } from '@/api/construction-daily-logs'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { Loader2, Plus } from 'lucide-vue-next'
+import type { TableListFeatures } from '@/types/data-table'
 
 const route = useRoute()
 const projectId = computed(() => (route.params.projectId as string) ?? '')
 const perm = useProjectModuleActions(projectId, 'construction.diary')
 
 const list = ref<ConstructionDailyLogListItemDto[]>([])
-const meta = ref<{ page: number; limit: number; total: number } | null>(null)
 const loading = ref(true)
-const page = ref(1)
-const limit = ref(20)
 
-const newLogPath = computed(() =>
-  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY_LOG_NEW)
-)
+/** 全文搜尋 + 填表日期區間；無欄位顯示開關；保留表頭排序（填表日期） */
+const TABLE_FEATURES: TableListFeatures = {
+  search: true,
+  filtersAndSort: true,
+  columnVisibility: false,
+}
 
-const totalPages = computed(() => (meta.value ? Math.ceil(meta.value.total / limit.value) : 0))
+const COLUMN_LABELS: Record<string, string> = {
+  logDate: '填表日期',
+  reportNo: '表報編號',
+  plannedProgress: '預定進度（%）',
+  actualProgress: '實際進度（%）',
+}
+
+const diaryGlobalFilterFn: FilterFn<ConstructionDailyLogListItemDto> = (
+  row,
+  _columnId,
+  filterValue
+) => {
+  const q = String(filterValue ?? '')
+    .trim()
+    .toLowerCase()
+  if (!q) return true
+  const r = row.original
+  const planned =
+    r.plannedProgress == null
+      ? ''
+      : formatThousands(r.plannedProgress, { maximumFractionDigits: 2 })
+  const actual = (r.actualProgress ?? '').toLowerCase()
+  const parts = [
+    r.logDate,
+    r.reportNo ?? '',
+    r.weatherAm ?? '',
+    r.weatherPm ?? '',
+    r.projectName ?? '',
+    planned.toLowerCase(),
+    actual,
+  ].map((s) => String(s).toLowerCase())
+  return parts.some((p) => p.includes(q))
+}
 
 async function load() {
+  if (!projectId.value) return
   loading.value = true
   try {
-    const res = await listConstructionDailyLogs(projectId.value, {
-      page: page.value,
-      limit: limit.value,
-    })
-    list.value = res.list
-    meta.value = res.meta
+    list.value = await listAllConstructionDailyLogs(projectId.value)
   } catch {
     list.value = []
-    meta.value = null
   } finally {
     loading.value = false
   }
@@ -63,26 +85,53 @@ function weatherBrief(row: ConstructionDailyLogListItemDto) {
   return a || p || '—'
 }
 
+const newLogPath = computed(() =>
+  buildProjectPath(projectId.value, ROUTE_PATH.PROJECT_CONSTRUCTION_DIARY_LOG_NEW)
+)
+
 const columns = computed<ColumnDef<ConstructionDailyLogListItemDto, unknown>[]>(() => [
   {
     accessorKey: 'logDate',
-    header: () => '填表日期',
+    id: 'logDate',
+    header: ({ column }) =>
+      h(DataTableColumnHeader, { column, title: '填表日期', class: 'text-foreground' }),
+    meta: {
+      label: '填表日期',
+      searchable: true,
+      filter: { type: 'dateRange', title: '填表日期' },
+    },
+    filterFn: (row, _columnId, raw) => {
+      const v = raw as { from?: string; to?: string } | undefined
+      if (!v?.from && !v?.to) return true
+      const logDate = row.original.logDate
+      if (v.from && logDate < v.from) return false
+      if (v.to && logDate > v.to) return false
+      return true
+    },
+    sortingFn: 'alphanumeric',
     cell: ({ row }) => h('span', { class: 'tabular-nums text-foreground' }, row.original.logDate),
+    enableHiding: false,
   },
   {
     accessorKey: 'reportNo',
+    id: 'reportNo',
     header: () => '表報編號',
     cell: ({ row }) =>
       h('span', { class: 'text-muted-foreground' }, row.original.reportNo?.trim() || '—'),
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     id: 'weather',
     header: () => '天氣（上／下）',
     cell: ({ row }) =>
       h('span', { class: 'text-sm text-muted-foreground' }, weatherBrief(row.original)),
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     accessorKey: 'plannedProgress',
+    id: 'plannedProgress',
     header: () => '預定進度（%）',
     cell: ({ row }) =>
       h(
@@ -92,9 +141,12 @@ const columns = computed<ColumnDef<ConstructionDailyLogListItemDto, unknown>[]>(
           ? '—'
           : formatThousands(row.original.plannedProgress, { maximumFractionDigits: 2 })
       ),
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     accessorKey: 'actualProgress',
+    id: 'actualProgress',
     header: () => '實際進度（%）',
     cell: ({ row }) =>
       h(
@@ -104,6 +156,8 @@ const columns = computed<ColumnDef<ConstructionDailyLogListItemDto, unknown>[]>(
           ? '—'
           : formatThousands(row.original.actualProgress, { maximumFractionDigits: 2 })
       ),
+    enableSorting: false,
+    enableHiding: false,
   },
   {
     id: 'actions',
@@ -123,47 +177,50 @@ const columns = computed<ColumnDef<ConstructionDailyLogListItemDto, unknown>[]>(
         () => '編輯'
       )
     },
+    enableSorting: false,
+    enableHiding: false,
   },
 ])
 
-const table = useVueTable({
-  get data() {
-    return list.value
-  },
-  get columns() {
-    return columns.value
-  },
-  getCoreRowModel: getCoreRowModel(),
-  manualPagination: true,
-  get pageCount() {
-    return totalPages.value || 1
-  },
-  state: {
-    get pagination() {
-      return { pageIndex: page.value - 1, pageSize: limit.value }
-    },
-  },
-  onPaginationChange: (updater) => {
-    const prev = { pageIndex: page.value - 1, pageSize: limit.value }
-    const next = typeof updater === 'function' ? updater(prev) : updater
-    if (next) {
-      page.value = next.pageIndex + 1
-      limit.value = next.pageSize
-      load()
-    }
-  },
+const { table, globalFilter, hasActiveFilters, resetTableState } = useClientDataTable({
+  data: list,
+  columns,
+  features: TABLE_FEATURES,
   getRowId: (row) => row.id,
+  globalFilterFn: diaryGlobalFilterFn,
+  enableRowSelection: false,
+  initialPageSize: 20,
 })
 
-onMounted(load)
+watch(
+  projectId,
+  (id) => {
+    if (!id) {
+      list.value = []
+      loading.value = false
+      return
+    }
+    resetTableState()
+    void load()
+  },
+  { immediate: true }
+)
+
+const logsEmptyText = computed(() => {
+  const q = globalFilter.value.trim()
+  if (list.value.length === 0) {
+    return q ? '沒有符合條件的資料' : '尚無日誌，請點「新增日誌」建立。'
+  }
+  return '沒有符合條件的資料'
+})
 </script>
 
 <template>
   <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold text-foreground">施工日誌</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">施工日誌</h1>
       <p class="mt-1 text-sm text-muted-foreground">
-        公共工程依附表四格式；同一專案同一填表日期僅能一筆。
+        公共工程依附表四格式；同一專案同一填表日期僅能一筆。支援全文搜尋，並可透過工具列「填表日期」設定起迄日做區間篩選。
       </p>
     </div>
 
@@ -174,49 +231,45 @@ onMounted(load)
     </div>
 
     <template v-else>
-      <div class="flex flex-wrap items-center justify-end gap-3">
-        <Button v-if="perm.canCreate.value" class="gap-2" as-child>
-          <RouterLink :to="newLogPath" class="inline-flex items-center gap-2">
-            <Plus class="size-4" />
-            新增日誌
-          </RouterLink>
-        </Button>
-      </div>
+      <DataTableFeatureToolbar
+        v-if="!loading && projectId"
+        :table="table"
+        :features="TABLE_FEATURES"
+        :column-labels="COLUMN_LABELS"
+        :has-active-filters="hasActiveFilters"
+        :global-filter="globalFilter"
+        search-placeholder="搜尋日期、表報編號、天氣、進度…"
+        @reset="resetTableState"
+      >
+        <template #actions>
+          <Button v-if="perm.canCreate.value" size="sm" variant="default" class="gap-2" as-child>
+            <RouterLink :to="newLogPath" class="inline-flex items-center gap-2">
+              <Plus class="size-4" />
+              新增日誌
+            </RouterLink>
+          </Button>
+        </template>
+      </DataTableFeatureToolbar>
 
-      <div class="rounded-lg border border-border bg-card p-4">
+      <div class="rounded-lg border border-border bg-card">
         <div v-if="loading" class="flex items-center justify-center py-12 text-muted-foreground">
           <Loader2 class="size-8 animate-spin" />
         </div>
-        <template v-else>
-          <Table>
-            <TableHeader>
-              <TableRow v-for="headerGroup in table.getHeaderGroups()" :key="headerGroup.id">
-                <TableHead v-for="header in headerGroup.headers" :key="header.id">
-                  <FlexRender
-                    v-if="!header.isPlaceholder"
-                    :render="header.column.columnDef.header"
-                    :props="header.getContext()"
-                  />
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-if="list.length === 0">
-                <TableCell :colspan="columns.length" class="h-24 text-center text-muted-foreground">
-                  尚無日誌，請點「新增日誌」建立。
-                </TableCell>
-              </TableRow>
-              <TableRow v-for="row in table.getRowModel().rows" :key="row.id">
-                <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id">
-                  <FlexRender :render="cell.column.columnDef.cell" :props="cell.getContext()" />
-                </TableCell>
-              </TableRow>
-            </TableBody>
-          </Table>
-          <div v-if="list.length > 0" class="mt-4">
-            <DataTablePagination :table="table" hide-selection-info />
-          </div>
-        </template>
+        <DataTableFeatureSection
+          v-else-if="projectId && (list.length > 0 || globalFilter.trim() || hasActiveFilters)"
+          :table="table"
+          hide-selection-info
+          :empty-text="logsEmptyText"
+        />
+        <div
+          v-else-if="!loading"
+          class="flex flex-col items-center justify-center py-16 text-muted-foreground"
+        >
+          <p class="text-sm">
+            {{ !projectId ? '缺少專案 ID' : '尚無日誌' }}
+          </p>
+          <p v-if="projectId && perm.canCreate.value" class="mt-1 text-xs">請點「新增日誌」建立</p>
+        </div>
       </div>
     </template>
   </div>

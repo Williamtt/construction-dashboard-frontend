@@ -149,6 +149,24 @@ export async function listConstructionValuations(
   return { list: body.data, meta: { page: meta.page, limit: meta.limit, total: meta.total } }
 }
 
+/** 專案估驗全量（後端單頁上限 100，此處自動翻頁彙總，供前端篩選／分頁） */
+export async function listAllConstructionValuations(
+  projectId: string,
+  options?: { maxPages?: number }
+): Promise<ConstructionValuationListItemDto[]> {
+  const maxPages = options?.maxPages ?? 200
+  const out: ConstructionValuationListItemDto[] = []
+  let page = 1
+  const limit = 100
+  for (let i = 0; i < maxPages; i++) {
+    const res = await listConstructionValuations(projectId, { page, limit })
+    out.push(...res.list)
+    if (res.list.length === 0 || res.list.length < limit || out.length >= res.meta.total) break
+    page++
+  }
+  return out
+}
+
 export async function getConstructionValuationPccesLines(
   projectId: string,
   params?: {
