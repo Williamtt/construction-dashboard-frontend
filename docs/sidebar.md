@@ -63,7 +63,8 @@ SidebarProvider
 
 ## 四、導航項目與樣式
 
-- 導航資料來自 **`constants/navigation.ts`** 的 `SIDEBAR_NAV_ITEMS`，每筆含 `id`、`label`、`path`、`icon`（lucide 圖示名稱）。
+- 導航資料來自 **`src/constants/navigation.ts`**：**`LAYER1_ENTRIES`**（未進專案）、**`LAYER2_ITEMS`**（專案內第一層，含 drill 進 Layer 3）、**`LAYER3_PROJECT_MGMT` / `LAYER3_CONSTRUCTION` / `LAYER3_REPAIR`**，以及後台用的 **`GLOBAL_SIDEBAR_ENTRIES`**、**`ADMIN_SIDEBAR_ENTRIES`**、**`PLATFORM_ADMIN_*`** 等。
+- 專案內實際 path 一律用 **`buildProjectPath(projectId, pathSuffix)`**（見 `project-routes` 規則）。
 - `AppSidebar` 內用 `ICON_MAP` 將 icon 字串對應到 lucide 元件；新增項目時需在 `ICON_MAP` 補上對應元件。
 - 項目間距為 `gap-2`，每個項目有固定 `min-h-9`，收合時按鈕為固定 `h-9 w-9`，避免跑版。
 
@@ -79,5 +80,6 @@ SidebarProvider
 
 ## 六、相關文件
 
-- **實作順序**：Sidebar 屬於 Phase 1，見 [implementation-guide.md](./implementation-guide.md) 的 Phase 1。
+- **路由與側欄約定**：`.cursor/rules/project-routes.mdc`
 - **麵包屑**：位於 Header 下方，見 [breadcrumb.md](./breadcrumb.md)。
+- **文件總索引**：[docs/README.md](./README.md)

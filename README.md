@@ -111,6 +111,11 @@ Web 與 App 共用同一後端 API（`/api/v1`）。App 端以環境變數 **`AP
 
 ---
 
+## 文件索引
+
+- 本 repo **`docs/README.md`**：部署、架構、權限、DataTable、PWA 等文件導覽。
+- 完整交付步驟另見 **`docs/deployment-handover-railway-vercel.md`**；後端逐步架設見後端 repo **`docs/deployment-setup-guide.md`**。
+
 ## 相關規範（開發時）
 
 - 路由與側欄：`src/constants/routes.ts`、`navigation.ts`、`breadcrumb.ts`

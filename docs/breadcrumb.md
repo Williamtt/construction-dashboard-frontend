@@ -104,4 +104,4 @@ export const BREADCRUMB_LABELS: Record<string, string> = {
 
 ## 七、與實作指南的關係
 
-麵包屑屬於「Layout / 導航」一環，可視為 Phase 1（Header + Sidebar）的延伸。若尚未做 Phase 1，可先完成 Layout 再在 Header 下方加入 `<AppBreadcrumb />`；若已按 `implementation-guide.md` 完成 Layout，則只需確保上述檔案存在並在 DefaultLayout 中已插入 AppBreadcrumb 即可。
+麵包屑屬於「Layout / 導航」一環，與 `DefaultLayout`、`AppHeader` 並列。請確認 `AppBreadcrumb.vue`、`constants/breadcrumb.ts` 存在，且 `DefaultLayout` 已在主內容區上方插入 `<AppBreadcrumb />`（見本文件前述檔案索引）。

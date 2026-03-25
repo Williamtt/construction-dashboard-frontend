@@ -247,7 +247,7 @@ ProjectMember (專案成員)
 
 - **本文件**：`docs/multi-project-multi-tenant-planning.md`（你正在閱讀），作為產品與架構共識。
 - **後端**：可另立 `docs/api-multi-project.md` 或於既有 API 文件中加入「專案/租戶/權限」章節。
-- **前端**：可於 `docs/implementation-guide.md` 或新文件補充「專案列表入口」與「currentProject 整合」步驟。
+- **前端**：專案列表入口與 `useProjectStore` 已併入現行路由與 layout；細節見 `.cursor/rules/project-routes.mdc` 與 [docs/README.md](./README.md)。
 
 ---
 

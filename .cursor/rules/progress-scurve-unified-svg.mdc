@@ -48,5 +48,5 @@ globs:
 
 ## 修改前檢查
 
-- 變更 layout 常數或圖層順序時，同步更新本規則與 `docs/progress-scurve-d3-spec-review-and-roadmap.md`（若仍存在對照說明）。
+- 變更 layout 常數或圖層順序時，同步更新本規則；文件索引見 `docs/README.md`（進度 S 曲線一節）。
 - 完成後執行 `npm run build`（前端）與後端 `npm run build`。

@@ -32,6 +32,10 @@ alwaysApply: true
 - `src/views/` - 頁面級元件，對應路由
   - **`src/views/mobile/`** - 手機／PWA 現場查驗（路由前綴 `/mobile`）；實作規範見 **`docs/mobile-field-app-implementation-guide.md`**、規則 **`.cursor/rules/mobile-pwa-field-app.mdc`**
 
+## 文件
+
+- 架構／部署／權限等長文索引：**`docs/README.md`**（與 `.cursor/rules` 互補；規則優先約定程式風格，docs 補流程與背景）。
+
 ## 依賴方向
 
 - views 可 import：components、stores、composables、api、router、constants、types、lib
