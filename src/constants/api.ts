@@ -211,4 +211,8 @@ export const API_PATH = {
   ALERTS_CURRENT: `${API_V1}/alerts/current`,
   /** 歷史警報（query: projectId?, startDate, endDate, limit?） */
   ALERTS_HISTORY: `${API_V1}/alerts/history`,
+  NOTIFICATIONS: `${API_V1}/notifications`,
+  NOTIFICATIONS_UNREAD_COUNT: `${API_V1}/notifications/unread-count`,
+  NOTIFICATIONS_READ_ALL: `${API_V1}/notifications/read-all`,
+  NOTIFICATION_READ: (id: string) => `${API_V1}/notifications/${id}/read`,
 } as const

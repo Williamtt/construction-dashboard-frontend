@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { watch } from 'vue'
+import { watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useProjectRoutePermissionGuard } from '@/composables/useProjectRoutePermissionGuard'
 import AppHeader from '@/components/common/AppHeader.vue'
@@ -9,12 +9,17 @@ import AnnouncementModal from '@/components/common/AnnouncementModal.vue'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useSidebarStore } from '@/stores/sidebar'
 import { useIsMobile } from '@/composables'
+import { useNotificationsStore } from '@/stores/notifications'
 
 const route = useRoute()
 const sidebarStore = useSidebarStore()
 const isMobile = useIsMobile()
+const notificationsStore = useNotificationsStore()
 
 useProjectRoutePermissionGuard()
+
+onMounted(() => notificationsStore.startPolling(30000))
+onUnmounted(() => notificationsStore.stopPolling())
 
 watch(
   () => route.path,
