@@ -306,6 +306,7 @@ export const ADMIN_SIDEBAR_ENTRIES: NavItem[] = [
   { id: 'admin-tenant-info', label: '租戶資訊', path: '/admin/tenant-info', icon: 'Info' },
   { id: 'admin-projects', label: '專案管理', path: '/admin/projects', icon: 'FolderKanban' },
   { id: 'admin-members', label: '成員管理', path: '/admin/members', icon: 'Users' },
+  { id: 'admin-applications', label: '帳號申請', path: '/admin/applications', icon: 'UserPlus' },
   {
     id: 'admin-form-templates',
     label: '表單樣板',

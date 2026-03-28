@@ -19,6 +19,17 @@ const router = createRouter({
         },
       ],
     },
+    {
+      path: ROUTE_PATH.APPLY,
+      component: AuthLayout,
+      children: [
+        {
+          path: '',
+          name: ROUTE_NAME.APPLY,
+          component: () => import('@/views/ApplyView.vue'),
+        },
+      ],
+    },
     // 手機版（PWA／現場查驗）— 完全獨立路由與 Layout
         {
           path: ROUTE_PATH.MOBILE,
@@ -423,6 +434,11 @@ const router = createRouter({
           component: () => import('@/views/admin/AdminMembersView.vue'),
         },
         {
+          path: 'admin/applications',
+          name: ROUTE_NAME.ADMIN_APPLICATIONS,
+          component: () => import('@/views/admin/AdminApplicationsView.vue'),
+        },
+        {
           path: 'admin/form-templates',
           name: ROUTE_NAME.ADMIN_FORM_TEMPLATES,
           component: () => import('@/views/admin/AdminFormTemplatesView.vue'),
@@ -509,8 +525,9 @@ router.beforeEach((to, _from, next) => {
   const { isMobileApp } = useDevice()
   const appPreference = useAppPreferenceStore()
 
-  if (to.path === ROUTE_PATH.LOGIN) {
-    if (auth.isAuthenticated) {
+  // 登入與申請頁面不需認證
+  if (to.path === ROUTE_PATH.LOGIN || to.path === ROUTE_PATH.APPLY) {
+    if (auth.isAuthenticated && to.path === ROUTE_PATH.LOGIN) {
       if (isMobileApp.value && !appPreference.preferDesktopOnMobile) {
         next(ROUTE_PATH.MOBILE)
       } else {

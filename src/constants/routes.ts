@@ -26,6 +26,7 @@ export function buildMobileProjectPath(projectId: string, subPath: string): stri
 export const ROUTE_PATH = {
   HOME: '/',
   LOGIN: '/login',
+  APPLY: '/apply',
   /** 專案列表（獨立入口，選專案後進入 /p/:projectId/dashboard） */
   PROJECTS: '/projects',
 
@@ -113,6 +114,7 @@ export const ROUTE_PATH = {
   ADMIN_TENANT_INFO: '/admin/tenant-info',
   ADMIN_PROJECTS: '/admin/projects',
   ADMIN_MEMBERS: '/admin/members',
+  ADMIN_APPLICATIONS: '/admin/applications',
   ADMIN_FORM_TEMPLATES: '/admin/form-templates',
   ADMIN_SELF_INSPECTION_TEMPLATES: '/admin/self-inspection-templates',
   ADMIN_SELF_INSPECTION_TEMPLATE_DETAIL: '/admin/self-inspection-templates/:templateId',
@@ -136,6 +138,7 @@ export const ROUTE_PATH = {
 export const ROUTE_NAME = {
   HOME: 'home',
   LOGIN: 'login',
+  APPLY: 'apply',
   PROJECTS: 'projects',
   MOBILE: 'mobile',
   MOBILE_PROJECT_PICKER: 'mobile-project-picker',
@@ -205,6 +208,7 @@ export const ROUTE_NAME = {
   ADMIN_TENANT_INFO: 'admin-tenant-info',
   ADMIN_PROJECTS: 'admin-projects',
   ADMIN_MEMBERS: 'admin-members',
+  ADMIN_APPLICATIONS: 'admin-applications',
   ADMIN_FORM_TEMPLATES: 'admin-form-templates',
   ADMIN_SELF_INSPECTION_TEMPLATES: 'admin-self-inspection-templates',
   ADMIN_SELF_INSPECTION_TEMPLATE_DETAIL: 'admin-self-inspection-template-detail',

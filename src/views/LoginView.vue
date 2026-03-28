@@ -75,8 +75,11 @@ async function onSubmit() {
           {{ loading ? '登入中…' : '登入' }}
         </Button>
       </form>
-      <p class="text-xs text-muted-foreground">
-        測試帳號：admin@example.com / member@example.com / platform@example.com，密碼皆為 password123
+      <p class="text-center text-sm text-muted-foreground">
+        還沒有帳號？
+        <Button variant="link" class="h-auto p-0" @click="router.push(ROUTE_PATH.APPLY)">
+          申請帳號
+        </Button>
       </p>
     </CardContent>
   </Card>

@@ -17,6 +17,11 @@ export const API_PATH = {
   AUTH_TENANT_LOGO: `${API_V1}/auth/me/tenant-logo`,
   PROJECTS: `${API_V1}/projects`,
   /** 單租後台（需 admin 角色） */
+  AUTH_APPLY: `${API_V1}/auth/apply`,
+  ADMIN_APPLICATIONS: `${API_V1}/admin/applications`,
+  ADMIN_APPLICATION: (id: string) => `${API_V1}/admin/applications/${id}`,
+  ADMIN_APPLICATION_APPROVE: (id: string) => `${API_V1}/admin/applications/${id}/approve`,
+  ADMIN_APPLICATION_REJECT: (id: string) => `${API_V1}/admin/applications/${id}/reject`,
   ADMIN_PROJECTS: `${API_V1}/admin/projects`,
   ADMIN_USERS: `${API_V1}/admin/users`,
   ADMIN_TENANT_INFO: `${API_V1}/admin/tenant-info`,
