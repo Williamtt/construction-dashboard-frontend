@@ -8,7 +8,7 @@ export interface SubmitApplicationPayload {
   name: string
   studentId?: string
   department?: string
-  tenantId: string
+  tenantSlug: string
 }
 
 export interface ApplicationItem {

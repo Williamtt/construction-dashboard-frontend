@@ -16,7 +16,7 @@ const form = reactive({
   name: '',
   studentId: '',
   department: '',
-  tenantId: '',
+  tenantSlug: '',
 })
 const loading = ref(false)
 const errorMessage = ref('')
@@ -42,7 +42,7 @@ async function onSubmit() {
     errorMessage.value = '兩次密碼不一致'
     return
   }
-  if (!form.tenantId.trim()) {
+  if (!form.tenantSlug.trim()) {
     errorMessage.value = '請輸入租戶代碼'
     return
   }
@@ -55,7 +55,7 @@ async function onSubmit() {
       name: form.name.trim(),
       studentId: form.studentId.trim() || undefined,
       department: form.department.trim() || undefined,
-      tenantId: form.tenantId.trim(),
+      tenantSlug: form.tenantSlug.trim(),
     })
     successMessage.value = result.message
   } catch (e: unknown) {
@@ -158,10 +158,10 @@ async function onSubmit() {
           />
         </div>
         <div class="space-y-2">
-          <label for="tenantId" class="text-sm font-medium text-foreground">租戶代碼 *</label>
+          <label for="tenantSlug" class="text-sm font-medium text-foreground">租戶代碼 *</label>
           <Input
-            id="tenantId"
-            v-model="form.tenantId"
+            id="tenantSlug"
+            v-model="form.tenantSlug"
             type="text"
             placeholder="由授課教師提供"
             class="border-border bg-background text-foreground"
