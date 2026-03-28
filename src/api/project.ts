@@ -7,6 +7,20 @@ import type { ScheduleAdjustmentRow } from '@/types'
 const scheduleAdjustmentsPath = (projectId: string) =>
   `${API_PATH.PROJECTS}/${encodeURIComponent(projectId)}/schedule-adjustments`
 
+/** 建立新專案 */
+export async function createProject(payload: {
+  name: string
+  description?: string
+  code?: string
+}): Promise<ProjectDetail> {
+  const { data } = await apiClient.post<ApiResponse<ProjectDetail>>(
+    API_PATH.PROJECTS,
+    payload
+  )
+  if (!data.data) throw new Error('建立失敗')
+  return data.data
+}
+
 /** 取得單一專案（含專案資訊欄位） */
 export async function getProject(projectId: string): Promise<ProjectDetail | null> {
   const { data } = await apiClient.get<ApiResponse<ProjectDetail>>(
