@@ -28,7 +28,7 @@ function getStoredAccent(): AccentScheme | null {
 }
 
 export function getThemeMode(): ThemeMode {
-  return getStored() ?? 'system'
+  return getStored() ?? 'dark'
 }
 
 export function setThemeMode(mode: ThemeMode): void {
