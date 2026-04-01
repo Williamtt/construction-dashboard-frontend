@@ -1,56 +1,62 @@
 <script setup lang="ts">
+/**
+ * 操作手冊頁面：以 iframe 嵌入 public/help-manual.html
+ * 使用 fixed 定位填滿 main 區域（避免 flex 佈局下 height 坍塌）
+ */
 import { ref, onMounted, onUnmounted } from 'vue'
 
-const iframeRef = ref<HTMLIFrameElement | null>(null)
+const containerRef = ref<HTMLElement | null>(null)
+const top = ref(0)
+const left = ref(0)
 
-/** 讓 iframe 內連結在同一 iframe 打開（預設行為），但外部連結在新分頁開 */
-function handleIframeLoad() {
-  const iframe = iframeRef.value
-  if (!iframe?.contentDocument) return
-  // 隱藏 iframe 內部手冊的 sidebar，因為桌面版已有系統側欄
-  // 手冊本身是響應式的，在 iframe 寬度充足時會顯示自己的目錄側欄
+function measure() {
+  const el = containerRef.value
+  if (!el) return
+  const rect = el.getBoundingClientRect()
+  top.value = rect.top
+  left.value = rect.left
 }
 
+let ro: ResizeObserver | null = null
+
 onMounted(() => {
-  const iframe = iframeRef.value
-  if (iframe) iframe.addEventListener('load', handleIframeLoad)
+  measure()
+  ro = new ResizeObserver(measure)
+  if (containerRef.value?.parentElement) {
+    ro.observe(containerRef.value.parentElement)
+  }
 })
 
 onUnmounted(() => {
-  const iframe = iframeRef.value
-  if (iframe) iframe.removeEventListener('load', handleIframeLoad)
+  ro?.disconnect()
 })
 </script>
 
 <template>
-  <div class="help-manual-container">
+  <div ref="containerRef" class="help-anchor" />
+  <Teleport to="body">
     <iframe
-      ref="iframeRef"
       src="/help-manual.html"
       class="help-manual-iframe"
       title="操作手冊"
       frameborder="0"
+      :style="{
+        position: 'fixed',
+        top: top + 'px',
+        left: left + 'px',
+        width: `calc(100vw - ${left}px)`,
+        height: `calc(100vh - ${top}px)`,
+        border: 'none',
+        zIndex: 30,
+      }"
     />
-  </div>
+  </Teleport>
 </template>
 
 <style scoped>
-.help-manual-container {
-  /* 填滿 main 區域（main 已是 flex-1 + overflow-y-auto） */
-  margin: -1rem;       /* 抵消 main 的 p-4 */
-  height: calc(100vh - 7rem); /* header(3.5rem) + breadcrumb(~2.5rem) + padding */
-}
-
-@media (min-width: 768px) {
-  .help-manual-container {
-    margin: -1.5rem;   /* 抵消 md:p-6 */
-  }
-}
-
-.help-manual-iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  display: block;
+.help-anchor {
+  /* 佔位元素：用於量測 main 區域的起始位置 */
+  width: 0;
+  height: 0;
 }
 </style>
