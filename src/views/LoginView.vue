@@ -41,7 +41,7 @@ async function onSubmit() {
     <CardHeader class="space-y-1">
       <CardTitle class="text-xl text-foreground">登入</CardTitle>
       <CardDescription class="text-muted-foreground">
-        請使用您的帳號登入 Construction Dashboard
+        請使用您的帳號登入 EAGLE 2.0
       </CardDescription>
     </CardHeader>
     <CardContent class="space-y-4">

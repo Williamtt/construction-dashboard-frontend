@@ -123,12 +123,12 @@ const permStore = useProjectPermissionsStore()
 const tenantBrandingStore = useTenantBrandingStore()
 const sidebarStore = useSidebarStore()
 
-/** Sidebar 標題：專案內 = 專案名稱，未進專案 = 公司名稱（無則 Construction Dashboard） */
+/** Sidebar 標題：專案內 = 專案名稱，未進專案 = 公司名稱（無則 EAGLE 2.0） */
 const sidebarTitle = computed(() => {
   if (isProjectScope.value && projectStore.currentProjectName) {
     return projectStore.currentProjectName
   }
-  return tenantBrandingStore.name || 'Construction Dashboard'
+  return tenantBrandingStore.name || 'EAGLE 2.0'
 })
 
 /** 租戶 Logo：僅在有設定時顯示，無則不顯示任何圖片 */

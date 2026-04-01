@@ -53,7 +53,7 @@ const isProjectScope = computed(() => !!route.params.projectId)
 const headerTitle = computed(() =>
   isProjectScope.value && projectStore.currentProjectName
     ? projectStore.currentProjectName
-    : 'Construction Dashboard'
+    : 'EAGLE 2.0'
 )
 
 function openNotifications() {
