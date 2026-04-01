@@ -535,8 +535,8 @@ router.beforeEach((to, _from, next) => {
   const { isMobileApp } = useDevice()
   const appPreference = useAppPreferenceStore()
 
-  // 登入與申請頁面不需認證
-  if (to.path === ROUTE_PATH.LOGIN || to.path === ROUTE_PATH.APPLY) {
+  // 登入、申請、操作手冊頁面不需認證
+  if (to.path === ROUTE_PATH.LOGIN || to.path === ROUTE_PATH.APPLY || to.path === ROUTE_PATH.HELP) {
     if (auth.isAuthenticated && to.path === ROUTE_PATH.LOGIN) {
       if (isMobileApp.value && !appPreference.preferDesktopOnMobile) {
         next(ROUTE_PATH.MOBILE)
