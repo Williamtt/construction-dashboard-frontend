@@ -217,7 +217,7 @@ const monitoringIcons: Record<string, typeof Thermometer> = {
         </Card>
         <Card>
           <CardHeader>
-            <CardTitle>人力與設備分析</CardTitle>
+            <CardTitle>工地人員及機具分析</CardTitle>
           </CardHeader>
           <CardContent>
             <p class="text-sm text-muted-foreground">（圖表區塊佔位）</p>

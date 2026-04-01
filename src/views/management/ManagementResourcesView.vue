@@ -49,7 +49,7 @@ import { ensureProjectPermission } from '@/lib/permission-toast'
 
 const TAB_VALUES = ['labor', 'equipment', 'material'] as const
 const TAB_LABELS: Record<(typeof TAB_VALUES)[number], string> = {
-  labor: '人力',
+  labor: '人員',
   equipment: '機具',
   material: '材料',
 }

@@ -295,7 +295,7 @@ watch(
 
 async function fillFromPcces() {
   if (lines.value.length > 0) {
-    if (!window.confirm('將以 PCCES 明細取代目前表格列，是否繼續？')) return
+    if (!window.confirm('將以契約工項明細取代目前表格列，是否繼續？')) return
   }
   pickerLoading.value = true
   try {
@@ -307,7 +307,7 @@ async function fillFromPcces() {
     if (!data.rows.some((r) => r.isStructuralLeaf)) {
       toast.message('無可用工項', {
         description:
-          '請確認該估驗日（或今日）已有「生效」之核定 PCCES 版次，並於最新版完成匯入與核定。',
+          '請確認該估驗日（或今日）已有「生效」之核定契約工項版次，並於最新版完成匯入與核定。',
       })
       return
     }
@@ -424,7 +424,7 @@ async function fillFromPcces() {
     groupSections.value = nextSecs
   } catch (e) {
     console.error('[ConstructionValuationForm] fillFromPcces', e)
-    toast.error('載入 PCCES 明細失敗', { description: getApiErrorMessage(e) })
+    toast.error('載入契約工項明細失敗', { description: getApiErrorMessage(e) })
   } finally {
     pickerLoading.value = false
   }
@@ -464,7 +464,7 @@ function removeLine(rowKey: string) {
   const target = getLine(rowKey)
   if (target && isPccesBoundLine(target)) {
     toast.message('無法刪除此列', {
-      description: '自 PCCES 帶入的工項不可刪除；可新增手填列補充說明。',
+      description: '自契約工項帶入的工項不可刪除；可新增手填列補充說明。',
     })
     return
   }
@@ -673,7 +673,7 @@ async function confirmDelete() {
           @click="fillFromPcces"
         >
           <Loader2 v-if="pickerLoading" class="size-4 animate-spin" />
-          <template v-else>自 PCCES 帶入明細</template>
+          <template v-else>自契約工項帶入明細</template>
         </Button>
         <Button v-if="canEdit" type="button" variant="outline" size="sm" @click="addManualRow">
           <Plus class="size-4" />
@@ -684,7 +684,7 @@ async function confirmDelete() {
         v-if="lastPccesPickerImport && canEdit"
         class="text-xs text-muted-foreground"
       >
-        契約欄位（項次／說明／數量／單價）依估驗日對應之 PCCES 第
+        契約欄位（項次／說明／數量／單價）依估驗日對應之契約工項第
         {{ lastPccesPickerImport.version }} 版；工項列仍綁定<strong class="font-medium text-foreground">最新版</strong>之
         id（與施工日誌選版邏輯一致）。
         <template v-if="lastPccesPickerImport.approvalEffectiveAt">
@@ -732,7 +732,7 @@ async function confirmDelete() {
                   :colspan="canEdit ? 13 : 12"
                   class="py-8 text-center text-muted-foreground"
                 >
-                  尚無明細，請「自 PCCES 帶入明細」或新增手填列。
+                  尚無明細，請「自契約工項帶入明細」或新增手填列。
                 </TableCell>
               </TableRow>
               <TableRow v-else-if="row.kind === 'parent'" class="bg-muted/40 hover:bg-muted/50">

@@ -434,7 +434,7 @@ const logsEmptyText = computed(() => {
           <div class="rounded-2xl border border-primary/25 bg-primary/5 p-4 shadow-sm">
             <p class="flex items-center gap-2 font-bold text-primary">
               <Trees class="size-4 shrink-0" aria-hidden="true" />
-              跟 PCCES（價目／工項）怎麼配合？
+              跟契約工項（價目）怎麼配合？
             </p>
             <ul class="mt-2 list-inside list-disc space-y-1.5 leading-relaxed text-foreground">
               <li>只能選 <span class="font-bold text-primary">已經核定</span> 過的價目版本。</li>
@@ -442,7 +442,7 @@ const logsEmptyText = computed(() => {
                 您選的<span class="font-semibold text-foreground">填表日期</span>，會決定畫面上「契約數量、單價」依哪一次核定版本顯示；換版後舊日期仍看得到當時的約定。
               </li>
               <li>
-                系統會幫您加總「填表日以前」同一工項做過多少，方便填本日完成量與累計。
+                系統會幫您加總「填表日以前」同一工項做過多少，方便填本日完成數量與累計。
               </li>
               <li>
                 存檔後，契約數字會跟著當次表單一起留下來，之後價目再改版也不會偷偷改掉您當天填的紀錄。
@@ -486,7 +486,7 @@ const logsEmptyText = computed(() => {
               <li>用工具列的「填表日期」可篩選一段期間，也能排序。</li>
               <li>勾選多筆可批次刪除（需權限）。</li>
               <li>
-                看日誌需要「施工日誌」權限；上傳／維護 PCCES 是另一組權限，可請管理員分開開。
+                看日誌需要「施工日誌」權限；上傳／維護契約工項是另一組權限，可請管理員分開開。
               </li>
             </ul>
           </div>
@@ -495,9 +495,9 @@ const logsEmptyText = computed(() => {
             <p class="font-bold text-chart-5">存檔被擋下來？常見狀況</p>
             <ul class="mt-2 list-inside list-disc space-y-1.5 leading-relaxed text-foreground">
               <li>同一天已經有一張日誌 → 請改編輯那一張，不要重複新增同一天。</li>
-              <li>專案還沒核定 PCCES 就想綁工項 → 請先到「PCCES 匯入紀錄」完成核定。</li>
+              <li>專案還沒核定契約工項就想綁工項 → 請先到「契約匯入紀錄」完成核定。</li>
               <li>累計完成量超過契約數量 → 請核對現場與契約／變更內容。</li>
-              <li>同一張日誌里同一個 PCCES 工項重複出現 → 請刪掉重複列。</li>
+              <li>同一張日誌里同一個契約工項重複出現 → 請刪掉重複列。</li>
             </ul>
           </div>
         </div>

@@ -411,7 +411,7 @@ async function batchDownload() {
 <template>
   <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">相關表單</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">相關表單樣板</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         預設樣板由後台管理新增；專案也可在此新增樣板。每個樣板皆有名稱、更新時間與描述供辨識。
       </p>

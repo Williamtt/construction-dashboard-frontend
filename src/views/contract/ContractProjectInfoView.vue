@@ -204,7 +204,7 @@ async function save() {
     <div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
       <div>
         <h1 class="text-xl font-semibold tracking-tight text-foreground">
-          專案資料
+          專案基本資料
         </h1>
         <p class="mt-1 text-sm text-muted-foreground">
           契約專案之基本資料、工期與聯絡資訊

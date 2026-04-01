@@ -1382,7 +1382,7 @@ watch(projectId, async (id) => {
                 <span class="text-muted-foreground text-xs">({{ res.type }})</span>
               </label>
               <p v-if="!projectResources.length" class="text-muted-foreground text-xs">
-                尚無資源，請至資源庫新增。
+                尚無資源，請至人機料管理新增。
               </p>
             </div>
           </div>
@@ -1459,7 +1459,7 @@ watch(projectId, async (id) => {
                   <span class="text-muted-foreground text-xs">({{ res.type }})</span>
                 </label>
                 <p v-if="!projectResources.length" class="text-muted-foreground text-xs">
-                  尚無資源，請至資源庫新增。
+                  尚無資源，請至人機料管理新增。
                 </p>
               </div>
             </div>

@@ -27,6 +27,7 @@ export type {
 /** Layer 1：未進專案時顯示（專案列表、後台管理由 AppSidebar 依權限動態加入） */
 export const LAYER1_ENTRIES: NavItem[] = [
   { id: 'projects', label: '專案列表', path: '/projects', icon: 'FolderKanban' },
+  { id: 'help', label: '操作手冊', path: '/help', icon: 'CircleHelp' },
 ]
 
 /** Layer 2：專案內第一層（契約、專案基本資料、儀表板、檔案、相關表單；工作執行群組置底） */
@@ -35,7 +36,7 @@ export const LAYER2_ITEMS: NavLayer2Item[] = [
   {
     type: 'link',
     id: 'project-info',
-    label: '專案資料',
+    label: '專案基本資料',
     pathSuffix: '/contract/project-info',
     icon: 'ClipboardList',
   },
@@ -49,7 +50,7 @@ export const LAYER2_ITEMS: NavLayer2Item[] = [
   {
     type: 'link',
     id: 'project-members',
-    label: '專案成員',
+    label: '成員與權限',
     pathSuffix: '/contract/members',
     icon: 'Users',
   },
@@ -57,7 +58,7 @@ export const LAYER2_ITEMS: NavLayer2Item[] = [
   {
     type: 'link',
     id: 'files-forms',
-    label: '相關表單',
+    label: '相關表單樣板',
     pathSuffix: '/files/forms',
     icon: 'FileText',
   },
@@ -91,7 +92,7 @@ export const LAYER3_PROJECT_MGMT: NavItemProject[] = [
   { id: 'management-gantt', label: '甘特圖', pathSuffix: '/management/gantt', icon: 'ChartGantt' },
   {
     id: 'management-resources',
-    label: '資源庫',
+    label: '人機料管理',
     pathSuffix: '/management/resources',
     icon: 'Library',
   },
@@ -133,7 +134,7 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
   },
   {
     id: 'construction-progress',
-    label: '進度管理',
+    label: '進度表',
     pathSuffix: '/construction/progress',
     icon: 'TrendingUp',
   },
@@ -151,7 +152,7 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
   },
   {
     id: 'construction-pcces',
-    label: 'PCCES 工項',
+    label: '契約工項',
     pathSuffix: '/construction/diary/pcces/versions',
     icon: 'FileSpreadsheet',
   },
@@ -229,7 +230,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
     children: [
       {
         id: 'contract-project-info',
-        label: '專案資料',
+        label: '專案基本資料',
         pathSuffix: '/contract/project-info',
         icon: 'ClipboardList',
       },
@@ -245,7 +246,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
         pathSuffix: '/contract/management',
         icon: 'FileSignature',
       },
-      { id: 'project-members', label: '專案成員', pathSuffix: '/contract/members', icon: 'Users' },
+      { id: 'project-members', label: '成員與權限', pathSuffix: '/contract/members', icon: 'Users' },
     ],
   },
   {
@@ -253,7 +254,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
     label: '檔案',
     children: [
       { id: 'files-management', label: '檔案管理', pathSuffix: '/files', icon: 'FolderOpen' },
-      { id: 'files-forms', label: '相關表單', pathSuffix: '/files/forms', icon: 'FileText' },
+      { id: 'files-forms', label: '相關表單樣板', pathSuffix: '/files/forms', icon: 'FileText' },
       { id: 'files-photos', label: '照片管理', pathSuffix: '/files/photos', icon: 'Image' },
     ],
   },
@@ -264,7 +265,7 @@ export const PROJECT_SIDEBAR_GROUPS: NavGroupProject[] = [
       { id: 'management-wbs', label: 'WBS清單', pathSuffix: '/management/wbs', icon: 'ListTree' },
       {
         id: 'management-resources',
-        label: '資源庫',
+        label: '人機料管理',
         pathSuffix: '/management/resources',
         icon: 'Library',
       },

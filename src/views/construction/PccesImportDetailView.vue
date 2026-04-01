@@ -350,7 +350,7 @@ async function clearApprovalEffectiveAt() {
     <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
       <div class="min-w-0 flex-1">
         <div class="flex flex-wrap items-center gap-2">
-          <h1 class="text-xl font-semibold text-foreground">PCCES 工項明細</h1>
+          <h1 class="text-xl font-semibold text-foreground">契約工項明細</h1>
           <span
             v-if="!loading && !loadError && summaryVersion != null"
             class="rounded-md border border-border bg-muted/50 px-2 py-0.5 text-xs text-muted-foreground"
@@ -418,7 +418,7 @@ async function clearApprovalEffectiveAt() {
       >
         此版為 Excel 變更版：下一版請使用「Excel 變更」。若要改以
         <span class="text-foreground">完整 PCCES XML</span>
-        新增版本，請至匯入紀錄列表右上角「新增版本」→「上傳 PCCES XML」。
+        新增版本，請至匯入紀錄列表右上角「新增版本」→「上傳契約工項 XML」。
       </p>
     </div>
 
@@ -463,7 +463,7 @@ async function clearApprovalEffectiveAt() {
           <div class="min-w-0 flex-1 space-y-3 lg:pl-6">
             <h3 class="text-sm font-semibold text-foreground">核定生效時間（施工日誌）</h3>
             <p class="text-sm text-muted-foreground">
-              施工日誌依「填表日期」決定契約數量、單價等應對應哪一版 PCCES；此處設定該版之生效日曆日。未填時，生效日＝按下「核定此版本」當天的日曆日。
+              施工日誌依「填表日期」決定契約數量、單價等應對應哪一版契約工項；此處設定該版之生效日曆日。未填時，生效日＝按下「核定此版本」當天的日曆日。
             </p>
             <template v-if="perm.canUpdate.value">
               <div class="flex flex-col gap-2">

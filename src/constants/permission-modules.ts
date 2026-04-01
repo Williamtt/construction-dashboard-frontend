@@ -131,10 +131,10 @@ export function resolvePermissionPathSuffix(fullPath: string): string {
 /** 矩陣／文件顯示用 */
 export const PERMISSION_MODULE_LABELS: Record<PermissionModuleId, string> = {
   'project.overview': '專案總覽、契約',
-  'project.members': '專案成員',
+  'project.members': '成員與權限',
   'project.wbs': 'WBS 清單',
   'project.gantt': '甘特圖',
-  'project.resource': '資源庫',
+  'project.resource': '人機料管理',
   'project.schedule': '排班表',
   'project.risk': '風險與議題',
   'project.duration': '工期調整',
@@ -144,9 +144,9 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModuleId, string> = {
   'construction.equipment': '設備／攝影機',
   'construction.inspection': '自主檢查',
   'construction.diary': '施工日誌',
-  'construction.pcces': 'PCCES 工項匯入',
+  'construction.pcces': '契約工項匯入',
   'construction.valuation': '估驗計價',
-  'construction.progress': '進度管理',
+  'construction.progress': '進度表',
   'construction.defect': '缺失改善',
   'construction.photo': '照片管理',
   'repair.overview': '報修總覽',
@@ -156,6 +156,6 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModuleId, string> = {
 export const PERMISSION_PRESET_OPTIONS = [
   { value: 'owner_viewer' as const, label: '業主檢視（僅讀）' },
   { value: 'project_engineer' as const, label: '專案工程師（全模組）' },
-  { value: 'site_supervisor' as const, label: '工地主任（讀＋檢查／缺失／日誌／PCCES／照片）' },
+  { value: 'site_supervisor' as const, label: '工地主任（讀＋檢查／缺失／日誌／契約工項／照片）' },
   { value: 'equipment_manager' as const, label: '設備管理（設備與報修）' },
 ]

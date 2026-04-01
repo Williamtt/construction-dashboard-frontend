@@ -29,7 +29,11 @@ export const ROUTE_PATH = {
   APPLY: '/apply',
   /** 專案列表（獨立入口，選專案後進入 /p/:projectId/dashboard） */
   PROJECTS: '/projects',
+  /** 操作手冊 */
+  HELP: '/help',
 
+  /** 手機版操作手冊 */
+  MOBILE_HELP: '/mobile/help',
   /** 手機版（PWA／現場查驗） */
   MOBILE: '/mobile',
   MOBILE_INSPECTION: 'inspection',
@@ -140,7 +144,9 @@ export const ROUTE_NAME = {
   LOGIN: 'login',
   APPLY: 'apply',
   PROJECTS: 'projects',
+  HELP: 'help',
   MOBILE: 'mobile',
+  MOBILE_HELP: 'mobile-help',
   MOBILE_PROJECT_PICKER: 'mobile-project-picker',
   MOBILE_INSPECTION: 'mobile-inspection',
   MOBILE_INSPECTION_TEMPLATE: 'mobile-inspection-template',

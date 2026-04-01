@@ -67,7 +67,7 @@ import { useConstructionDailyLogBreadcrumbStore } from '@/stores/constructionDai
 import { toast } from '@/components/ui/sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-vue-next'
 
-/** general 或空字串視為可填本日完成量；其餘 kind 僅能 0（與後端一致） */
+/** general 或空字串視為可填本日完成數量；其餘 kind 僅能 0（與後端一致） */
 function pccesDailyQtyEditable(itemKind: string | null | undefined): boolean {
   if (itemKind == null || itemKind === '') return true
   return itemKind === 'general'
@@ -270,7 +270,7 @@ async function openWorkItemsModal() {
       modalTableRows.value = []
       lastPccesPickerImport.value = null
       workModalError.value =
-        '專案尚無已核定之 PCCES 版本，或該版無可填寫之明細工項。請至「PCCES 匯入紀錄」核定其中一版後再試。'
+        '專案尚無已核定之契約工項版本，或該版無可填寫之明細工項。請至「契約匯入紀錄」核定其中一版後再試。'
       return
     }
     lastPccesPickerImport.value = res.pccesImport
@@ -732,7 +732,7 @@ onUnmounted(() => {
             {{ isNew ? '新增施工日誌' : '編輯施工日誌' }}
           </h1>
           <p class="mt-1 text-sm text-muted-foreground">
-            公共工程依附表四；若專案已有進度管理主計畫，預定進度依各期<strong class="text-foreground">累計預定
+            公共工程依附表四；若專案已有進度表主計畫，預定進度依各期<strong class="text-foreground">累計預定
             %</strong>對填表日<strong class="text-foreground">線性內插</strong>；否則依開工日與核定工期推算（儲存後與列表以伺服器計算為準）。
           </p>
         </div>
@@ -878,7 +878,7 @@ onUnmounted(() => {
                 </Button>
               </div>
               <p class="text-xs text-muted-foreground">
-                依最新核定 PCCES 一般葉節點：累計完成×單價加總／總工程費（頂層壹／發包金額）；納入表上核定工項之本日完成量，可再手改。
+                依最新核定契約工項一般葉節點：累計完成×單價加總／總工程費（頂層壹／發包金額）；納入表上核定工項之本日完成數量，可再手改。
               </p>
             </div>
           </div>
@@ -896,7 +896,7 @@ onUnmounted(() => {
               </p>
               <p class="text-xs text-muted-foreground">
                 契約數量／單價等會依<strong class="text-foreground">填表日期</strong>，對應「該日已生效」的
-                PCCES 版次（詳見匯入紀錄的「核定生效時間」；未填則以核定當日日曆為準）。
+                契約工項版次（詳見匯入紀錄的「核定生效時間」；未填則以核定當日日曆為準）。
               </p>
               <p
                 v-if="lastPccesPickerImport"
@@ -1113,11 +1113,11 @@ onUnmounted(() => {
         </CardContent>
       </Card>
 
-      <!-- 三、人員及機具 -->
+      <!-- 三、工地人員及機具管理 -->
       <Card class="border-border bg-card">
         <CardHeader class="flex flex-row items-end justify-between gap-4">
           <div>
-            <CardTitle class="text-lg">三、人員及機具</CardTitle>
+            <CardTitle class="text-lg">三、工地人員及機具管理</CardTitle>
             <CardDescription>一列可同時記錄工別／人數與機具</CardDescription>
           </div>
           <Button type="button" variant="outline" size="sm" @click="personnelRows.push(emptyPe())">
@@ -1295,9 +1295,9 @@ onUnmounted(() => {
         class="flex max-h-[90vh] max-w-[min(96rem,calc(100vw-2rem))] flex-col gap-0 sm:max-w-[min(96rem,calc(100vw-2rem))]"
       >
         <DialogHeader>
-          <DialogTitle>施工項目（核定 PCCES）</DialogTitle>
+          <DialogTitle>施工項目（核定契約工項）</DialogTitle>
           <DialogDescription>
-            與 PCCES 明細（全部類型）相同順序（itemKey 升序）；目錄列與末層同欄位，目錄列不填本日完成與備註。累計不可超過契約數量。
+            與契約工項明細（全部類型）相同順序（itemKey 升序）；目錄列與末層同欄位，目錄列不填本日完成與備註。累計不可超過契約數量。
           </DialogDescription>
         </DialogHeader>
         <div class="min-h-0 flex-1 overflow-auto py-2">
@@ -1371,7 +1371,7 @@ onUnmounted(() => {
                       :disabled="!pccesDailyQtyEditable(row.itemKind)"
                       :title="
                         !pccesDailyQtyEditable(row.itemKind)
-                          ? '此 PCCES 類型不開放填寫本日完成量'
+                          ? '此契約工項類型不開放填寫本日完成數量'
                           : undefined
                       "
                     />

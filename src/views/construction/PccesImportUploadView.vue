@@ -116,7 +116,7 @@ async function submit() {
     </div>
 
     <div>
-      <h1 class="text-xl font-semibold text-foreground">PCCES／XML 匯入</h1>
+      <h1 class="text-xl font-semibold text-foreground">契約工項匯入</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         <template v-if="hasAnyImport === false">
           首次匯入請上傳 PCCES 產出之 XML；下方<strong class="text-foreground">版本名稱</strong>預設為「原契約」，可自行修改。

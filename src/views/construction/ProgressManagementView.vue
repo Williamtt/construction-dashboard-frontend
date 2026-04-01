@@ -714,7 +714,7 @@ watch(progressTab, async (tab) => {
 <template>
   <div>
     <div class="mb-6">
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">進度管理</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">進度表</h1>
     </div>
 
     <Tabs v-model="progressTab">

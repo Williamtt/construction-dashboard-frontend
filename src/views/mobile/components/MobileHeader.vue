@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ChevronLeft, Menu } from 'lucide-vue-next'
+import { ChevronLeft, Menu, CircleHelp } from 'lucide-vue-next'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 
@@ -13,6 +13,7 @@ const emit = defineEmits<{
   back: []
   menu: []
   switchToDesktop: []
+  help: []
 }>()
 </script>
 
@@ -57,6 +58,13 @@ const emit = defineEmits<{
             @click="emit('menu')"
           >
             切換專案
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            class="min-h-12 text-base"
+            @click="emit('help')"
+          >
+            <CircleHelp class="mr-2 size-4" />
+            操作手冊
           </DropdownMenuItem>
           <DropdownMenuItem
             class="min-h-12 text-base"

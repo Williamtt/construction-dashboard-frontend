@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工程專案管理系統——功能操作說明手冊</title>
+<style>
+  :root {
+    --sidebar-w: 280px;
+    --primary: #1a56db;
+    --primary-light: #e8eefb;
+    --bg: #f8f9fa;
+    --card-bg: #ffffff;
+    --text: #1f2937;
+    --text-light: #6b7280;
+    --border: #e5e7eb;
+    --accent: #f59e0b;
+    --success: #10b981;
+    --danger: #ef4444;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; scroll-padding-top: 24px; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif;
+    color: var(--text);
+    background: var(--bg);
+    line-height: 1.75;
+    font-size: 15px;
+  }
+
+  /* ── Sidebar ── */
+  .sidebar {
+    position: fixed; top: 0; left: 0;
+    width: var(--sidebar-w); height: 100vh;
+    background: var(--card-bg);
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    z-index: 100;
+    padding: 20px 0;
+    transition: transform .3s;
+  }
+  .sidebar-header {
+    padding: 0 20px 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+  .sidebar-header h1 {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--primary);
+    line-height: 1.4;
+  }
+  .sidebar nav ul { list-style: none; }
+  .sidebar nav > ul > li { margin-bottom: 2px; }
+  .sidebar nav a {
+    display: block;
+    padding: 6px 20px;
+    color: var(--text);
+    text-decoration: none;
+    font-size: 13.5px;
+    border-left: 3px solid transparent;
+    transition: all .15s;
+  }
+  .sidebar nav a:hover, .sidebar nav a.active {
+    background: var(--primary-light);
+    border-left-color: var(--primary);
+    color: var(--primary);
+  }
+  .sidebar nav .sub a { padding-left: 36px; color: var(--text-light); font-size: 13px; }
+  .sidebar nav .sub a:hover { color: var(--primary); }
+
+  /* ── Main ── */
+  .main {
+    margin-left: var(--sidebar-w);
+    max-width: 860px;
+    padding: 32px 40px 80px;
+  }
+
+  /* ── Typography ── */
+  h2 {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 48px 0 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--primary);
+    color: var(--primary);
+  }
+  h2:first-of-type { margin-top: 0; }
+  h3 { font-size: 19px; font-weight: 600; margin: 32px 0 12px; color: var(--text); }
+  h4 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; }
+  p { margin-bottom: 12px; }
+  strong { font-weight: 600; }
+  ul, ol { margin: 8px 0 16px 24px; }
+  li { margin-bottom: 4px; }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 14px;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 8px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: var(--primary);
+    color: #fff;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  tr:nth-child(even) td { background: #f9fafb; }
+
+  /* ── Blockquote (tips) ── */
+  blockquote {
+    margin: 16px 0;
+    padding: 12px 16px;
+    background: #fffbeb;
+    border-left: 4px solid var(--accent);
+    border-radius: 0 6px 6px 0;
+    font-size: 14px;
+  }
+  blockquote strong { color: #92400e; }
+  blockquote.important {
+    background: #fef2f2;
+    border-left-color: var(--danger);
+  }
+  blockquote.important strong { color: #991b1b; }
+
+  /* ── Code / pre ── */
+  pre {
+    background: #1e293b;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 12px 0 20px;
+    font-size: 13px;
+    line-height: 1.6;
+  }
+  code { font-family: "SF Mono", "Fira Code", monospace; }
+
+  /* ── Cards ── */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .card h4 { margin-top: 0; }
+
+  /* ── Steps (ordered list) ── */
+  .steps { counter-reset: step; list-style: none; margin-left: 0; padding-left: 0; }
+  .steps li {
+    position: relative;
+    padding-left: 36px;
+    margin-bottom: 10px;
+  }
+  .steps li::before {
+    counter-increment: step;
+    content: counter(step);
+    position: absolute; left: 0; top: 1px;
+    width: 24px; height: 24px;
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    font-size: 13px; font-weight: 600;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  /* ── Badge ── */
+  .badge {
+    display: inline-block;
+    padding: 1px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .badge-required { background: #fee2e2; color: #dc2626; }
+  .badge-optional { background: #f3f4f6; color: #6b7280; }
+
+  /* ── Hamburger (mobile) ── */
+  .hamburger {
+    display: none;
+    position: fixed; top: 12px; left: 12px;
+    z-index: 200;
+    background: var(--primary); color: #fff;
+    border: none; border-radius: 6px;
+    width: 40px; height: 40px;
+    font-size: 20px; cursor: pointer;
+  }
+  .overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,.4);
+    z-index: 99;
+  }
+
+  /* ── Responsive ── */
+  @media (max-width: 800px) {
+    .sidebar { transform: translateX(-100%); }
+    .sidebar.open { transform: translateX(0); }
+    .overlay.open { display: block; }
+    .hamburger { display: flex; align-items: center; justify-content: center; }
+    .main { margin-left: 0; padding: 60px 20px 80px; }
+    table { font-size: 13px; }
+    th, td { padding: 6px 8px; }
+  }
+
+  /* ── Print ── */
+  @media print {
+    .sidebar, .hamburger, .overlay { display: none !important; }
+    .main { margin-left: 0; max-width: 100%; }
+    h2 { break-before: page; }
+  }
+
+  /* ── Back to top ── */
+  .back-top {
+    position: fixed; bottom: 24px; right: 24px;
+    width: 40px; height: 40px;
+    background: var(--primary); color: #fff;
+    border: none; border-radius: 50%;
+    font-size: 18px; cursor: pointer;
+    opacity: 0; transition: opacity .3s;
+    z-index: 50;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .back-top.show { opacity: 1; }
+
+  /* ── Footer ── */
+  .footer {
+    margin-top: 48px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    color: var(--text-light);
+    font-size: 13px;
+    font-style: italic;
+  }
+</style>
+</head>
+<body>
+
+<!-- Mobile hamburger -->
+<button class="hamburger" onclick="toggleSidebar()" aria-label="Menu">&#9776;</button>
+<div class="overlay" onclick="toggleSidebar()"></div>
+
+<!-- Sidebar -->
+<aside class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <h1>工程專案管理系統<br>功能操作說明手冊</h1>
+  </div>
+  <nav>
+    <ul>
+      <li><a href="#ch1">第一章　系統概述與登入</a></li>
+      <li><a href="#ch2">第二章　專案列表與新增專案</a></li>
+      <li><a href="#ch3">第三章　儀表板</a></li>
+      <li><a href="#ch4">第四章　專案基本資料</a></li>
+      <li>
+        <a href="#ch5">第五章　契約管理</a>
+        <ul class="sub">
+          <li><a href="#s5-1">5.1　契約工項匯入</a></li>
+          <li><a href="#s5-2">5.2　工期調整</a></li>
+        </ul>
+      </li>
+      <li><a href="#ch6">第六章　成員與權限</a></li>
+      <li>
+        <a href="#ch7">第七章　專案管理</a>
+        <ul class="sub">
+          <li><a href="#s7-1">7.1　總覽</a></li>
+          <li><a href="#s7-2">7.2　WBS 清單</a></li>
+          <li><a href="#s7-3">7.3　甘特圖</a></li>
+          <li><a href="#s7-4">7.4　人機料管理</a></li>
+          <li><a href="#s7-5">7.5　排班表</a></li>
+          <li><a href="#s7-6">7.6　風險與議題</a></li>
+        </ul>
+      </li>
+      <li>
+        <a href="#ch8">第八章　施工管理</a>
+        <ul class="sub">
+          <li><a href="#s8-1">8.1　施工日誌</a></li>
+          <li><a href="#s8-2">8.2　估驗計價</a></li>
+          <li><a href="#s8-3">8.3　進度表</a></li>
+          <li><a href="#s8-4">8.4　缺失改善</a></li>
+          <li><a href="#s8-5">8.5　自主檢查</a></li>
+          <li><a href="#s8-6">8.6　圖說管理</a></li>
+          <li><a href="#s8-7">8.7　契約工項</a></li>
+        </ul>
+      </li>
+      <li><a href="#ch9">第九章　監測數據</a></li>
+      <li>
+        <a href="#ch10">第十章　檔案管理</a>
+        <ul class="sub">
+          <li><a href="#s10-1">10.1　相關表單樣板</a></li>
+          <li><a href="#s10-2">10.2　照片管理</a></li>
+        </ul>
+      </li>
+      <li><a href="#ch11">第十一章　報修管理</a></li>
+      <li><a href="#ch12">第十二章　行動版操作</a></li>
+      <li><a href="#faq">附錄　常見問題</a></li>
+    </ul>
+  </nav>
+</aside>
+
+<!-- Main content -->
+<div class="main">
+
+<!-- ==================== 第一章 ==================== -->
+<h2 id="ch1">第一章　系統概述與登入</h2>
+
+<h3>1.1　系統簡介</h3>
+<p>本系統為工程專案管理平台，提供從專案建立、契約管理、施工日誌、估驗計價、缺失改善到環境監測等完整功能，協助監造工程師以數位化方式管理工程專案的全生命週期。</p>
+<p>系統同時支援<strong>電腦版網頁</strong>及<strong>手機版</strong>操作，現場工程師可在工地透過手機拍照、填寫缺失、撰寫日誌，辦公室人員可於電腦端彙整資料、產出報表。</p>
+
+<h3>1.2　登入系統</h3>
+<ol class="steps">
+  <li>開啟瀏覽器，輸入系統網址。</li>
+  <li>在登入畫面輸入您的<strong>帳號</strong>（Email）與<strong>密碼</strong>。</li>
+  <li>點擊「登入」按鈕。</li>
+  <li>登入成功後，系統將自動導向「專案列表」頁面。</li>
+</ol>
+<blockquote><strong>提示：</strong>若您尚未擁有帳號，請點擊登入畫面的「申請帳號」連結，填寫基本資料後送出申請，待管理員審核通過即可登入。</blockquote>
+
+<!-- ==================== 第二章 ==================== -->
+<h2 id="ch2">第二章　專案列表與新增專案</h2>
+
+<h3>2.1　工程目的</h3>
+<p>「專案列表」是進入系統後的首頁，顯示您有權限參與的所有工程專案。您可以在此瀏覽現有專案，或建立新的工程專案。</p>
+
+<h3>2.2　畫面說明</h3>
+<p>進入系統後，畫面以卡片方式呈現各專案，每張卡片顯示：</p>
+<ul>
+  <li>專案名稱</li>
+  <li>專案說明（若有填寫）</li>
+  <li>「進入工作區」按鈕</li>
+</ul>
+<p>若目前沒有任何專案，畫面會顯示「尚無專案，點擊右上角『新增專案』建立第一個專案」。</p>
+
+<h3>2.3　新增專案</h3>
+<p><strong>操作步驟：</strong></p>
+<ol class="steps">
+  <li>在專案列表頁面，點擊右上角的「新增專案」按鈕。</li>
+  <li>系統彈出新增對話框，請填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>必填</th><th>說明</th></tr>
+  <tr><td>專案名稱</td><td><span class="badge badge-required">必填</span></td><td>輸入工程名稱，例如「北區道路改善工程」</td></tr>
+  <tr><td>說明</td><td><span class="badge badge-optional">選填</span></td><td>可填寫專案簡要描述</td></tr>
+  <tr><td>專案代碼</td><td><span class="badge badge-optional">選填</span></td><td>可輸入內部編號，例如「PROJ-001」</td></tr>
+</table>
+<ol class="steps" start="3">
+  <li>點擊「建立」按鈕。</li>
+  <li>系統建立專案後，自動進入該專案的「儀表板」頁面。</li>
+</ol>
+<blockquote><strong>說明：</strong>建立專案後，系統會自動將您設為該專案的管理員，擁有所有功能的操作權限。後續可再新增其他成員並分配不同權限。</blockquote>
+
+<h3>2.4　進入既有專案</h3>
+<p>在專案列表中，點擊欲進入之專案卡片上的「進入工作區」按鈕，即進入該專案的工作區。</p>
+
+<!-- ==================== 第三章 ==================== -->
+<h2 id="ch3">第三章　儀表板</h2>
+
+<h3>3.1　工程目的</h3>
+<p>儀表板是專案的總覽頁面，提供工程關鍵指標的即時摘要，讓監造工程師快速掌握專案目前的工期、進度及預算狀態，同時整合環境監測警報資訊。</p>
+
+<h3>3.2　畫面說明</h3>
+<p>儀表板上方顯示三張關鍵指標卡片：</p>
+<table>
+  <tr><th>指標卡片</th><th>顯示內容</th><th>工程意義</th></tr>
+  <tr><td><strong>累計天數</strong></td><td>開工至今的天數，以及開工日期與預定完工日期</td><td>快速了解工程時程消耗情形</td></tr>
+  <tr><td><strong>整體進度</strong></td><td>預定進度百分比與實際進度百分比</td><td>判斷工程是否超前或落後</td></tr>
+  <tr><td><strong>預算執行</strong></td><td>核定預算金額與執行率百分比</td><td>掌握經費使用情形</td></tr>
+</table>
+<p>下方分為兩個頁籤：</p>
+<h4>頁籤一：監測數據</h4>
+<ul>
+  <li><strong>警報專區：</strong>顯示來自中央氣象署的即時警特報（地震、豪雨、高溫、颱風等），若無警報則顯示「目前無任何警報」。</li>
+  <li><strong>環境監測數據：</strong>以六宮格呈現溫度、濕度、PM2.5、風速、雨量、水位等感測數值，點擊任一項目可查看該指標的歷史趨勢圖表。</li>
+</ul>
+<h4>頁籤二：施工執行</h4>
+<ul>
+  <li><strong>施工進度趨勢：</strong>以折線圖呈現預定進度與實際進度的變化趨勢。</li>
+  <li><strong>人力與設備分析：</strong>顯示投入人員與機具的統計圖表。</li>
+</ul>
+<blockquote><strong>提示：</strong>新建立的專案，儀表板各指標會顯示為零或空白，待填入專案基本資料、施工日誌及估驗計價後，數據會自動更新。</blockquote>
+
+<!-- ==================== 第四章 ==================== -->
+<h2 id="ch4">第四章　專案基本資料</h2>
+
+<h3>4.1　工程目的</h3>
+<p>「專案基本資料」用於登錄工程的基本資訊，包含參與單位、工程概要、工期及負責人等，是專案管理的基礎資料。這些資料會連動儀表板的工期天數計算、完工日期顯示，以及施工日誌的自動帶入欄位。</p>
+
+<h3>4.2　畫面說明</h3>
+<p>頁面分為四個區塊，以卡片方式排列：</p>
+
+<div class="card">
+<h4>區塊一：基本資訊</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>工程名稱</td><td>工程全稱</td></tr>
+  <tr><td>設計單位</td><td>負責設計之顧問公司或機關</td></tr>
+  <tr><td>監造單位</td><td>負責監造之顧問公司或機關</td></tr>
+  <tr><td>施工廠商</td><td>得標之營造廠商</td></tr>
+</table>
+</div>
+<div class="card">
+<h4>區塊二：工程內容</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>工程概要</td><td>工程範圍、主要施作項目等文字描述</td></tr>
+  <tr><td>工程效益</td><td>預期效益說明</td></tr>
+</table>
+</div>
+<div class="card">
+<h4>區塊三：工期</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>開工日期</td><td>正式開工日</td></tr>
+  <tr><td>工期（天）</td><td>契約核定工期天數</td></tr>
+  <tr><td>預定完工日期</td><td>系統自動計算（開工日期＋工期天數）</td></tr>
+  <tr><td>預定竣工（依工期調整）</td><td>含展延、停工天數的修正後竣工日期</td></tr>
+</table>
+</div>
+<div class="card">
+<h4>區塊四：聯絡與人員</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>工地負責人</td><td>駐地工程師或工地主任姓名</td></tr>
+  <tr><td>聯絡電話</td><td>連絡電話</td></tr>
+  <tr><td>專案工程人員</td><td>參與本工程之人員名單（多人可用逗號或換行分隔）</td></tr>
+</table>
+</div>
+
+<h3>4.3　操作步驟</h3>
+<ol class="steps">
+  <li>從左側選單點擊「專案基本資料」。</li>
+  <li>頁面預設為<strong>唯讀模式</strong>，僅顯示已填寫的資料。</li>
+  <li>點擊右上角的「編輯」按鈕，切換為<strong>編輯模式</strong>，各欄位變為可輸入狀態。</li>
+  <li>填寫或修改所需欄位。</li>
+  <li>點擊「儲存」按鈕完成修改。</li>
+</ol>
+<blockquote class="important"><strong>重要：</strong>「開工日期」與「工期（天）」填寫後，系統會自動計算「預定完工日期」。若後續有工期展延或停工情形，可透過「工期調整」功能申請調整，系統會自動更新「預定竣工」日期。</blockquote>
+
+<!-- ==================== 第五章 ==================== -->
+<h2 id="ch5">第五章　契約管理</h2>
+
+<h3 id="s5-1">5.1　契約工項匯入</h3>
+<h4>工程目的</h4>
+<p>契約工項是工程契約中載明的施作項目明細，包含項次、品名、單位、數量及單價。透過匯入契約工項檔案（如 PCCES 系統匯出的 XML 檔），可將完整的契約項目帶入系統，作為後續施工日誌記錄施工項目進度、估驗計價勾稽數量的依據。</p>
+
+<h4>操作步驟 — 匯入原契約</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「契約工項」。</li>
+  <li>在「契約工項匯入」分頁中，點擊「選擇檔案」按鈕。</li>
+  <li>選取契約工項檔案（支援 PCCES 匯出之 <code>.xml</code> 格式）。</li>
+  <li>若為首次匯入，「版本名稱」會自動填入「原契約」；若已有匯入紀錄，請自行輸入版本名稱（例如「第一次變更」）。</li>
+  <li>點擊「上傳」按鈕，系統開始解析檔案內容。</li>
+  <li>匯入成功後，系統自動導向匯入明細頁面，可檢視所有解析出的契約工項。</li>
+</ol>
+<h4>匯入契約變更</h4>
+<p>若有契約變更，可透過「契約變更」分頁上傳變更後的檔案，系統會比對原契約項目並更新數量與金額。</p>
+<h4>查看匯入紀錄</h4>
+<p>在「契約匯入紀錄」分頁中，可查看歷次匯入的版本、時間及匯入人員。</p>
+
+<h3 id="s5-2">5.2　工期調整</h3>
+<h4>工程目的</h4>
+<p>工程執行期間若遇天候因素、設計變更或其他不可歸責事由，需辦理工期展延或停工。本功能用於記錄各次工期調整的申請與核定情形，系統會自動將核定天數反映至專案基本資料中的「預定竣工」日期。</p>
+<h4>畫面說明</h4>
+<p>頁面以表格呈現所有工期調整紀錄，欄位包含：</p>
+<ul>
+  <li><strong>類型：</strong>展延／停工／其他</li>
+  <li><strong>申請日期：</strong>提出申請的日期</li>
+  <li><strong>申請天數：</strong>申請調整的天數</li>
+  <li><strong>核定天數：</strong>業主核定的天數</li>
+  <li><strong>狀態：</strong>待審／已核定／駁回</li>
+  <li><strong>備註：</strong>補充說明</li>
+</ul>
+<h4>操作步驟</h4>
+<ol class="steps">
+  <li>從左側選單進入「專案基本資料」→「工期調整」。</li>
+  <li>點擊「新增」按鈕，彈出新增對話框。</li>
+  <li>填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>類型</td><td>選擇「展延」、「停工」或「其他」</td></tr>
+  <tr><td>申請日期</td><td>選擇申請日期</td></tr>
+  <tr><td>申請天數</td><td>輸入申請天數</td></tr>
+  <tr><td>事由</td><td>說明調整原因</td></tr>
+  <tr><td>佐證檔案</td><td>上傳相關公文或核定函（可選）</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>點擊「儲存」送出。</li>
+  <li>待業主核定後，更新該筆紀錄的「核定天數」與「狀態」為「已核定」。</li>
+</ol>
+
+<!-- ==================== 第六章 ==================== -->
+<h2 id="ch6">第六章　成員與權限</h2>
+
+<h3>6.1　工程目的</h3>
+<p>工程專案通常涉及業主、監造、施工等多方人員。「成員與權限」功能用於管理可進入本專案的人員名單，並透過角色與權限設定控制各人員可操作的功能範圍，確保資料安全及分工明確。</p>
+
+<h3>6.2　畫面說明</h3>
+<p>頁面以表格列出所有已加入本專案的成員，欄位包含：姓名、Email、系統角色、帳號狀態（使用中／已停用）、加入時間。</p>
+
+<h3>6.3　新增成員</h3>
+<ol class="steps">
+  <li>從左側選單點擊「成員與權限」。</li>
+  <li>點擊右上角的「新增成員」按鈕。</li>
+  <li>從「可加入人員」清單中，勾選欲加入的人員。</li>
+  <li>為每位新成員設定角色：</li>
+</ol>
+<table>
+  <tr><th>角色</th><th>權限說明</th></tr>
+  <tr><td>專案管理員</td><td>擁有所有功能的完整操作權限（新增、檢視、編輯、刪除）</td></tr>
+  <tr><td>專案工程師</td><td>可操作施工管理、缺失改善等工程相關功能</td></tr>
+  <tr><td>專案檢視者</td><td>僅能檢視資料，無法新增或修改</td></tr>
+</table>
+<ol class="steps" start="5">
+  <li>點擊「確認」完成新增。</li>
+</ol>
+<blockquote><strong>進階設定：</strong>專案管理員可進一步針對個別成員調整細部權限，例如僅開放「施工日誌」及「缺失改善」的操作權限，限制其他功能的存取。</blockquote>
+
+<h3>6.4　管理成員</h3>
+<ul>
+  <li><strong>變更角色：</strong>點擊該成員列的操作選單，選擇「編輯角色」。</li>
+  <li><strong>停用帳號：</strong>點擊操作選單選擇「停用」，該成員將無法進入本專案。</li>
+  <li><strong>移除成員：</strong>點擊操作選單選擇「移出」，系統會要求確認後移除。</li>
+</ul>
+
+<!-- ==================== 第七章 ==================== -->
+<h2 id="ch7">第七章　專案管理</h2>
+
+<h3 id="s7-1">7.1　總覽（大事記與里程碑）</h3>
+<h4>工程目的</h4>
+<p>記錄工程執行過程中的重要事件（如開工、查核、竣工等）及關鍵里程碑，方便日後回顧及報告。</p>
+<h4>操作說明</h4>
+<p><strong>大事記：</strong></p>
+<ol class="steps">
+  <li>進入「專案管理」→「總覽」→「大事記」分頁。</li>
+  <li>點擊「新增」記錄事件的日期與內容描述。</li>
+</ol>
+<p><strong>里程碑：</strong></p>
+<ol class="steps">
+  <li>切換至「里程碑」分頁。</li>
+  <li>點擊「新增」設定里程碑名稱與目標日期。</li>
+  <li>里程碑會同步顯示在甘特圖上作為垂直標記線。</li>
+</ol>
+
+<h3 id="s7-2">7.2　WBS 清單</h3>
+<h4>工程目的</h4>
+<p>工作分解結構（WBS, Work Breakdown Structure）是將工程範圍由上而下逐層展開為可管理的工作項目。建立 WBS 的目的在於：</p>
+<ul>
+  <li>明確定義工程施作範圍</li>
+  <li>作為施工排程（甘特圖）的基礎</li>
+  <li>連結施工日誌及估驗計價的施工項目</li>
+</ul>
+<h4>畫面說明</h4>
+<p>頁面提供兩種檢視方式：</p>
+<ul>
+  <li><strong>清單：</strong>以可展開的樹狀結構顯示所有工項層級。</li>
+  <li><strong>網路圖：</strong>以視覺化方式顯示各工項之間的前後置關係。</li>
+</ul>
+<pre>1　北區道路改善工程（根節點，建立專案時自動產生）
+├─ 1.1　基礎工程
+│  ├─ 1.1.1　土方開挖
+│  └─ 1.1.2　基礎灌漿
+├─ 1.2　結構工程
+└─ 1.3　道路鋪面</pre>
+
+<h4>操作步驟 — 新增工作項目</h4>
+<ol class="steps">
+  <li>從左側選單進入「專案管理」→「WBS 清單」。</li>
+  <li>點擊「新增」按鈕，彈出新增對話框。</li>
+  <li>填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>名稱</td><td>工作項目名稱，例如「土方開挖」</td></tr>
+  <tr><td>編碼</td><td>層級編碼，例如「1.1.1」</td></tr>
+  <tr><td>上層工項</td><td>選擇此項目所屬的上層工作項目</td></tr>
+  <tr><td>開始日期</td><td>預定開始施作的日期</td></tr>
+  <tr><td>工期（天）</td><td>預估施作天數</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>點擊「儲存」完成新增。</li>
+</ol>
+<p><strong>調整排序：</strong>拖曳工項列左側的拖曳圖示，可調整同層級工項的顯示順序。</p>
+<p><strong>編輯或刪除：</strong>點擊工項列右側的操作選單，可進行編輯或刪除。</p>
+
+<h3 id="s7-3">7.3　甘特圖</h3>
+<h4>工程目的</h4>
+<p>甘特圖以時間軸方式呈現各工作項目的排程，直觀顯示工期重疊、施工先後順序及進度狀態，是監造工程師掌握整體工程排程的重要工具。</p>
+<h4>畫面說明</h4>
+<ul>
+  <li><strong>左側面板：</strong>顯示 WBS 工項樹狀清單，含項目名稱、編碼與工期。</li>
+  <li><strong>右側面板：</strong>時間軸上的橫條圖，每個工項以一條橫條表示其排程期間。
+    <ul>
+      <li>橫條的填滿程度代表目前進度百分比。</li>
+      <li>箭頭連線代表工項之間的前後置關係。</li>
+      <li>菱形標記代表里程碑。</li>
+    </ul>
+  </li>
+</ul>
+<h4>操作說明</h4>
+<ul>
+  <li><strong>縮放：</strong>使用工具列的縮放控制，可切換為日／週／月檢視。</li>
+  <li><strong>調整排程：</strong>開啟編輯模式後，可直接拖曳橫條調整工項的起訖日期。</li>
+  <li><strong>檢視細節：</strong>滑鼠移至橫條上方，會顯示該工項的起訖日期及進度數值。</li>
+</ul>
+
+<h3 id="s7-4">7.4　人機料管理</h3>
+<h4>工程目的</h4>
+<p>建立並管理工程所需的人員、機具及材料資料庫，作為施工日誌記錄人員投入、機具使用及材料進場的參考依據，也可用於資源需求規劃。</p>
+<h4>畫面說明</h4>
+<p>頁面分為三個頁籤：</p>
+<table>
+  <tr><th>頁籤</th><th>內容</th><th>範例</th></tr>
+  <tr><td><strong>人員</strong></td><td>各工種人員資料</td><td>模板工、鋼筋工、泥作工</td></tr>
+  <tr><td><strong>機具</strong></td><td>施工機具設備</td><td>挖土機、混凝土泵浦車、吊車</td></tr>
+  <tr><td><strong>材料</strong></td><td>工程材料</td><td>預拌混凝土、鋼筋、模板</td></tr>
+</table>
+<p>每筆項目顯示：名稱、單位、單價、產能、廠商、描述。</p>
+<h4>操作步驟</h4>
+<ol class="steps">
+  <li>從左側選單進入「專案管理」→「人機料管理」。</li>
+  <li>選擇對應的頁籤（人員／機具／材料）。</li>
+  <li>點擊「新增」按鈕，填寫項目名稱、單位、單價等資料。</li>
+  <li>點擊「儲存」完成建立。</li>
+</ol>
+
+<h3 id="s7-5">7.5　排班表</h3>
+<h4>工程目的</h4>
+<p>排班表用於安排工程相關人員的出勤排班，確保各時段皆有適當人力值勤，特別適用於需輪班或跨時段管理的工程。</p>
+<h4>操作說明</h4>
+<ol class="steps">
+  <li>從左側選單進入「專案管理」→「排班表」。</li>
+  <li>依日期與人員安排值勤班次。</li>
+  <li>可檢視各時段的人力配置情形。</li>
+</ol>
+
+<h3 id="s7-6">7.6　風險與議題</h3>
+<h4>工程目的</h4>
+<p>工程執行中可能遭遇各類風險（如地質異常、材料價格波動）或需解決的議題（如介面衝突、施工圖說疑義）。本功能用於追蹤記錄這些事項的處理狀態，確保問題被適當指派並及時解決。</p>
+<h4>畫面說明</h4>
+<p>頁面上方顯示三個統計卡片：</p>
+<ul>
+  <li><strong>待解決：</strong>尚未處理的數量</li>
+  <li><strong>已指派：</strong>已分配負責人處理中的數量</li>
+  <li><strong>已完成：</strong>已解決結案的數量</li>
+</ul>
+<h4>操作步驟 — 新增風險或議題</h4>
+<ol class="steps">
+  <li>從左側選單進入「專案管理」→「風險與議題」。</li>
+  <li>點擊「新增」按鈕，彈出新增對話框。</li>
+  <li>填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>風險描述</td><td>詳細說明風險或議題內容</td></tr>
+  <tr><td>指派給</td><td>從專案成員中選擇負責處理人</td></tr>
+  <tr><td>緊急度</td><td>選擇「低」、「中」或「高」</td></tr>
+  <tr><td>狀態</td><td>預設為「待解決」</td></tr>
+  <tr><td>相關工項</td><td>可關聯至 WBS 中的工作項目（選填）</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>點擊「儲存」完成建立。</li>
+</ol>
+<p><strong>更新處理進度：</strong>點擊該筆紀錄進行編輯，更新狀態為「已指派」或「已完成」。</p>
+
+<!-- ==================== 第八章 ==================== -->
+<h2 id="ch8">第八章　施工管理</h2>
+
+<h3 id="s8-1">8.1　施工日誌</h3>
+<h4>工程目的</h4>
+<p>施工日誌（附表四）是公共工程法規要求的每日紀錄表單，記載當日天氣、施工進度、人力機具投入、材料使用及安全衛生等事項。本功能依據法規格式設計，協助監造工程師每日填報並累計工程進度。</p>
+<h4>畫面說明</h4>
+<p><strong>日誌列表頁：</strong>以表格呈現所有已建立的日誌，依日期排列，顯示表報編號、日期、預定進度與實際進度。</p>
+<p><strong>日誌編輯頁：</strong>分為多個區段的完整表單。</p>
+
+<h4>操作步驟 — 建立新日誌</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「施工日誌」。</li>
+  <li>點擊「新增日誌」按鈕，進入日誌填寫頁面。</li>
+  <li>依序填寫各區段（詳見下方說明）。</li>
+  <li>填寫完成後，點擊「儲存」按鈕。</li>
+</ol>
+
+<div class="card">
+<h4>區段一：基本資訊</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>填表日期</td><td>選擇本日誌對應的施工日期</td></tr>
+  <tr><td>表報編號</td><td>系統自動產生</td></tr>
+  <tr><td>工程名稱</td><td>系統自動帶入</td></tr>
+  <tr><td>承包商名稱</td><td>系統自動帶入</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h4>區段二：天氣狀況</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>天氣（上午）</td><td>下拉選單，選擇上午天候</td></tr>
+  <tr><td>天氣（下午）</td><td>下拉選單，選擇下午天候</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h4>區段三：工期資訊</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>核定工期（天）</td><td>系統自動帶入</td></tr>
+  <tr><td>累計工期（天）</td><td>系統自動計算</td></tr>
+  <tr><td>剩餘工期（天）</td><td>系統自動計算</td></tr>
+  <tr><td>工期延長（天）</td><td>系統自動帶入（來自工期調整紀錄）</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h4>區段四：施工進度</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>預定進度（%）</td><td>輸入當日應達到的預定累計進度</td></tr>
+  <tr><td>實際進度（%）</td><td>系統依施工項目完成數量自動計算，也可手動調整</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h4>區段五：施工項目</h4>
+<p>此區以表格呈現當日施作的施工項目：</p>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>項次</td><td>施工項目編號</td></tr>
+  <tr><td>施工項目名稱</td><td>施作項目名稱</td></tr>
+  <tr><td>單位</td><td>計量單位</td></tr>
+  <tr><td>契約數量</td><td>契約規定的總數量</td></tr>
+  <tr><td>本日完成數量</td><td>填入當日施作數量</td></tr>
+  <tr><td>累計完成數量</td><td>系統自動累加歷次完成數量</td></tr>
+  <tr><td>備註</td><td>補充說明</td></tr>
+</table>
+<ul>
+  <li>點擊「新增施工項目」按鈕，可從已匯入的契約工項中選取。</li>
+  <li>選取後，項次、名稱、單位、契約數量等欄位自動帶入，僅需填寫「本日完成數量」。</li>
+</ul>
+</div>
+
+<div class="card">
+<h4>區段六：材料使用</h4>
+<p>記錄當日使用的材料名稱、數量及累計用量。</p>
+</div>
+
+<div class="card">
+<h4>區段七：工地人員及機具管理</h4>
+<p>記錄當日投入的人員數量與機具使用情形。</p>
+</div>
+
+<div class="card">
+<h4>區段八：安全衛生紀錄</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>是否有技術員</td><td>勾選</td></tr>
+  <tr><td>工前教育</td><td>填寫當日工前教育內容</td></tr>
+  <tr><td>新進人員保險</td><td>填寫保險情形</td></tr>
+  <tr><td>個人防護具檢查</td><td>填寫檢查結果</td></tr>
+  <tr><td>其他安全事項</td><td>補充說明</td></tr>
+</table>
+</div>
+
+<div class="card">
+<h4>區段九：其他紀錄</h4>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>試樣檢驗紀錄</td><td>材料試驗取樣情形</td></tr>
+  <tr><td>分包商通知</td><td>對分包商的通知事項</td></tr>
+  <tr><td>重要備註</td><td>其他需記載事項</td></tr>
+</table>
+</div>
+
+<blockquote><strong>提示：</strong>日誌中填寫的施工項目「本日完成數量」會自動累計，並反映至儀表板的「整體進度」及「進度表」的 S 曲線圖。</blockquote>
+
+<h3 id="s8-2">8.2　估驗計價</h3>
+<h4>工程目的</h4>
+<p>估驗計價是營造工程依契約約定定期辦理的付款審核作業，監造工程師需核實承攬廠商各工項的實際完成數量，作為撥付工程款的依據。本功能將契約工項與施工實績整合，自動計算各期估驗金額。</p>
+<h4>操作步驟 — 建立新估驗</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「估驗計價」。</li>
+  <li>點擊「新增估驗」按鈕，進入估驗表單頁面。</li>
+  <li>填寫基本資訊：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>估驗日期</td><td>選擇本期估驗日期</td></tr>
+  <tr><td>期別</td><td>第幾期估驗</td></tr>
+  <tr><td>摘要</td><td>本期估驗概要說明</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>在工項表格中，針對各工項填入「本期估驗數量」：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>說明</th></tr>
+  <tr><td>項次</td><td>契約工項編號（自動帶入）</td></tr>
+  <tr><td>說明</td><td>契約工項名稱（自動帶入）</td></tr>
+  <tr><td>單位</td><td>計量單位（自動帶入）</td></tr>
+  <tr><td>契約數量</td><td>原契約數量（自動帶入）</td></tr>
+  <tr><td>變更後核定數量</td><td>含變更後的核定數量（自動帶入）</td></tr>
+  <tr><td>單價</td><td>契約單價（自動帶入）</td></tr>
+  <tr><td><strong>本期估驗數量</strong></td><td><strong>手動填入本期完成並請款的數量</strong></td></tr>
+  <tr><td>他次已請款</td><td>前期累計已請款數量（自動計算）</td></tr>
+  <tr><td>累計估驗數量</td><td>含本期的累計數量（自動計算）</td></tr>
+  <tr><td>金額</td><td>本期估驗數量 &times; 單價（自動計算）</td></tr>
+</table>
+<ol class="steps" start="5">
+  <li>如需新增工項，點擊「新增施工項目」從契約工項中選取。</li>
+  <li>如需附上佐證文件，可在「附件」區上傳檔案。</li>
+  <li>填寫完成後，點擊「儲存」。</li>
+</ol>
+<blockquote class="important"><strong>自動勾稽：</strong>系統會檢核本期估驗數量不超過契約核定數量扣除已請款數量的餘額，避免超估。</blockquote>
+<p>頁面下方顯示估驗彙總資訊：</p>
+<table>
+  <tr><th>彙總項目</th><th>說明</th></tr>
+  <tr><td>本期估驗小計</td><td>本期各工項金額加總</td></tr>
+  <tr><td>累計估驗</td><td>含本期的歷次估驗金額加總</td></tr>
+  <tr><td>核定金額</td><td>契約核定總金額</td></tr>
+  <tr><td>未發包金額</td><td>尚未估驗之金額</td></tr>
+</table>
+
+<h3 id="s8-3">8.3　進度表</h3>
+<h4>工程目的</h4>
+<p>「進度表」以 S 曲線圖呈現預定進度與實際進度的比較，是監造工程師判斷工程是否如期推進的重要管理工具。進度偏差可作為是否需加速趕工或調整排程的決策依據。</p>
+<h4>畫面說明</h4>
+<p>頁面分為兩個頁籤：</p>
+<p><strong>頁籤一：當期</strong></p>
+<ul>
+  <li><strong>進度曲線（S 曲線）：</strong>橫軸為時間、縱軸為累計完成百分比。
+    <ul>
+      <li><strong>藍色線：</strong>預定進度曲線</li>
+      <li><strong>橙色線：</strong>實際進度曲線</li>
+      <li>兩線之間的色塊代表進度偏差</li>
+    </ul>
+  </li>
+  <li><strong>進度資訊表：</strong>以表格列出各期的預定百分比、實際百分比與偏差，偏差以顏色標示（紅色表示落後、綠色表示超前）。</li>
+</ul>
+<p><strong>頁籤二：歷史</strong></p>
+<ul>
+  <li>可查看過去各期的進度曲線存檔，用於對比分析。</li>
+</ul>
+<h4>操作步驟 — 上傳進度計畫</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「進度表」。</li>
+  <li>點擊「上傳進度計畫」區域的下載按鈕，取得 Excel 範本。</li>
+  <li>在 Excel 範本中填入各期預定進度百分比。</li>
+  <li>將填好的 Excel 檔案上傳至系統。</li>
+  <li>系統解析後自動繪製預定進度曲線。</li>
+</ol>
+<h4>編輯進度數據</h4>
+<ol class="steps">
+  <li>點擊「編輯進度數據」按鈕。</li>
+  <li>直接在進度資訊表中修改各期數值。</li>
+  <li>點擊「儲存」，S 曲線同步更新。</li>
+</ol>
+<blockquote><strong>說明：</strong>實際進度數據來自施工日誌中各施工項目的累計完成數量，系統自動計算並繪製實際進度曲線。</blockquote>
+
+<h3 id="s8-4">8.4　缺失改善</h3>
+<h4>工程目的</h4>
+<p>工程查核或日常巡檢中發現的施工缺失，需予以記錄、追蹤改善並結案。本功能提供缺失的登錄、分級、指派及改善狀態追蹤，確保每一項缺失都有對應的改善措施且被確實執行。</p>
+<h4>畫面說明</h4>
+<p>頁面上方顯示三個統計卡片：</p>
+<ul>
+  <li><strong>總筆數：</strong>所有缺失紀錄數量</li>
+  <li><strong>進行中：</strong>尚未改善完成的數量</li>
+  <li><strong>已完成：</strong>已改善結案的數量</li>
+</ul>
+<h4>操作步驟 — 新增缺失紀錄</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「缺失改善」。</li>
+  <li>點擊「新增缺失」按鈕，彈出新增對話框。</li>
+  <li>填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>必填</th><th>說明</th></tr>
+  <tr><td>問題說明</td><td><span class="badge badge-required">必填</span></td><td>詳細描述發現的缺失內容</td></tr>
+  <tr><td>發現人</td><td><span class="badge badge-required">必填</span></td><td>發現缺失的人員姓名</td></tr>
+  <tr><td>優先度</td><td><span class="badge badge-optional">選填</span></td><td>選擇「低」、「中」或「高」</td></tr>
+  <tr><td>狀態</td><td><span class="badge badge-optional">選填</span></td><td>預設為「進行中」</td></tr>
+  <tr><td>樓層</td><td><span class="badge badge-optional">選填</span></td><td>發生缺失的樓層</td></tr>
+  <tr><td>位置</td><td><span class="badge badge-optional">選填</span></td><td>發生缺失的具體位置</td></tr>
+  <tr><td>照片</td><td><span class="badge badge-optional">選填</span></td><td>上傳現場照片作為佐證</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>點擊「儲存」完成建立。</li>
+</ol>
+<p><strong>更新改善狀態：</strong>在表格中點擊欲更新的缺失紀錄，確認改善完成後將狀態變更為「已完成」並儲存。</p>
+<p><strong>批次刪除：</strong>勾選多筆紀錄後，點擊「批次刪除」按鈕可一次刪除選取的紀錄。</p>
+
+<h3 id="s8-5">8.5　自主檢查</h3>
+<h4>工程目的</h4>
+<p>自主檢查是施工品質管制的重要環節，由施工廠商依核定的品質計畫對各施工項目進行自我檢查。本功能提供檢查表樣板管理及檢查紀錄填寫，協助落實施工品質管控。</p>
+<h4>匯入檢查樣板</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「自主檢查」。</li>
+  <li>點擊「匯入樣板」按鈕，彈出樣板目錄對話框。</li>
+  <li>從系統提供的預設樣板中，勾選適用於本工程的檢查項目。</li>
+  <li>點擊「匯入」完成匯入。</li>
+</ol>
+<h4>執行自主檢查</h4>
+<ol class="steps">
+  <li>在樣板清單中，點擊欲執行檢查的樣板。</li>
+  <li>點擊「新增檢查」建立新的檢查紀錄。</li>
+  <li>依檢查表逐項勾選檢查結果（合格／不合格／不適用）。</li>
+  <li>對於不合格的項目，可上傳現場照片作為紀錄。</li>
+  <li>填寫檢查日期及檢查人員資訊。</li>
+  <li>點擊「儲存」完成檢查紀錄。</li>
+</ol>
+
+<h3 id="s8-6">8.6　圖說管理</h3>
+<h4>工程目的</h4>
+<p>工程圖說（設計圖、施工圖、竣工圖等）是施工的重要依據。本功能以資料夾樹狀結構管理各版次圖說，支援版本歷程追蹤，確保現場使用的圖說為最新核定版本。</p>
+<h4>上傳圖說</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「圖說管理」。</li>
+  <li>點擊「新增」按鈕，選擇新增「資料夾」或「檔案」。</li>
+  <li>若新增檔案，選擇檔案（支援 PDF、DWG、PNG 等格式）並輸入名稱與描述。</li>
+  <li>點擊「儲存」完成上傳。</li>
+</ol>
+<h4>查看版本歷程</h4>
+<ol class="steps">
+  <li>選取一份圖說檔案。</li>
+  <li>點擊「版本歷史」按鈕，查看該圖說的所有版本紀錄。</li>
+  <li>可下載任一版本或刪除過時版本。</li>
+</ol>
+<p><strong>管理資料夾：</strong>可透過拖曳方式調整檔案位置或移動至不同資料夾。</p>
+
+<h3 id="s8-7">8.7　契約工項</h3>
+<h4>工程目的</h4>
+<p>此功能用於檢視已匯入的契約工項明細。契約工項資料是施工日誌記錄施工項目進度、估驗計價計算金額的基礎資料來源。</p>
+<h4>畫面說明</h4>
+<p>頁面呈現完整的契約工項表，包含項次、品名、單位、數量、單價及複價等欄位。可透過搜尋功能快速定位特定工項。</p>
+
+<!-- ==================== 第九章 ==================== -->
+<h2 id="ch9">第九章　監測數據</h2>
+
+<h3>9.1　工程目的</h3>
+<p>工地環境監測是確保施工安全及環保法規遵循的重要作業。本功能整合現場監測設備（攝影機、環境感測器等）的數據，提供即時監控、歷史查詢、異常警報及報表產出。</p>
+
+<h3>9.2　功能模組</h3>
+
+<h4>監測數據（即時）</h4>
+<ol class="steps">
+  <li>從左側選單進入「施工管理」→「監測數據」。</li>
+  <li>頁面顯示各監測指標的即時數值（溫度、濕度、PM2.5 等）。</li>
+  <li>點擊任一指標，可查看即時趨勢圖。</li>
+</ol>
+
+<h4>歷史數據</h4>
+<ol class="steps">
+  <li>在監測頁面中，切換至「歷史數據」分頁。</li>
+  <li>選擇查詢的時間範圍與監測項目。</li>
+  <li>系統顯示歷史趨勢圖表及數據列表。</li>
+</ol>
+
+<h4>歷史警報</h4>
+<ol class="steps">
+  <li>切換至「歷史警報」分頁。</li>
+  <li>檢視過去觸發的警報紀錄，包含警報類型、觸發時間與數值。</li>
+</ol>
+
+<h4>影像</h4>
+<ol class="steps">
+  <li>切換至「影像」分頁。</li>
+  <li>可查看攝影機拍攝的即時影像或歷史回放。</li>
+</ol>
+
+<h4>設備管理 — 新增攝影機</h4>
+<ol class="steps">
+  <li>進入「設備管理」頁面。</li>
+  <li>頁面上方顯示設備統計（總數、線上、離線、未設定）。</li>
+  <li>點擊「新增攝影機」按鈕。</li>
+  <li>填寫設備名稱與來源網址。</li>
+  <li>系統自動檢測連線狀態並產生設定檔。</li>
+</ol>
+<p><strong>管理設備：</strong>每台設備可進行編輯、查看直播、下載設定檔、手動覆寫狀態或刪除。</p>
+
+<h4>數據上傳</h4>
+<p>若有離線監測數據，可透過此功能手動上傳數據檔案匯入系統。</p>
+
+<h4>報表</h4>
+<p>依需求產出環境監測報表，可選擇時間範圍與報表格式。</p>
+
+<!-- ==================== 第十章 ==================== -->
+<h2 id="ch10">第十章　檔案管理</h2>
+
+<h3 id="s10-1">10.1　相關表單樣板</h3>
+<h4>工程目的</h4>
+<p>工程執行中常需填寫各式表單（如材料送審表、施工計畫書、安衛紀錄等）。本功能提供表單樣板的上傳與下載管理，讓專案人員可隨時取得最新版的空白表單。</p>
+<h4>上傳表單樣板</h4>
+<ol class="steps">
+  <li>從左側選單進入「檔案管理」→「相關表單樣板」。</li>
+  <li>點擊「上傳新樣板」按鈕。</li>
+  <li>填寫樣板名稱與說明。</li>
+  <li>選擇檔案（支援 PDF、Word、Excel 格式）。</li>
+  <li>點擊「儲存」完成上傳。</li>
+</ol>
+<p><strong>下載表單：</strong>在表格中點擊欲下載的表單，或點擊該列的「下載」按鈕。</p>
+<p><strong>搜尋表單：</strong>利用搜尋欄位輸入關鍵字，可依名稱、說明或檔案名稱快速搜尋。</p>
+
+<h3 id="s10-2">10.2　照片管理</h3>
+<h4>工程目的</h4>
+<p>工程照片是施工紀錄及品質佐證的重要資料，包含施工前中後對比照、材料進場照片、自主檢查照片等。本功能以相簿方式分類管理所有工程照片。</p>
+<h4>畫面說明</h4>
+<ul>
+  <li><strong>左側面板：</strong>相簿清單，包含「全部相片」、「最新相片」、「我的最愛」及自訂相簿。</li>
+  <li><strong>右側面板：</strong>照片縮圖格狀顯示，可切換為列表模式。</li>
+</ul>
+<h4>建立相簿</h4>
+<ol class="steps">
+  <li>從左側選單進入「檔案管理」→「照片管理」。</li>
+  <li>在左側面板點擊「新增相簿」按鈕。</li>
+  <li>輸入相簿名稱與描述（例如「基礎工程施工照」）。</li>
+  <li>點擊「建立」完成。</li>
+</ol>
+<h4>上傳照片</h4>
+<ol class="steps">
+  <li>選擇欲上傳至的相簿（或選擇「全部相片」直接上傳）。</li>
+  <li>點擊「上傳」按鈕，或直接拖曳照片至頁面中。</li>
+  <li>支援批次上傳多張照片。</li>
+</ol>
+<h4>管理照片</h4>
+<ul>
+  <li><strong>加入最愛：</strong>將滑鼠移至照片上方，點擊「星標」圖示。</li>
+  <li><strong>分類至相簿：</strong>選取多張照片後，點擊「加入相簿」按鈕。</li>
+  <li><strong>查看詳細資訊：</strong>點擊照片可檢視拍攝資訊（時間、大小等）。</li>
+  <li><strong>刪除照片：</strong>選取後點擊「刪除」按鈕並確認。</li>
+</ul>
+<blockquote><strong>提示：</strong>在「我的最愛」分類中可快速找到標記過的重要照片，方便製作報告時引用。</blockquote>
+
+<!-- ==================== 第十一章 ==================== -->
+<h2 id="ch11">第十一章　報修管理</h2>
+
+<h3>11.1　工程目的</h3>
+<p>報修管理適用於工程完工交屋後的保固維修階段，用於記錄住戶或管理單位提報的修繕需求，追蹤每件報修案件的處理進度，確保修繕作業如期完成。</p>
+
+<h3>11.2　畫面說明</h3>
+<p><strong>報修總覽：</strong>以統計圖表呈現報修案件的整體狀態分布。</p>
+<p><strong>報修紀錄表：</strong>以表格列出所有報修紀錄，可搜尋及篩選。</p>
+
+<h3>11.3　操作步驟 — 新增報修紀錄</h3>
+<ol class="steps">
+  <li>從左側選單進入「報修管理」→「報修紀錄表」。</li>
+  <li>點擊「新增報修」按鈕，進入填寫頁面。</li>
+  <li>填寫以下欄位：</li>
+</ol>
+<table>
+  <tr><th>欄位</th><th>必填</th><th>說明</th></tr>
+  <tr><td>客戶姓名</td><td><span class="badge badge-required">必填</span></td><td>報修人姓名</td></tr>
+  <tr><td>聯絡電話</td><td><span class="badge badge-required">必填</span></td><td>報修人電話</td></tr>
+  <tr><td>報修項目</td><td><span class="badge badge-optional">選填</span></td><td>從下拉選單選擇問題類別</td></tr>
+  <tr><td>報修內容</td><td><span class="badge badge-required">必填</span></td><td>詳細描述報修事項</td></tr>
+  <tr><td>工位標示</td><td><span class="badge badge-optional">選填</span></td><td>填寫戶號或位置標示</td></tr>
+  <tr><td>是否為二次修繕</td><td><span class="badge badge-optional">選填</span></td><td>若為同一問題再次報修，請勾選</td></tr>
+  <tr><td>交件日期</td><td><span class="badge badge-optional">選填</span></td><td>交屋或交付日期</td></tr>
+  <tr><td>修繕日期</td><td><span class="badge badge-optional">選填</span></td><td>實際修繕日期</td></tr>
+  <tr><td>狀態</td><td><span class="badge badge-optional">選填</span></td><td>「進行中」或「已完成」</td></tr>
+  <tr><td>備註</td><td><span class="badge badge-optional">選填</span></td><td>補充說明</td></tr>
+</table>
+<ol class="steps" start="4">
+  <li>在「附件」區上傳相關照片及文件。</li>
+  <li>點擊「儲存」完成建立。</li>
+</ol>
+<p><strong>更新修繕進度：</strong>在紀錄表中點擊欲更新的報修案件，修繕完成後將狀態改為「已完成」並填入修繕日期，點擊「儲存」。</p>
+
+<!-- ==================== 第十二章 ==================== -->
+<h2 id="ch12">第十二章　行動版（手機端）操作</h2>
+
+<h3>12.1　工程目的</h3>
+<p>行動版專為工地現場使用設計，讓監造工程師及現場人員可以直接在工地以手機操作常用功能，無需返回辦公室即可完成資料填報。</p>
+
+<h3>12.2　支援功能</h3>
+<table>
+  <tr><th>功能</th><th>說明</th></tr>
+  <tr><td><strong>自主檢查</strong></td><td>在現場依檢查表逐項查驗，可即時拍照記錄</td></tr>
+  <tr><td><strong>缺失改善</strong></td><td>巡檢時發現缺失立即拍照登錄，記錄樓層及位置</td></tr>
+  <tr><td><strong>報修管理</strong></td><td>現場接獲報修時即時建立紀錄</td></tr>
+  <tr><td><strong>每日日誌</strong></td><td>在工地填寫施工日誌</td></tr>
+</table>
+
+<h3>12.3　操作方式</h3>
+<ol class="steps">
+  <li>以手機瀏覽器開啟系統網址，系統自動切換為行動版介面。</li>
+  <li>登入後，選擇欲進入的專案。</li>
+  <li>畫面顯示行動版功能選單，點擊對應功能即可操作。</li>
+  <li>拍照功能會直接呼叫手機相機，拍攝後自動上傳至系統。</li>
+</ol>
+<blockquote><strong>離線使用：</strong>系統支援部分離線操作，在網路訊號不佳的工地環境中仍可填寫資料，待恢復連線後自動同步。</blockquote>
+
+<!-- ==================== 附錄 ==================== -->
+<h2 id="faq">附錄　常見問題</h2>
+
+<div class="card">
+<h4>Q1：新建專案後，應該先做什麼？</h4>
+<p>建議依以下順序完成基礎設定：</p>
+<ol>
+  <li><strong>填寫專案基本資料</strong> — 輸入工程名稱、參與單位、開工日期、工期等基本資訊。</li>
+  <li><strong>設定成員與權限</strong> — 將參與本工程的人員加入專案，並設定適當的角色與權限。</li>
+  <li><strong>匯入契約工項</strong> — 上傳契約工項檔案，建立契約工項清單。</li>
+  <li><strong>建立 WBS 工作分解結構</strong> — 依工程範圍展開工作項目。</li>
+  <li>完成以上步驟後，即可開始日常的施工日誌填寫與估驗計價作業。</li>
+</ol>
+</div>
+
+<div class="card">
+<h4>Q2：施工日誌的施工項目要怎麼帶入契約項目？</h4>
+<p>在施工日誌的「施工項目」區段中，點擊「新增施工項目」按鈕，系統會顯示已匯入的契約工項清單，勾選當日施作的項目後，項次、名稱、單位、契約數量等欄位會自動帶入，您只需填寫「本日完成數量」即可。</p>
+</div>
+
+<div class="card">
+<h4>Q3：估驗計價的金額是怎麼計算的？</h4>
+<p>系統依據契約工項的單價，乘以您填入的「本期估驗數量」自動計算金額。累計估驗金額為各期估驗金額的加總。系統也會檢核本期估驗數量是否超過契約餘額。</p>
+</div>
+
+<div class="card">
+<h4>Q4：進度曲線的實際進度怎麼來的？</h4>
+<p>實際進度數據來自施工日誌中各施工項目的「累計完成數量」，系統自動以施工項目完成比例加權計算整體實際進度百分比，並繪製於 S 曲線圖上。</p>
+</div>
+
+<div class="card">
+<h4>Q5：可以用手機填寫施工日誌嗎？</h4>
+<p>可以。透過手機瀏覽器登入系統後，進入行動版介面的「每日日誌」功能即可填寫。不過建議較複雜的日誌內容仍於電腦版填寫，手機端較適合簡易紀錄及拍照上傳。</p>
+</div>
+
+<div class="card">
+<h4>Q6：缺失照片可以直接用手機拍攝上傳嗎？</h4>
+<p>可以。在行動版的「缺失改善」功能中新增缺失時，點擊照片上傳區域，系統會呼叫手機相機，拍攝後照片自動上傳至該筆缺失紀錄。</p>
+</div>
+
+<div class="card">
+<h4>Q7：如何知道工期是否需要調整？</h4>
+<p>在「儀表板」查看「累計天數」卡片所顯示的剩餘工期，或在「進度表」的 S 曲線比較預定與實際進度的差距。若出現明顯落後，可在「工期調整」功能中提出展延或停工申請。</p>
+</div>
+
+<div class="card">
+<h4>Q8：不同角色的成員看到的畫面有什麼不同？</h4>
+<ul>
+  <li><strong>專案管理員：</strong>可操作所有功能，包含管理成員與權限。</li>
+  <li><strong>專案工程師：</strong>可操作施工管理相關功能（日誌、估驗、缺失等），但無法管理成員。</li>
+  <li><strong>專案檢視者：</strong>僅能查看各頁面資料，所有「新增」、「編輯」、「刪除」按鈕不會顯示。</li>
+</ul>
+</div>
+
+<div class="footer">
+  本手冊依據系統目前版本撰寫，若系統更新後畫面有所調整，請以實際畫面為準。
+</div>
+
+</div><!-- /.main -->
+
+<!-- Back to top -->
+<button class="back-top" id="backTop" onclick="window.scrollTo({top:0})">&#8593;</button>
+
+<script>
+// Mobile sidebar toggle
+function toggleSidebar(){
+  document.getElementById('sidebar').classList.toggle('open');
+  document.querySelector('.overlay').classList.toggle('open');
+}
+
+// Close sidebar on link click (mobile)
+document.querySelectorAll('.sidebar a').forEach(a=>{
+  a.addEventListener('click',()=>{
+    if(window.innerWidth<=800) toggleSidebar();
+  });
+});
+
+// Back to top visibility
+window.addEventListener('scroll',()=>{
+  document.getElementById('backTop').classList.toggle('show', window.scrollY > 400);
+});
+
+// Active sidebar link tracking
+const sections = document.querySelectorAll('h2[id], h3[id]');
+const navLinks = document.querySelectorAll('.sidebar a[href^="#"]');
+const observer = new IntersectionObserver(entries => {
+  entries.forEach(entry => {
+    if(entry.isIntersecting){
+      navLinks.forEach(l => l.classList.remove('active'));
+      const id = entry.target.id;
+      const link = document.querySelector(`.sidebar a[href="#${id}"]`);
+      if(link) link.classList.add('active');
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+sections.forEach(s => observer.observe(s));
+</script>
+</body>
+</html>

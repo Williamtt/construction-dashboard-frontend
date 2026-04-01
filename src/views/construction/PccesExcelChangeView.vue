@@ -906,7 +906,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
       </div>
 
       <div>
-        <h1 class="text-xl font-semibold text-foreground">PCCES 施工項目變更（Excel）</h1>
+        <h1 class="text-xl font-semibold text-foreground">契約變更（Excel）</h1>
         <p class="mt-1 text-sm text-muted-foreground">
           解析結果僅暫存於此頁；離開或重新整理後需重新上傳。按下「確認匯入」後會複製基底版工項並套用變更，產生新版本（
           <code class="rounded bg-muted px-1 py-0.5 text-xs">excel_change</code>
@@ -920,7 +920,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
       >
         請從
         <RouterLink :to="versionsPath" class="text-primary underline-offset-4 hover:underline">
-          PCCES 匯入紀錄
+          契約匯入紀錄
         </RouterLink>
         選擇一版，點「Excel 變更」帶入
         <code class="rounded bg-muted px-1 py-0.5 text-xs">baseImportId</code>
@@ -929,7 +929,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
 
       <template v-else>
         <div v-if="!perm.canRead.value" class="text-sm text-muted-foreground">
-          您沒有 PCCES 檢視權限。
+          您沒有契約工項檢視權限。
         </div>
 
         <template v-else>
@@ -1106,7 +1106,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
                   <code class="rounded bg-muted px-1">itemKey</code>
                   遞增；手動掛載列排在該父層清冊子列之後。親子以
                   <code class="rounded bg-muted px-1">parentItemKey</code>
-                  為準（與後端 PCCES 工項樹一致）。變更後數量／單價以淡黃底標示；滑鼠暫留可見 Excel
+                  為準（與後端契約工項樹一致）。變更後數量／單價以淡黃底標示；滑鼠暫留可見 Excel
                   原始字串。「變更後複價」為套用變更後數量／單價（未變更列沿用基底）再依階層加總之預覽，與確認匯入後後端
                   rollup 邏輯一致。
                 </p>

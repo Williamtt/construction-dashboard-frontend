@@ -364,7 +364,7 @@ const importsEmptyText = computed(() => {
   <div class="min-w-0 space-y-4">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div class="min-w-0 flex-1">
-        <h1 class="text-xl font-semibold tracking-tight text-foreground">PCCES 匯入紀錄</h1>
+        <h1 class="text-xl font-semibold tracking-tight text-foreground">契約匯入紀錄</h1>
         <p class="mt-1 text-sm text-muted-foreground">
           依版次新到舊排列；第 1 版顯示為「原契約」，其餘版本名稱於上傳或 Excel
           確認時自訂，可於明細修改。各版可另填「核定生效時間」供施工日誌依填表日對應契約欄位版本。可刪除整次匯入（軟刪除，無法復原）。
@@ -384,7 +384,7 @@ const importsEmptyText = computed(() => {
     </div>
 
     <div v-if="!perm.canRead.value" class="text-sm text-muted-foreground">
-      您沒有 PCCES 匯入檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs"
+      您沒有契約工項匯入檢視權限（<code class="rounded bg-muted px-1 py-0.5 text-xs"
         >construction.pcces</code
       >）。
     </div>
@@ -436,7 +436,7 @@ const importsEmptyText = computed(() => {
                       :to="uploadXmlRoute"
                       class="flex w-full flex-col items-start gap-0.5 py-2"
                     >
-                      <span class="font-medium">上傳 PCCES XML</span>
+                      <span class="font-medium">上傳契約工項 XML</span>
                       <span class="text-xs font-normal text-muted-foreground">
                         完整 eTender 標單；與 Excel 變更產生的版本不同
                       </span>
@@ -506,7 +506,7 @@ const importsEmptyText = computed(() => {
             </div>
             <div class="min-w-0 pt-0.5">
               <DialogTitle class="text-xl font-bold tracking-tight text-foreground">
-                PCCES 匯入紀錄小幫手
+                契約匯入紀錄小幫手
               </DialogTitle>
               <DialogDescription class="mt-1.5 text-sm font-medium leading-relaxed text-chart-4">
                 契約工項「版本」怎麼來、怎麼用，一次看懂 🌈
@@ -535,7 +535,7 @@ const importsEmptyText = computed(() => {
             <div class="rounded-2xl border border-chart-2/30 bg-chart-2/8 p-4 shadow-sm">
               <p class="font-bold text-chart-2">路線 A：上傳 XML</p>
               <p class="mt-2 leading-relaxed text-foreground">
-                把政府標單的 PCCES／eTender XML 整包匯入。第 1 版常顯示「原契約」；
+                把政府標單的 PCCES eTender XML 整包匯入。第 1 版常顯示「原契約」；
                 <span class="font-bold text-destructive">從第 2 版起記得要取名字</span>，方便日後辨識。
               </p>
               <p class="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -624,7 +624,7 @@ const importsEmptyText = computed(() => {
                 <span class="font-bold text-destructive">刪除一整版</span>
                 會讓這一版的工項從畫面上消失（後台亦無法還原），請務必確認無誤再按。
               </li>
-              <li>維護 PCCES 和寫施工日誌可以是不同人，兩邊權限可獨立開。</li>
+              <li>維護契約工項和寫施工日誌可以是不同人，兩邊權限可獨立開。</li>
             </ul>
           </div>
 

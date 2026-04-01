@@ -125,6 +125,7 @@ const pageTitle = computed(() => {
     return '報修'
   }
   if (name === ROUTE_NAME.MOBILE_PHOTO_VIEWER) return '查看照片'
+  if (name === ROUTE_NAME.MOBILE_HELP) return '操作手冊'
   return '現場查驗'
 })
 
@@ -133,6 +134,10 @@ const showTabs = computed(() => Boolean(projectId.value))
 function openMenu() {
   // 切換專案：回專案選擇
   router.push(ROUTE_PATH.MOBILE)
+}
+
+function openHelp() {
+  router.push(ROUTE_PATH.MOBILE_HELP)
 }
 
 function switchToDesktop() {
@@ -149,6 +154,7 @@ function switchToDesktop() {
       :project-id="projectId"
       @back="goBack"
       @menu="openMenu"
+      @help="openHelp"
       @switch-to-desktop="switchToDesktop"
     />
 

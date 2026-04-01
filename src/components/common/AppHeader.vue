@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Menu, User, Bell, Upload, Megaphone } from 'lucide-vue-next'
+import { Menu, User, Bell, Upload, Megaphone, CircleHelp } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -90,6 +90,9 @@ function switchToMobile() {
       <span class="truncate font-semibold text-foreground">{{ headerTitle }}</span>
     </div>
     <div class="flex shrink-0 items-center gap-2">
+      <Button variant="ghost" size="icon" aria-label="操作手冊" @click="router.push(ROUTE_PATH.HELP)">
+        <CircleHelp class="size-5" />
+      </Button>
       <Button variant="ghost" size="icon" class="relative" aria-label="通知" @click="openNotifications">
         <Bell class="size-5" />
         <Badge

@@ -41,6 +41,11 @@ const router = createRouter({
               component: () => import('@/views/mobile/MobileProjectPickerView.vue'),
             },
             {
+              path: 'help',
+              name: ROUTE_NAME.MOBILE_HELP,
+              component: () => import('@/views/mobile/MobileHelpView.vue'),
+            },
+            {
               path: 'photo-viewer',
               name: ROUTE_NAME.MOBILE_PHOTO_VIEWER,
               component: () => import('@/views/mobile/MobilePhotoViewerView.vue'),
@@ -150,6 +155,11 @@ const router = createRouter({
           path: 'projects',
           name: ROUTE_NAME.PROJECTS,
           component: () => import('@/views/ProjectsView.vue'),
+        },
+        {
+          path: 'help',
+          name: ROUTE_NAME.HELP,
+          component: () => import('@/views/HelpManualView.vue'),
         },
         {
           path: 'p/:projectId',

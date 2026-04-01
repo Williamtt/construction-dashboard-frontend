@@ -266,7 +266,7 @@ onMounted(load)
     </p>
 
     <div v-if="!perm.canRead" class="text-sm text-muted-foreground">
-      您沒有進度管理檢視權限。
+      您沒有進度表檢視權限。
     </div>
 
     <template v-else>
@@ -284,7 +284,7 @@ onMounted(load)
           {{ downloadingTemplate ? '下載中…' : '下載 Excel 樣板' }}
         </Button>
         <Button variant="outline" as-child>
-          <RouterLink :to="progressPath">返回進度管理</RouterLink>
+          <RouterLink :to="progressPath">返回進度表</RouterLink>
         </Button>
       </div>
       <div v-else class="flex flex-wrap items-center justify-end gap-3">
@@ -325,7 +325,7 @@ onMounted(load)
             <TableBody>
               <TableRow v-if="list.length === 0">
                 <TableCell colspan="8" class="h-24 text-center text-muted-foreground">
-                  尚無上傳紀錄。請在「進度管理」建立原始計畫或變更版本時上傳 Excel。
+                  尚無上傳紀錄。請在「進度表」建立原始計畫或變更版本時上傳 Excel。
                 </TableCell>
               </TableRow>
               <TableRow v-for="row in list" :key="row.attachmentId">
@@ -445,10 +445,10 @@ onMounted(load)
           <DialogTitle>變更生效時間</DialogTitle>
         </DialogHeader>
         <p class="text-sm text-muted-foreground">
-          選擇此變更版本在進度圖表上對齊之週期（與「進度管理」新增變更時之生效日期相同語意）。
+          選擇此變更版本在進度圖表上對齊之週期（與「進度表」新增變更時之生效日期相同語意）。
         </p>
         <div v-if="!periods.length" class="py-2 text-sm text-destructive">
-          無法載入專案週期列表，請確認進度管理已有原始計畫後再試。
+          無法載入專案週期列表，請確認進度表已有原始計畫後再試。
         </div>
         <div v-else class="space-y-2">
           <Label>週期（時間區間）</Label>

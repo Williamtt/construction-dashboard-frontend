@@ -318,7 +318,7 @@ watch(projectId, () => {
           </p>
         </template>
         <p v-if="currentResources.length === 0 && !loading" class="mt-2 shrink-0 text-xs text-muted-foreground">
-          此分類尚無資源，請至「資源庫」新增後再指派至 WBS 工項。
+          此分類尚無資源，請至「人機料管理」新增後再指派至 WBS 工項。
         </p>
       </TabsContent>
     </Tabs>

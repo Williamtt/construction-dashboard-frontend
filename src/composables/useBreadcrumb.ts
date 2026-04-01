@@ -149,7 +149,7 @@ export function useBreadcrumb() {
           rest[3] === 'versions' &&
           rest.length === 5
         if (isPccesDetail) {
-          pageLabel = '工項明細'
+          pageLabel = '施工項目'
         }
         const isValuationDetail =
           rest[0] === 'construction' &&

@@ -629,11 +629,11 @@ watch(
 <template>
   <div class="space-y-4">
     <div>
-      <h1 class="text-xl font-semibold tracking-tight text-foreground">專案成員</h1>
+      <h1 class="text-xl font-semibold tracking-tight text-foreground">成員與權限</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         專案成員來自租戶成員，可將同租戶的成員加入此專案；一成員可參與多個專案。
         <template v-if="canShowMemberToolbar">
-          成員名單與新增／停用／移除依「專案成員」模組權限；租戶／平台管理員不受細粒度限制。
+          成員名單與新增／停用／移除依「成員與權限」模組權限；租戶／平台管理員不受細粒度限制。
           「專案權限」矩陣覆寫僅租戶管理員或平台管理員可編輯。
         </template>
         <template v-else-if="canReadMembers">您目前僅能檢視名單。</template>
@@ -835,7 +835,7 @@ watch(
             專案權限 — {{ projectPermMember?.user.name || projectPermMember?.user.email || '成員' }}
           </DialogTitle>
           <DialogDescription>
-            僅影響此成員在本專案的模組權限。「重設為租戶範本」會依該成員目前的租戶權限範本重新寫入本專案，不影響其他專案。表頭勾選可全選／取消該欄；「專案成員」列之新增／更新／刪除不可調整，僅「讀取」有效。
+            僅影響此成員在本專案的模組權限。「重設為租戶範本」會依該成員目前的租戶權限範本重新寫入本專案，不影響其他專案。表頭勾選可全選／取消該欄；「成員與權限」列之新增／更新／刪除不可調整，僅「讀取」有效。
             標示「平台未開通」之列與租戶後台「租戶資訊」之模組開通一致，無法勾選。
             <span
               v-if="projectPermHighlightModuleIds.length > 0 && !projectPermLoading"

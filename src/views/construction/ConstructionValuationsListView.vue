@@ -286,7 +286,7 @@ const valuationsEmptyText = computed(() => {
       <div class="min-w-0 flex-1">
         <h1 class="text-xl font-semibold tracking-tight text-foreground">估驗計價</h1>
         <p class="mt-1 text-sm text-muted-foreground">
-          每次估驗一筆主檔；明細可自核定 PCCES 帶入。本次可估驗數量＝上限扣除他次已估驗與本次填寫。
+          每次估驗一筆主檔；明細可自核定契約工項帶入。本次可估驗數量＝上限扣除他次已估驗與本次填寫。
         </p>
       </div>
       <Button
@@ -324,7 +324,7 @@ const valuationsEmptyText = computed(() => {
               }}
             </p>
             <p class="mt-1 text-xs text-muted-foreground">
-              PCCES 末層：min(契約上限, 日誌累計)×單價 加總，扣除全專案已請款；純手填列未計入施作面。
+              契約工項末層：min(契約上限, 日誌累計)×單價 加總，扣除全專案已請款；純手填列未計入施作面。
             </p>
           </template>
         </StateCard>
@@ -365,7 +365,7 @@ const valuationsEmptyText = computed(() => {
               }}
             </p>
             <p class="mt-1 text-xs text-muted-foreground">
-              已請款 ÷ 契約／變更後可計價上限（核定 PCCES 末層契約數量×單價 加總）。
+              已請款 ÷ 契約／變更後可計價上限（核定契約工項末層契約數量×單價 加總）。
             </p>
           </template>
         </StateCard>
@@ -475,7 +475,7 @@ const valuationsEmptyText = computed(() => {
             </p>
             <p class="mt-2 leading-relaxed text-foreground">
               每一次「估驗」就像開一張請款單：上面是標題與日期，下面一列列是工項。您可以從
-              <span class="font-semibold text-primary">已核定的 PCCES 明細</span> 帶入項目，也可以自己手填補充。
+              <span class="font-semibold text-primary">已核定的契約工項明細</span> 帶入項目，也可以自己手填補充。
             </p>
           </div>
 
@@ -488,7 +488,7 @@ const valuationsEmptyText = computed(() => {
               偷偷把舊估驗的單價、金額改寫成新價。這樣帳才對得起當初請款的約定。
             </p>
             <p class="mt-2 leading-relaxed text-muted-foreground">
-              同一張估驗單裡，從 PCCES 帶進來的列，<span class="font-semibold text-foreground">單價鎖定不能亂改</span>；新加進來的列則依您當下選到的內容為準。手填列不在這個限制裡。
+              同一張估驗單裡，從契約工項帶進來的列，<span class="font-semibold text-foreground">單價鎖定不能亂改</span>；新加進來的列則依您當下選到的內容為準。手填列不在這個限制裡。
             </p>
           </div>
 
@@ -538,7 +538,7 @@ const valuationsEmptyText = computed(() => {
                   <tr class="bg-chart-2/5">
                     <td class="px-3 py-2.5 align-top font-semibold text-chart-2">尚未請款金額</td>
                     <td class="px-3 py-2.5 leading-relaxed text-foreground">
-                      用「施工做到哪、契約允許計價到哪」估一個還能請的空間，再扣掉已請款。若只有手填請款、沒有對到 PCCES
+                      用「施工做到哪、契約允許計價到哪」估一個還能請的空間，再扣掉已請款。若只有手填請款、沒有對到契約工項
                       施作面，這裡有時會顯示 0，是系統算法使然，不是壞掉。
                     </td>
                   </tr>
@@ -559,9 +559,9 @@ const valuationsEmptyText = computed(() => {
           <div class="rounded-2xl border border-chart-5/35 bg-chart-5/10 p-4 shadow-sm">
             <p class="font-bold text-chart-5">儲存失敗時，常見原因</p>
             <ul class="mt-2 list-inside list-disc space-y-1.5 leading-relaxed text-foreground">
-              <li>想改「已經在這張單上的」PCCES 列單價 → 系統會擋下來，保護已請款紀錄。</li>
+              <li>想改「已經在這張單上的」契約工項列單價 → 系統會擋下來，保護已請款紀錄。</li>
               <li>本次或累計數量超過施工日誌完成量、或超過契約／變更上限 → 請回頭對照現場與契約。</li>
-              <li>專案還沒有「已核定」的 PCCES，卻要綁定工項 → 請先到 PCCES 匯入紀錄完成核定。</li>
+              <li>專案還沒有「已核定」的契約工項，卻要綁定工項 → 請先到契約匯入紀錄完成核定。</li>
             </ul>
           </div>
         </div>

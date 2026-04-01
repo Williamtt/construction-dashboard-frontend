@@ -390,7 +390,7 @@ async function confirmBatchDelete() {
     <div class="flex flex-col gap-1">
       <h1 class="text-xl font-semibold tracking-tight text-foreground">表單樣板</h1>
       <p class="text-sm text-muted-foreground">
-        在此新增的樣板會成為「預設樣板」，專案內「相關表單」頁面可看到並下載；專案也可自行新增樣板。可搜尋名稱、描述、檔名、檔案大小與更新時間。
+        在此新增的樣板會成為「預設樣板」，專案內「相關表單樣板」頁面可看到並下載；專案也可自行新增樣板。可搜尋名稱、描述、檔名、檔案大小與更新時間。
       </p>
     </div>
 
@@ -454,7 +454,7 @@ async function confirmBatchDelete() {
         <DialogHeader>
           <DialogTitle>新增預設樣板</DialogTitle>
           <DialogDescription
-            >上傳檔案並填寫名稱與描述，專案內「相關表單」會顯示此樣板</DialogDescription
+            >上傳檔案並填寫名稱與描述，專案內「相關表單樣板」會顯示此樣板</DialogDescription
           >
         </DialogHeader>
         <form class="grid gap-4 py-2" @submit.prevent="submitAdd">
