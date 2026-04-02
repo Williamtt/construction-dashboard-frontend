@@ -1151,10 +1151,10 @@ watch([projectId, baseImportId], () => loadBaseItems())
                         <TableCell class="text-end tabular-nums">
                           {{ formatEngineeringDecimal(row.item.quantity) }}
                         </TableCell>
-                        <TableCell class="text-end tabular-nums">
+                        <TableCell class="text-end tabular-nums text-muted-foreground">
                           {{ formatEngineeringDecimal(row.item.unitPrice) }}
                         </TableCell>
-                        <TableCell class="text-end tabular-nums text-muted-foreground">
+                        <TableCell class="text-end tabular-nums font-medium">
                           {{ formatMoney(row.item.amountImported) }}
                         </TableCell>
                         <TableCell

@@ -172,7 +172,7 @@ const columns: ColumnDef<PccesItemDto>[] = [
     accessorKey: 'unitPrice',
     header: '單價',
     cell: ({ row }) =>
-      h('span', { class: 'tabular-nums' }, formatEngineeringDecimal(row.original.unitPrice)),
+      h('span', { class: 'tabular-nums text-muted-foreground' }, formatEngineeringDecimal(row.original.unitPrice)),
   },
   {
     accessorKey: 'amountImported',
@@ -180,7 +180,7 @@ const columns: ColumnDef<PccesItemDto>[] = [
     cell: ({ row }) =>
       h(
         'span',
-        { class: 'tabular-nums text-muted-foreground' },
+        { class: 'tabular-nums font-medium' },
         formatMoney(row.original.amountImported)
       ),
   },
