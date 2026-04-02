@@ -42,6 +42,11 @@ import {
 } from '@/lib/progress-plan-excel'
 import { getApiErrorMessage } from '@/lib/api-error'
 import { cellWFromHostWidth, totalSvgWidth } from '@/lib/progress-scurve-layout'
+import {
+  aggregateProgressData,
+  type TimeScale,
+  TIME_SCALE_LABELS,
+} from '@/lib/progress-scale-aggregate'
 
 const route = useRoute()
 const router = useRouter()
@@ -194,9 +199,26 @@ watch(
 
 const periods = computed(() => dashboard.value?.periods ?? [])
 
-const cellW = computed(() => cellWFromHostWidth(hostWidth.value, periods.value.length))
+// ── 時間尺度聚合 ──────────────────────────────────────────────────────────
+const timeScale = ref<TimeScale>('raw')
+const TIME_SCALES: TimeScale[] = ['raw', 'week', 'month', 'quarter', 'half']
 
-const progressGridMinWidth = computed(() => totalSvgWidth(periods.value.length, cellW.value))
+const aggregated = computed(() =>
+  aggregateProgressData(
+    periods.value,
+    dashboard.value?.planCurves ?? [],
+    timeScale.value,
+  )
+)
+
+const displayPeriods = computed(() => aggregated.value.periods)
+const displayPeriodLabels = computed(() => aggregated.value.periodLabels)
+
+// ─────────────────────────────────────────────────────────────────────────
+
+const cellW = computed(() => cellWFromHostWidth(hostWidth.value, displayPeriods.value.length))
+
+const progressGridMinWidth = computed(() => totalSvgWidth(displayPeriods.value.length, cellW.value))
 
 const primaryMeta = computed(() =>
   dashboard.value?.plans.find(
@@ -237,21 +259,23 @@ function parsePct(s: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
-/** 累計預定：沿用後端（Excel 上傳之 cumulativeProgress；無則後端依本期加總），不因編輯本期而在前端重算 */
-const displayCumulativePlanned = computed(() => periods.value.map((p) => p.cumulativePlanned))
+/** 累計預定：使用聚合後的期別（非 raw 時為聚合桶的末期值） */
+const displayCumulativePlanned = computed(() =>
+  displayPeriods.value.map((p) => p.cumulativePlanned)
+)
 
 const cumulativeActualDraft = ref<Record<string, string>>({})
 
-/** 累計實際：手填草稿（圖表與底表與後端 cumulativeActual 同步） */
+/** 累計實際：手填草稿（聚合檢視時唯讀，key 仍為原始 periodDate） */
 const displayCumulativeActual = computed(() =>
-  periods.value.map((p) => cumulativeActualDraft.value[p.periodDate] ?? '')
+  displayPeriods.value.map((p) => cumulativeActualDraft.value[p.periodDate] ?? '')
 )
 
 const curveYValues = computed(() => {
-  const curves = dashboard.value?.planCurves ?? []
+  const curves = aggregated.value.planCurves
   const activeId = primaryPlanId.value || dashboard.value?.primaryPlanId || ''
   return curves.map((c) =>
-    periods.value.map((_, i) => {
+    displayPeriods.value.map((_, i) => {
       if (c.planId === activeId) return displayCumulativePlanned.value[i] ?? '0'
       const v = c.cumulativePlanned[i]
       return v != null && v !== '' ? v : '0'
@@ -259,9 +283,9 @@ const curveYValues = computed(() => {
   )
 })
 
-/** 圖表曲線：僅「目前版本」＋「比較顯示」（未選比較或與目前相同則只畫一條） */
+/** 圖表曲線：僅「目前版本」＋「比較顯示」（使用聚合後的 planCurves） */
 const chartPlanCurves = computed(() => {
-  const full = dashboard.value?.planCurves ?? []
+  const full = aggregated.value.planCurves
   const activeId = primaryPlanId.value || dashboard.value?.primaryPlanId || ''
   let cmp = comparePlanId.value !== '__none__' && comparePlanId.value ? comparePlanId.value : ''
   if (cmp === activeId) cmp = ''
@@ -281,7 +305,7 @@ const chartCurveYValues = computed(() => {
 })
 
 const chartCurveStrokes = computed(() => {
-  const full = dashboard.value?.planCurves ?? []
+  const full = aggregated.value.planCurves
   const muted = scurveTheme.value.mutedForeground
   return chartPlanCurves.value.map((c) => {
     const idx = full.findIndex((x) => x.planId === c.planId)
@@ -835,6 +859,22 @@ watch(progressTab, async (tab) => {
                   </SelectContent>
                 </Select>
               </div>
+              <!-- 時間尺度切換 -->
+              <div class="flex items-end gap-1 pb-0.5">
+                <span class="mr-1 text-xs text-muted-foreground">尺度</span>
+                <Button
+                  v-for="s in TIME_SCALES"
+                  :key="s"
+                  type="button"
+                  size="sm"
+                  :variant="timeScale === s ? 'default' : 'outline'"
+                  class="h-8 px-2.5 text-xs"
+                  @click="timeScale = s"
+                >
+                  {{ TIME_SCALE_LABELS[s] }}
+                </Button>
+              </div>
+
               <div class="ms-auto flex flex-wrap items-end justify-end gap-2 pb-0.5">
                 <template v-if="progressValuesEditMode && perm.canUpdate && periods.length > 0">
                   <Button
@@ -874,7 +914,8 @@ watch(progressTab, async (tab) => {
                 <ProgressUnifiedScurve
                   v-if="dashboard && periods.length > 0"
                   :host-width="hostWidth"
-                  :periods="periods"
+                  :periods="displayPeriods"
+                  :period-labels="displayPeriodLabels"
                   :plan-curves="chartPlanCurves"
                   :curve-y-values="chartCurveYValues"
                   :curve-strokes="chartCurveStrokes"
@@ -883,8 +924,8 @@ watch(progressTab, async (tab) => {
                   :display-cumulative-actual="displayCumulativeActual"
                   :change-markers="changeMarkers"
                   :primary-is-baseline="primaryIsBaseline"
-                  :perm-can-update-planned="scurveCanUpdatePlanned"
-                  :perm-can-update-actual="scurveCanUpdateActual"
+                  :perm-can-update-planned="timeScale === 'raw' ? scurveCanUpdatePlanned : false"
+                  :perm-can-update-actual="timeScale === 'raw' ? scurveCanUpdateActual : false"
                   :planned-draft="plannedDraft"
                   :actual-draft="actualDraft"
                   :cumulative-actual-draft="cumulativeActualDraft"

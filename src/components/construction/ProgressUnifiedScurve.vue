@@ -68,6 +68,8 @@ const props = defineProps<{
   plannedDraft: Record<string, string>
   actualDraft: Record<string, string>
   cumulativeActualDraft: Record<string, string>
+  /** 聚合後的 X 軸顯示標籤（週/月/季/半年），與 periods 同長度；未傳時用 MM-DD */
+  periodLabels?: string[]
 }>()
 
 const emit = defineEmits<{
@@ -228,7 +230,7 @@ function render() {
     const yv = parseY(yRow[idx] ?? '')
     const cumDisp = Number.isFinite(yv) ? `${formatPctDisplay(yv)}%` : '—'
     const lines = [
-      `時間區間：${period.periodDate}`,
+      `時間區間：${props.periodLabels?.[idx] ?? period.periodDate}`,
       `${p.label}（v${p.version}）`,
       `累計預定：${cumDisp}`,
     ]
@@ -251,7 +253,7 @@ function render() {
       props.actualDraft[period.periodDate]?.trim() || period.periodActual?.trim() || '—'
     const paDisp = paRaw === '—' ? paRaw : /%$/.test(paRaw) ? paRaw : `${paRaw}%`
     return [
-      `時間區間：${period.periodDate}`,
+      `時間區間：${props.periodLabels?.[idx] ?? period.periodDate}`,
       '實際進度',
       `累計實際：${cumDisp}`,
       `本期實際：${paDisp}`,
@@ -488,7 +490,7 @@ function render() {
       .attr('fill', isToday ? props.actualStroke : props.foreground)
       .attr('font-size', 12)
       .attr('class', 'tabular-nums')
-      .text(shortDate(periodDates.value[i]!))
+      .text(props.periodLabels?.[i] ?? shortDate(periodDates.value[i]!))
   }
 
   // --- Layer 2: Y 軸水平格線 + 刻度 ---
