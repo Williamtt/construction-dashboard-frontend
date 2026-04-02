@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import {
   Select,
@@ -186,7 +185,7 @@ onMounted(async () => {
       const defaults = await getSupervisionReportDefaults(projectId.value)
       projectName.value = defaults.projectName
       startDate.value = defaults.startDate ?? ''
-      contractDuration.value = defaults.contractDuration
+      contractDuration.value = defaults.contractDuration ?? undefined
       plannedCompletionDate.value = defaults.plannedCompletionDate ?? ''
       reportDate.value = new Date().toISOString().slice(0, 10)
     } else {
@@ -575,7 +574,7 @@ function goBack() {
         </div>
         <div>
           <Label>查驗備註</Label>
-          <Textarea v-model="inspectionNotes" rows="2" placeholder="其他查驗說明（選填）" />
+          <textarea v-model="inspectionNotes" rows="2" placeholder="其他查驗說明（選填）" class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50" />
         </div>
       </section>
 
@@ -614,7 +613,7 @@ function goBack() {
         </div>
         <div>
           <Label>材料查核備註</Label>
-          <Textarea v-model="materialQualityNotes" rows="2" placeholder="其他材料查核說明（選填）" />
+          <textarea v-model="materialQualityNotes" rows="2" placeholder="其他材料查核說明（選填）" class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50" />
         </div>
       </section>
 
@@ -630,17 +629,18 @@ function goBack() {
         </div>
         <div>
           <Label>其他工地安全衛生督導事項</Label>
-          <Textarea v-model="safetyNotes" rows="3" placeholder="安全督導相關記錄" />
+          <textarea v-model="safetyNotes" rows="3" placeholder="安全督導相關記錄" class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50" />
         </div>
       </section>
 
       <!-- 五、其他 -->
       <section class="space-y-4 rounded-lg border border-border bg-card p-5">
         <h2 class="text-base font-semibold text-foreground">五、其他約定監造事項</h2>
-        <Textarea
+        <textarea
           v-model="otherSupervisionNotes"
           rows="4"
           placeholder="重要事項紀錄、主辦機關指示、通知廠商辦理事項等"
+          class="border-input bg-transparent placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 w-full resize-y rounded-md border px-3 py-2 text-sm outline-none focus-visible:ring-[3px] disabled:opacity-50"
         />
       </section>
 
