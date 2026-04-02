@@ -53,21 +53,21 @@ const weatherAm = ref('')
 const weatherPm = ref('')
 const reportDate = ref('')
 const projectName = ref('')
-const contractDuration = ref<number | null>(null)
+const contractDuration = ref<number | undefined>(undefined)
 const startDate = ref('')
 const plannedCompletionDate = ref('')
 const actualCompletionDate = ref('')
-const contractChangeCount = ref<number | null>(null)
-const extensionDays = ref<number | null>(null)
+const contractChangeCount = ref<number | undefined>(undefined)
+const extensionDays = ref<number | undefined>(undefined)
 const originalContractAmount = ref('')
 const designFee = ref('')
 const contractTotal = ref('')
 
 // ── 進度 ──
-const constructionPlannedProgress = ref<number | null>(null)
-const constructionActualProgress = ref<number | null>(null)
-const overallPlannedProgress = ref<number | null>(null)
-const overallActualProgress = ref<number | null>(null)
+const constructionPlannedProgress = ref<number | undefined>(undefined)
+const constructionActualProgress = ref<number | undefined>(undefined)
+const overallPlannedProgress = ref<number | undefined>(undefined)
+const overallActualProgress = ref<number | undefined>(undefined)
 
 // ── 一、工程進行情況（工作項目）──
 type WorkItemRow = {
@@ -132,27 +132,27 @@ function fillFromDto(dto: SupervisionReportDto) {
   weatherPm.value = dto.weatherPm ?? ''
   reportDate.value = dto.reportDate
   projectName.value = dto.projectName
-  contractDuration.value = dto.contractDuration
+  contractDuration.value = dto.contractDuration ?? undefined
   startDate.value = dto.startDate ?? ''
   plannedCompletionDate.value = dto.plannedCompletionDate ?? ''
   actualCompletionDate.value = dto.actualCompletionDate ?? ''
-  contractChangeCount.value = dto.contractChangeCount
-  extensionDays.value = dto.extensionDays
+  contractChangeCount.value = dto.contractChangeCount ?? undefined
+  extensionDays.value = dto.extensionDays ?? undefined
   originalContractAmount.value = dto.originalContractAmount ?? ''
   designFee.value = dto.designFee ?? ''
   contractTotal.value = dto.contractTotal ?? ''
   constructionPlannedProgress.value = dto.constructionPlannedProgress
     ? Number(dto.constructionPlannedProgress)
-    : null
+    : undefined
   constructionActualProgress.value = dto.constructionActualProgress
     ? Number(dto.constructionActualProgress)
-    : null
+    : undefined
   overallPlannedProgress.value = dto.overallPlannedProgress
     ? Number(dto.overallPlannedProgress)
-    : null
+    : undefined
   overallActualProgress.value = dto.overallActualProgress
     ? Number(dto.overallActualProgress)
-    : null
+    : undefined
   inspectionNotes.value = dto.inspectionNotes
   materialQualityNotes.value = dto.materialQualityNotes
   preWorkCheckCompleted.value = dto.preWorkCheckCompleted
