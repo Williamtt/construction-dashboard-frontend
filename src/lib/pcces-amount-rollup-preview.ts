@@ -3,7 +3,7 @@
  * 金額計算使用 BigInt 精確十進位算術，避免 IEEE 754 浮點誤差。
  */
 
-import { mulDecimal4, addDecimal4 } from '@/lib/format-number'
+import { mulDecimal4 } from '@/lib/format-number'
 
 export type PccesRollupPreviewRow = {
   itemKey: number
