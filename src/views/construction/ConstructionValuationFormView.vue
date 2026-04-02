@@ -28,7 +28,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
-import { parseLocaleNumber, formatThousands, formatMoneyNtd } from '@/lib/format-number'
+import { parseLocaleNumber, formatThousands, formatMoneyNtd, mulDecimal4, addDecimal4 } from '@/lib/format-number'
 import {
   createConstructionValuation,
   deleteConstructionValuation,
@@ -121,13 +121,12 @@ function unitPriceN(line: LineDraft): number {
   return parseLocaleNumber(line.unitPrice) ?? 0
 }
 
-function lineCurrentAmountN(line: LineDraft): number {
-  return currentQtyN(line) * unitPriceN(line)
+function lineCurrentAmount(line: LineDraft): string {
+  return mulDecimal4(line.currentPeriodQty, line.unitPrice)
 }
 
-function lineCumulativeAmountN(line: LineDraft): number {
-  const priorAmt = parseLocaleNumber(line.priorBilledAmount) ?? 0
-  return priorAmt + lineCurrentAmountN(line)
+function lineCumulativeAmount(line: LineDraft): string {
+  return addDecimal4(line.priorBilledAmount ?? '0', lineCurrentAmount(line))
 }
 
 function getLine(rowKey: string): LineDraft | undefined {
@@ -145,14 +144,14 @@ function pickerParentMetaByPk(
   return { itemNo: p.itemNo, description: p.description, unit: p.unit }
 }
 
-function sectionAmounts67(section: GroupSection): { a6: number; a7: number } {
-  let a6 = 0
-  let a7 = 0
+function sectionAmounts67(section: GroupSection): { a6: string; a7: string } {
+  let a6 = '0'
+  let a7 = '0'
   for (const id of section.lineIds) {
     const line = getLine(id)
     if (!line) continue
-    a6 += lineCurrentAmountN(line)
-    a7 += lineCumulativeAmountN(line)
+    a6 = addDecimal4(a6, lineCurrentAmount(line))
+    a7 = addDecimal4(a7, lineCumulativeAmount(line))
   }
   return { a6, a7 }
 }
@@ -853,10 +852,10 @@ async function confirmDelete() {
                   {{ formatThousands(cumulativeQtyN(row.line), { maximumFractionDigits: 4 }) }}
                 </TableCell>
                 <TableCell class="text-end tabular-nums text-foreground">
-                  {{ formatMoneyNtd(lineCurrentAmountN(row.line)) }}
+                  {{ formatMoneyNtd(lineCurrentAmount(row.line)) }}
                 </TableCell>
                 <TableCell class="text-end tabular-nums text-muted-foreground">
-                  {{ formatMoneyNtd(lineCumulativeAmountN(row.line)) }}
+                  {{ formatMoneyNtd(lineCumulativeAmount(row.line)) }}
                 </TableCell>
                 <!-- 備註：日後可併顯 PCCES 變更版次等（後端／匯入流程另議） -->
                 <TableCell

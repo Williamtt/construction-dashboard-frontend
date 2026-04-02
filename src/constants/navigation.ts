@@ -116,40 +116,12 @@ export const LAYER3_PROJECT_MGMT: NavItemProject[] = [
   },
 ]
 
-/** Layer 3-B：施工管理（監測、上傳、設備、自主檢查、施工日誌、缺失改善、圖說管理、報表、照片） */
+/**
+ * Layer 3-B：施工管理
+ * 順序依因果鏈：合約基礎 → 日常施工 → 計價結算 → 環境監測（並行）→ 彙整輸出
+ */
 export const LAYER3_CONSTRUCTION: NavItemProject[] = [
-  {
-    id: 'monitoring-history',
-    label: '監測數據',
-    pathSuffix: '/monitoring/history',
-    icon: 'Activity',
-  },
-  { id: 'monitoring-upload', label: '數據上傳', pathSuffix: '/monitoring/upload', icon: 'Upload' },
-  { id: 'monitoring-devices', label: '設備管理', pathSuffix: '/monitoring/devices', icon: 'Cpu' },
-  {
-    id: 'construction-self-check',
-    label: '自主檢查',
-    pathSuffix: '/construction/self-check',
-    icon: 'ClipboardCheck',
-  },
-  {
-    id: 'construction-progress',
-    label: '進度表',
-    pathSuffix: '/construction/progress',
-    icon: 'TrendingUp',
-  },
-  {
-    id: 'construction-diary',
-    label: '施工日誌',
-    pathSuffix: '/construction/diary',
-    icon: 'BookOpen',
-  },
-  {
-    id: 'construction-valuation',
-    label: '估驗計價',
-    pathSuffix: '/construction/diary/valuations',
-    icon: 'Calculator',
-  },
+  // ── 合約基礎 ──
   {
     id: 'construction-pcces',
     label: '契約工項',
@@ -157,19 +129,55 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
     icon: 'FileSpreadsheet',
   },
   {
-    id: 'construction-defects',
-    label: '缺失改善',
-    pathSuffix: '/construction/defects',
-    icon: 'AlertCircle',
-  },
-  {
     id: 'construction-drawings',
     label: '圖說管理',
     pathSuffix: '/construction/drawings',
     icon: 'DraftingCompass',
   },
-  { id: 'monitoring-reports', label: '報表', pathSuffix: '/monitoring/reports', icon: 'FileText' },
+  // ── 日常施工 ──
+  {
+    id: 'construction-diary',
+    label: '施工日誌',
+    pathSuffix: '/construction/diary',
+    icon: 'BookOpen',
+  },
+  {
+    id: 'construction-self-check',
+    label: '自主檢查',
+    pathSuffix: '/construction/self-check',
+    icon: 'ClipboardCheck',
+  },
+  {
+    id: 'construction-defects',
+    label: '缺失改善',
+    pathSuffix: '/construction/defects',
+    icon: 'AlertCircle',
+  },
+  // ── 計價結算 ──
+  {
+    id: 'construction-valuation',
+    label: '估驗計價',
+    pathSuffix: '/construction/diary/valuations',
+    icon: 'Calculator',
+  },
+  // ── 環境監測（並行）──
+  { id: 'monitoring-devices', label: '設備管理', pathSuffix: '/monitoring/devices', icon: 'Cpu' },
+  { id: 'monitoring-upload', label: '數據上傳', pathSuffix: '/monitoring/upload', icon: 'Upload' },
+  {
+    id: 'monitoring-history',
+    label: '監測數據',
+    pathSuffix: '/monitoring/history',
+    icon: 'Activity',
+  },
+  // ── 彙整輸出 ──
+  {
+    id: 'construction-progress',
+    label: '進度表',
+    pathSuffix: '/construction/progress',
+    icon: 'TrendingUp',
+  },
   { id: 'files-photos', label: '照片管理', pathSuffix: '/files/photos', icon: 'Image' },
+  { id: 'monitoring-reports', label: '報表', pathSuffix: '/monitoring/reports', icon: 'FileText' },
 ]
 
 /** Layer 3-C：報修管理（總覽、報修紀錄表） */

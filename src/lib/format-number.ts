@@ -112,3 +112,58 @@ export function formatEngineeringDecimal(
     fallback: options?.fallback,
   })
 }
+
+// ── 精確十進位算術（BigInt，對齊後端 Decimal(18,4)）──────────────────────────
+
+/** 字串十進位（最多4位小數）→ bigint（×10^4 整數表示）*/
+function decimalStrToBigInt(s: string | number): bigint {
+  const clean = String(s).replace(/,/g, '').trim()
+  if (!clean || clean === '-' || clean === '+') return 0n
+  const neg = clean.startsWith('-')
+  const abs = neg ? clean.slice(1) : clean
+  const dotIdx = abs.indexOf('.')
+  const intPart = dotIdx === -1 ? abs : abs.slice(0, dotIdx)
+  const fracPart = dotIdx === -1 ? '' : abs.slice(dotIdx + 1)
+  const frac4 = fracPart.padEnd(4, '0').slice(0, 4)
+  const result = BigInt(intPart || '0') * 10000n + BigInt(frac4)
+  return neg ? -result : result
+}
+
+/** bigint（×10^4 整數表示）→ 最多4位小數字串（去尾零）*/
+function bigIntToDecimalStr(v: bigint): string {
+  const neg = v < 0n
+  const abs = neg ? -v : v
+  const s = abs.toString().padStart(5, '0')
+  const intPart = s.slice(0, -4) || '0'
+  const fracPart = s.slice(-4).replace(/0+$/, '')
+  const result = fracPart ? `${intPart}.${fracPart}` : intPart
+  return neg ? `-${result}` : result
+}
+
+/**
+ * 精確乘法：a × b，結果保留4位小數（四捨五入），不含浮點誤差。
+ * 用於前端顯示金額：數量 × 單價。
+ */
+export function mulDecimal4(a: string | number, b: string | number): string {
+  const ai = decimalStrToBigInt(a)
+  const bi = decimalStrToBigInt(b)
+  // 兩數各×10^4，乘積×10^8；除以10^4取回4位小數
+  const product = ai * bi
+  const divisor = 10000n
+  const quotient = product / divisor
+  const remainder = product % divisor
+  const absRem = remainder < 0n ? -remainder : remainder
+  const rounded =
+    absRem * 2n >= divisor
+      ? product < 0n ? quotient - 1n : quotient + 1n
+      : quotient
+  return bigIntToDecimalStr(rounded)
+}
+
+/**
+ * 精確加法：a + b，結果保留4位小數，不含浮點誤差。
+ * 用於前端顯示金額：本期金額 + 累計金額加總。
+ */
+export function addDecimal4(a: string | number, b: string | number): string {
+  return bigIntToDecimalStr(decimalStrToBigInt(a) + decimalStrToBigInt(b))
+}
