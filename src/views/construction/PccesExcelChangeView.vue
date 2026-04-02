@@ -24,7 +24,7 @@ import {
 } from '@/components/ui/table'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
-import { formatEngineeringDecimal, parseLocaleNumber } from '@/lib/format-number'
+import { formatEngineeringDecimal, parseLocaleNumber, formatMoney } from '@/lib/format-number'
 import {
   applyPccesPreviewRollup,
   type PccesRollupPreviewRow,
@@ -430,11 +430,11 @@ const revisedRollupMaps = computed(() => {
 })
 
 function displayRevisedAmountForItem(itemKey: number): string {
-  return formatEngineeringDecimal(revisedRollupMaps.value.byItemKey.get(itemKey))
+  return formatMoney(revisedRollupMaps.value.byItemKey.get(itemKey))
 }
 
 function displayRevisedAmountForManual(manualId: string): string {
-  return formatEngineeringDecimal(revisedRollupMaps.value.byManualId.get(manualId))
+  return formatMoney(revisedRollupMaps.value.byManualId.get(manualId))
 }
 
 function revisedItemAmountDiffersFromOriginal(item: PccesItemDto): boolean {
@@ -1155,7 +1155,7 @@ watch([projectId, baseImportId], () => loadBaseItems())
                           {{ formatEngineeringDecimal(row.item.unitPrice) }}
                         </TableCell>
                         <TableCell class="text-end tabular-nums text-muted-foreground">
-                          {{ formatEngineeringDecimal(row.item.amountImported) }}
+                          {{ formatMoney(row.item.amountImported) }}
                         </TableCell>
                         <TableCell
                           class="text-end tabular-nums"

@@ -38,7 +38,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
-import { formatEngineeringDecimal, formatThousands } from '@/lib/format-number'
+import { formatEngineeringDecimal, formatThousands, formatMoney } from '@/lib/format-number'
 import {
   getPccesImportItems,
   deletePccesImport,
@@ -181,7 +181,7 @@ const columns: ColumnDef<PccesItemDto>[] = [
       h(
         'span',
         { class: 'tabular-nums text-muted-foreground' },
-        formatEngineeringDecimal(row.original.amountImported)
+        formatMoney(row.original.amountImported)
       ),
   },
   {
