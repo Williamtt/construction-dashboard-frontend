@@ -139,6 +139,17 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/construction-daily-logs/preview-pcces-actual-progress`,
   PROJECT_CONSTRUCTION_DAILY_LOG: (projectId: string, logId: string) =>
     `${API_V1}/projects/${projectId}/construction-daily-logs/${logId}`,
+  /** 公共工程監造報表 */
+  PROJECT_SUPERVISION_REPORTS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/supervision-reports`,
+  PROJECT_SUPERVISION_REPORT_DEFAULTS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/supervision-reports/defaults`,
+  PROJECT_SUPERVISION_REPORT_PCCES_WORK_ITEMS: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/supervision-reports/pcces-work-items`,
+  PROJECT_SUPERVISION_REPORT: (projectId: string, reportId: string) =>
+    `${API_V1}/projects/${projectId}/supervision-reports/${reportId}`,
+  PROJECT_SUPERVISION_REPORT_EXPORT_EXCEL: (projectId: string, reportId: string) =>
+    `${API_V1}/projects/${projectId}/supervision-reports/${reportId}/export-excel`,
   /** 估驗計價 */
   PROJECT_CONSTRUCTION_VALUATIONS: (projectId: string) =>
     `${API_V1}/projects/${projectId}/construction-valuations`,

@@ -142,6 +142,12 @@ export const LAYER3_CONSTRUCTION: NavItemProject[] = [
     icon: 'BookOpen',
   },
   {
+    id: 'construction-supervision',
+    label: '監造報表',
+    pathSuffix: '/construction/supervision',
+    icon: 'ShieldCheck',
+  },
+  {
     id: 'construction-self-check',
     label: '自主檢查',
     pathSuffix: '/construction/self-check',

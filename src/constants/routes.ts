@@ -81,6 +81,10 @@ export const ROUTE_PATH = {
   PROJECT_MANAGEMENT_GANTT: '/management/gantt',
   PROJECT_MANAGEMENT_OVERVIEW: '/management/overview',
 
+  /** 監造報表：列表、新增、編輯 */
+  PROJECT_CONSTRUCTION_SUPERVISION: '/construction/supervision',
+  PROJECT_CONSTRUCTION_SUPERVISION_NEW: '/construction/supervision/new',
+  PROJECT_CONSTRUCTION_SUPERVISION_DETAIL: '/construction/supervision/:reportId',
   /** 施工管理：自主檢查、施工日誌、缺失改善、圖說管理 */
   /** 進度管理（S-curve、計畫／實際週期） */
   PROJECT_CONSTRUCTION_PROGRESS: '/construction/progress',
@@ -193,6 +197,9 @@ export const ROUTE_NAME = {
   PROJECT_CONSTRUCTION_SELF_CHECK_TEMPLATE: 'project-construction-self-check-template',
   PROJECT_CONSTRUCTION_SELF_CHECK_NEW: 'project-construction-self-check-new',
   PROJECT_CONSTRUCTION_SELF_CHECK_RECORD: 'project-construction-self-check-record',
+  PROJECT_CONSTRUCTION_SUPERVISION: 'project-construction-supervision',
+  PROJECT_CONSTRUCTION_SUPERVISION_NEW: 'project-construction-supervision-new',
+  PROJECT_CONSTRUCTION_SUPERVISION_DETAIL: 'project-construction-supervision-detail',
   PROJECT_CONSTRUCTION_DIARY: 'project-construction-diary',
   PROJECT_CONSTRUCTION_DIARY_LOG_NEW: 'project-construction-diary-log-new',
   PROJECT_CONSTRUCTION_DIARY_LOG_DETAIL: 'project-construction-diary-log-detail',

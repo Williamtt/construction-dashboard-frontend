@@ -391,6 +391,22 @@ const router = createRouter({
           name: ROUTE_NAME.PROJECT_CONSTRUCTION_DIARY,
           component: () => import('@/views/construction/ConstructionDailyLogsListView.vue'),
         },
+        /** 監造報表 */
+        {
+          path: 'p/:projectId/construction/supervision/new',
+          name: ROUTE_NAME.PROJECT_CONSTRUCTION_SUPERVISION_NEW,
+          component: () => import('@/views/construction/SupervisionReportFormView.vue'),
+        },
+        {
+          path: 'p/:projectId/construction/supervision/:reportId',
+          name: ROUTE_NAME.PROJECT_CONSTRUCTION_SUPERVISION_DETAIL,
+          component: () => import('@/views/construction/SupervisionReportFormView.vue'),
+        },
+        {
+          path: 'p/:projectId/construction/supervision',
+          name: ROUTE_NAME.PROJECT_CONSTRUCTION_SUPERVISION,
+          component: () => import('@/views/construction/SupervisionReportsListView.vue'),
+        },
         {
           path: 'p/:projectId/construction/drawings',
           name: ROUTE_NAME.PROJECT_CONSTRUCTION_DRAWINGS,
