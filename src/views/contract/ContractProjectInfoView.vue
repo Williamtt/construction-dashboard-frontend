@@ -37,7 +37,8 @@ const canUpdateOverview = overviewPerm.canUpdate
 
 const loading = ref(true)
 const saving = ref(false)
-const errorMessage = ref('')
+const errorMessage = ref('')   // 載入失敗訊息
+const saveError = ref('')      // 儲存失敗訊息
 
 /** 預設唯讀；按「編輯」進入表單，按「儲存」送出後回到唯讀 */
 const isEditMode = ref(false)
@@ -183,7 +184,7 @@ async function save() {
     return
   }
   saving.value = true
-  errorMessage.value = ''
+  saveError.value = ''
   try {
     await updateProject(id, {
       name: form.value.projectName.trim() || undefined,
@@ -207,7 +208,7 @@ async function save() {
       err && typeof err === 'object' && 'response' in err
         ? (err as { response?: { data?: { error?: { message?: string } } } }).response?.data?.error
         : null
-    errorMessage.value = res?.message ?? '儲存失敗'
+    saveError.value = res?.message ?? '儲存失敗'
   } finally {
     saving.value = false
   }
@@ -245,7 +246,7 @@ async function save() {
     <p v-else-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
 
     <template v-else>
-    <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
+    <p v-if="saveError" class="text-sm text-destructive">{{ saveError }}</p>
     <!-- 基本資訊 -->
     <Card class="overflow-hidden border-border">
       <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
