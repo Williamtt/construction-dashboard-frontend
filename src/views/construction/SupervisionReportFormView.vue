@@ -182,12 +182,18 @@ function fillFromDto(dto: SupervisionReportDto) {
 onMounted(async () => {
   try {
     if (isNew.value) {
-      const defaults = await getSupervisionReportDefaults(projectId.value)
+      const today = new Date().toISOString().slice(0, 10)
+      reportDate.value = today
+      const defaults = await getSupervisionReportDefaults(projectId.value, today)
       projectName.value = defaults.projectName
       startDate.value = defaults.startDate ?? ''
       contractDuration.value = defaults.contractDuration ?? undefined
       plannedCompletionDate.value = defaults.plannedCompletionDate ?? ''
-      reportDate.value = new Date().toISOString().slice(0, 10)
+      extensionDays.value = defaults.extensionDays > 0 ? defaults.extensionDays : undefined
+      contractChangeCount.value = defaults.contractChangeCount > 0 ? defaults.contractChangeCount : undefined
+      if (defaults.constructionPlannedProgress != null) {
+        constructionPlannedProgress.value = Number(defaults.constructionPlannedProgress)
+      }
     } else {
       const dto = await getSupervisionReport(projectId.value, reportId.value)
       fillFromDto(dto)

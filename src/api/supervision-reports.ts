@@ -84,6 +84,9 @@ export interface SupervisionReportFormDefaults {
   startDate: string | null
   contractDuration: number | null
   plannedCompletionDate: string | null
+  extensionDays: number
+  contractChangeCount: number
+  constructionPlannedProgress: string | null
 }
 
 export type SupervisionReportUpsertPayload = {
@@ -156,9 +159,11 @@ export async function listSupervisionReports(
 }
 
 export async function getSupervisionReportDefaults(
-  projectId: string
+  projectId: string,
+  reportDate?: string
 ): Promise<SupervisionReportFormDefaults> {
-  const url = API_PATH.PROJECT_SUPERVISION_REPORT_DEFAULTS(projectId)
+  const q = reportDate ? `?reportDate=${reportDate}` : ''
+  const url = `${API_PATH.PROJECT_SUPERVISION_REPORT_DEFAULTS(projectId)}${q}`
   const { data } = await apiClient.get<ApiResponse<SupervisionReportFormDefaults>>(url)
   return data.data
 }
