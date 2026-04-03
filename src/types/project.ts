@@ -42,6 +42,8 @@ export interface ProjectDetail extends ProjectItem {
   siteManager: string | null
   contactPhone: string | null
   projectStaff: string | null
+  originalContractAmount: string | null  // 原契約工程費（Decimal 序列化為字串）
+  designFee: string | null               // 原契約設計相關費
 }
 
 /** 專案成員單筆（從租戶成員引入） */
@@ -88,4 +90,6 @@ export interface UpdateProjectInfoPayload {
   siteManager?: string | null
   contactPhone?: string | null
   projectStaff?: string | null
+  originalContractAmount?: string | null
+  designFee?: string | null
 }

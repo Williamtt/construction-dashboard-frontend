@@ -87,6 +87,9 @@ export interface SupervisionReportFormDefaults {
   extensionDays: number
   contractChangeCount: number
   constructionPlannedProgress: string | null
+  originalContractAmount: string | null
+  designFee: string | null
+  contractTotal: string | null
 }
 
 export type SupervisionReportUpsertPayload = {

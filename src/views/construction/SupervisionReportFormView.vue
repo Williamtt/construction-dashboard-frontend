@@ -194,6 +194,9 @@ onMounted(async () => {
       if (defaults.constructionPlannedProgress != null) {
         constructionPlannedProgress.value = Number(defaults.constructionPlannedProgress)
       }
+      originalContractAmount.value = defaults.originalContractAmount ?? ''
+      designFee.value = defaults.designFee ?? ''
+      contractTotal.value = defaults.contractTotal ?? ''
     } else {
       const dto = await getSupervisionReport(projectId.value, reportId.value)
       fillFromDto(dto)

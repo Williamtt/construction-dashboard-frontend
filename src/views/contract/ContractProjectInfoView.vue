@@ -17,6 +17,7 @@ import {
   User,
   Pencil,
   Loader2,
+  Banknote,
 } from 'lucide-vue-next'
 import { getProject, updateProject } from '@/api/project'
 import type { ProjectDetail } from '@/types'
@@ -56,6 +57,17 @@ const form = ref({
   siteManager: '',
   contactPhone: '',
   projectStaff: '',
+  originalContractAmount: '',
+  designFee: '',
+})
+
+/** 契約總價（唯讀計算） */
+const computedContractTotal = computed(() => {
+  const a = parseFloat(form.value.originalContractAmount)
+  const b = parseFloat(form.value.designFee)
+  if (!isNaN(a) && !isNaN(b)) return (a + b).toLocaleString()
+  if (!isNaN(a)) return a.toLocaleString()
+  return ''
 })
 
 /** 用於顯示的空白佔位 */
@@ -119,6 +131,8 @@ function fillForm(project: ProjectDetail) {
     siteManager: project.siteManager ?? '',
     contactPhone: project.contactPhone ?? '',
     projectStaff: project.projectStaff ?? '',
+    originalContractAmount: project.originalContractAmount ?? '',
+    designFee: project.designFee ?? '',
   }
 }
 
@@ -183,6 +197,8 @@ async function save() {
       siteManager: form.value.siteManager.trim() || null,
       contactPhone: form.value.contactPhone.trim() || null,
       projectStaff: form.value.projectStaff.trim() || null,
+      originalContractAmount: form.value.originalContractAmount.trim() || null,
+      designFee: form.value.designFee.trim() || null,
     })
     isEditMode.value = false
     await loadProject()
@@ -380,6 +396,53 @@ async function save() {
               class="mt-0.5"
             />
             <p class="mt-0.5 text-xs text-muted-foreground">預定完工 = 開工 + 工期；預定竣工 = 開工 + 工期 + 工期調整</p>
+          </div>
+        </template>
+      </CardContent>
+    </Card>
+
+    <!-- 契約金額 -->
+    <Card class="overflow-hidden border-border">
+      <CardHeader class="border-b border-border/50 bg-muted/20 pb-4">
+        <div class="flex items-center gap-2">
+          <div class="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+            <Banknote class="size-5" />
+          </div>
+          <div>
+            <CardTitle class="text-base">契約金額</CardTitle>
+            <CardDescription>原契約工程費與設計相關費（供監造報表自動帶入）</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent class="grid gap-6 pt-6 sm:grid-cols-3">
+        <template v-if="!isEditMode || !canUpdateOverview">
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">原契約工程費（元）</p>
+            <p class="text-sm font-medium text-foreground">{{ form.originalContractAmount ? Number(form.originalContractAmount).toLocaleString() : emptyPlaceholder }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">原契約設計相關費（元）</p>
+            <p class="text-sm font-medium text-foreground">{{ form.designFee ? Number(form.designFee).toLocaleString() : emptyPlaceholder }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約總價（元）</p>
+            <p class="text-sm font-medium text-foreground">{{ computedContractTotal || emptyPlaceholder }}</p>
+            <p class="mt-0.5 text-xs text-muted-foreground">工程費 + 設計相關費</p>
+          </div>
+        </template>
+        <template v-else>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">原契約工程費（元）</label>
+            <Input v-model="form.originalContractAmount" type="number" min="0" step="1" placeholder="請輸入金額" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">原契約設計相關費（元）</label>
+            <Input v-model="form.designFee" type="number" min="0" step="1" placeholder="請輸入金額" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約總價（元）</label>
+            <Input :value="computedContractTotal" disabled placeholder="自動計算" class="mt-0.5 bg-muted/40" />
+            <p class="mt-0.5 text-xs text-muted-foreground">工程費 + 設計相關費</p>
           </div>
         </template>
       </CardContent>
