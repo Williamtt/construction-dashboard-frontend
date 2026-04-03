@@ -19,16 +19,16 @@ export interface TutorHistoryResponse {
 }
 
 export function sendTutorMessage(message: string, pageContext?: string) {
-  return apiClient.post<TutorChatResponse>('/ai-tutor/chat', {
+  return apiClient.post<TutorChatResponse>('/api/v1/ai-tutor/chat', {
     message,
     page_context: pageContext,
   })
 }
 
 export function getTutorHistory() {
-  return apiClient.get<TutorHistoryResponse>('/ai-tutor/history')
+  return apiClient.get<TutorHistoryResponse>('/api/v1/ai-tutor/history')
 }
 
 export function newTutorConversation() {
-  return apiClient.post('/ai-tutor/new')
+  return apiClient.post('/api/v1/ai-tutor/new')
 }
