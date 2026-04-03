@@ -64,8 +64,8 @@ const form = ref({
 
 /** 契約總價（唯讀計算） */
 const computedContractTotal = computed(() => {
-  const a = parseFloat(form.value.originalContractAmount)
-  const b = parseFloat(form.value.designFee)
+  const a = parseFloat(String(form.value.originalContractAmount))
+  const b = parseFloat(String(form.value.designFee))
   if (!isNaN(a) && !isNaN(b)) return (a + b).toLocaleString()
   if (!isNaN(a)) return a.toLocaleString()
   return ''
