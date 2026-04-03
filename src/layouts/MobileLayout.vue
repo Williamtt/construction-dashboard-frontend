@@ -6,6 +6,7 @@ import { useAppPreferenceStore } from '@/stores/appPreference'
 import { useMobileSelfInspectionNavStore } from '@/stores/mobileSelfInspectionNav'
 import MobileNavTabs from '@/views/mobile/components/MobileNavTabs.vue'
 import MobileHeader from '@/views/mobile/components/MobileHeader.vue'
+import AiTutorWidget from '@/components/common/AiTutorWidget.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -169,6 +170,8 @@ function switchToDesktop() {
     </main>
 
     <MobileNavTabs v-if="showTabs && projectId" :project-id="projectId" class="pwa-fixed-bottom" />
+
+    <AiTutorWidget />
   </div>
 </template>
 

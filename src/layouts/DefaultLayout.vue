@@ -10,6 +10,7 @@ import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { useSidebarStore } from '@/stores/sidebar'
 import { useIsMobile } from '@/composables'
 import { useNotificationsStore } from '@/stores/notifications'
+import AiTutorWidget from '@/components/common/AiTutorWidget.vue'
 
 const route = useRoute()
 const sidebarStore = useSidebarStore()
@@ -68,5 +69,7 @@ watch(
         </div>
       </main>
     </div>
+
+    <AiTutorWidget />
   </div>
 </template>
