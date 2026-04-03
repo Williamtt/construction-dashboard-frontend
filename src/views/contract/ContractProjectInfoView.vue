@@ -58,8 +58,8 @@ const form = ref({
   siteManager: '',
   contactPhone: '',
   projectStaff: '',
-  originalContractAmount: '',
-  designFee: '',
+  originalContractAmount: '' as string | number,
+  designFee: '' as string | number,
 })
 
 /** 契約總價（唯讀計算） */
@@ -198,8 +198,8 @@ async function save() {
       siteManager: form.value.siteManager.trim() || null,
       contactPhone: form.value.contactPhone.trim() || null,
       projectStaff: form.value.projectStaff.trim() || null,
-      originalContractAmount: form.value.originalContractAmount.trim() || null,
-      designFee: form.value.designFee.trim() || null,
+      originalContractAmount: form.value.originalContractAmount !== '' && form.value.originalContractAmount != null ? String(form.value.originalContractAmount) : null,
+      designFee: form.value.designFee !== '' && form.value.designFee != null ? String(form.value.designFee) : null,
     })
     isEditMode.value = false
     await loadProject()
