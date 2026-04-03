@@ -25,9 +25,9 @@ export default defineConfig({
             registerType: 'autoUpdate',
             includeAssets: ['favicon.ico', 'vite.svg'],
             manifest: {
-                name: '現場查驗系統',
-                short_name: '查驗',
-                description: '營造工地現場查驗、缺失改善、報修管理',
+                name: 'EAGLE 2.0 工程專案管理系統',
+                short_name: 'EAGLE 2.0',
+                description: '工程專案管理平台——施工日誌、進度管理、品質查驗、缺失改善',
                 theme_color: '#0a0a0a',
                 background_color: '#0a0a0a',
                 display: 'standalone',
