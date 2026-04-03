@@ -46,6 +46,8 @@ const isEditMode = ref(false)
 /** 表單資料（預定完工 = 開工+工期，預定竣工 = 開工+工期+調整天數，由 API 回傳） */
 const form = ref({
   projectName: '',
+  contractNo: '',
+  ownerAgency: '',
   designUnit: '',
   supervisionUnit: '',
   contractor: '',
@@ -120,6 +122,8 @@ function dateToInputValue(iso: string | null | undefined): string {
 function fillForm(project: ProjectDetail) {
   form.value = {
     projectName: project.name ?? '',
+    contractNo: project.contractNo ?? '',
+    ownerAgency: project.ownerAgency ?? '',
     designUnit: project.designUnit ?? '',
     supervisionUnit: project.supervisionUnit ?? '',
     contractor: project.contractor ?? '',
@@ -188,6 +192,8 @@ async function save() {
   try {
     await updateProject(id, {
       name: form.value.projectName.trim() || undefined,
+      contractNo: form.value.contractNo.trim() || null,
+      ownerAgency: form.value.ownerAgency.trim() || null,
       designUnit: form.value.designUnit.trim() || null,
       supervisionUnit: form.value.supervisionUnit.trim() || null,
       contractor: form.value.contractor.trim() || null,
@@ -267,6 +273,14 @@ async function save() {
             <p class="text-sm font-medium text-foreground">{{ displayValue(form.projectName) }}</p>
           </div>
           <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約編號</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.contractNo) }}</p>
+          </div>
+          <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">主辦機關</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.ownerAgency) }}</p>
+          </div>
+          <div class="space-y-1">
             <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">設計單位</p>
             <p class="text-sm font-medium text-foreground">{{ displayValue(form.designUnit) }}</p>
           </div>
@@ -283,6 +297,14 @@ async function save() {
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程名稱</label>
             <Input v-model="form.projectName" placeholder="請輸入工程名稱" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約編號</label>
+            <Input v-model="form.contractNo" placeholder="請輸入契約編號" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">主辦機關</label>
+            <Input v-model="form.ownerAgency" placeholder="請輸入主辦機關" class="mt-0.5" />
           </div>
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">設計單位</label>

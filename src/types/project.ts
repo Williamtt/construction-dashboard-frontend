@@ -44,6 +44,8 @@ export interface ProjectDetail extends ProjectItem {
   projectStaff: string | null
   originalContractAmount: string | null  // 原契約工程費（Decimal 序列化為字串）
   designFee: string | null               // 原契約設計相關費
+  contractNo: string | null              // 契約編號
+  ownerAgency: string | null             // 主辦機關
 }
 
 /** 專案成員單筆（從租戶成員引入） */
@@ -92,4 +94,6 @@ export interface UpdateProjectInfoPayload {
   projectStaff?: string | null
   originalContractAmount?: string | null
   designFee?: string | null
+  contractNo?: string | null
+  ownerAgency?: string | null
 }

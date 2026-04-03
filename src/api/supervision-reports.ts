@@ -81,6 +81,8 @@ export interface SupervisionReportFormDefaults {
   projectName: string
   contractorName: string
   supervisionUnit: string
+  contractNo: string
+  ownerAgency: string
   startDate: string | null
   contractDuration: number | null
   plannedCompletionDate: string | null
