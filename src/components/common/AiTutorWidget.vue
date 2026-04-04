@@ -11,6 +11,7 @@ const route = useRoute()
 const isMobile = useIsMobile()
 const inputText = ref('')
 const scrollContainer = ref<HTMLElement | null>(null)
+const composing = ref(false)
 
 const pageContext = computed(() => {
   const path = route.path
@@ -41,7 +42,7 @@ async function handleSend() {
 }
 
 function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Enter' && !e.shiftKey) {
+  if (e.key === 'Enter' && !e.shiftKey && !composing.value) {
     e.preventDefault()
     handleSend()
   }
@@ -130,6 +131,8 @@ function formatContent(text: string): string {
           class="flex-1 resize-none rounded-full border border-input bg-background px-4 py-2 text-sm outline-none focus:border-primary"
           placeholder="輸入問題..."
           rows="1"
+          @compositionstart="composing = true"
+          @compositionend="composing = false"
           @keydown="handleKeydown"
         />
         <Button
