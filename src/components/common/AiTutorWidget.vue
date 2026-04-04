@@ -5,13 +5,12 @@ import { useAiTutorStore } from '@/stores/aiTutor'
 import { useIsMobile } from '@/composables'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
 import { Button } from '@/components/ui/button'
-import { ScrollArea } from '@/components/ui/scroll-area'
 
 const store = useAiTutorStore()
 const route = useRoute()
 const isMobile = useIsMobile()
 const inputText = ref('')
-const messagesEndRef = ref<HTMLElement | null>(null)
+const scrollContainer = ref<HTMLElement | null>(null)
 
 const pageContext = computed(() => {
   const path = route.path
@@ -26,7 +25,9 @@ const pageContext = computed(() => {
 
 function scrollToBottom() {
   nextTick(() => {
-    messagesEndRef.value?.scrollIntoView({ behavior: 'smooth' })
+    if (scrollContainer.value) {
+      scrollContainer.value.scrollTop = scrollContainer.value.scrollHeight
+    }
   })
 }
 
@@ -90,7 +91,7 @@ function formatContent(text: string): string {
       </div>
 
       <!-- Messages -->
-      <ScrollArea class="flex-1 px-4 py-3">
+      <div ref="scrollContainer" class="min-h-0 flex-1 overflow-y-auto px-4 py-3">
         <div class="flex flex-col gap-3">
           <div
             v-for="(msg, i) in store.messages"
@@ -119,10 +120,8 @@ function formatContent(text: string): string {
           >
             參考：{{ store.sources.map(s => s.title).join('、') }}
           </div>
-
-          <div ref="messagesEndRef" />
         </div>
-      </ScrollArea>
+      </div>
 
       <!-- Input -->
       <div class="flex gap-2 border-t bg-background p-3">
