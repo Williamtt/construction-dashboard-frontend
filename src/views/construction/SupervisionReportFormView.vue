@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -20,6 +20,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { ROUTE_NAME } from '@/constants/routes'
 import {
   getSupervisionReport,
@@ -31,6 +41,7 @@ import {
   type SupervisionReportDto,
   type SupervisionReportUpsertPayload,
   type SupervisionReportPccesPickerRow,
+  type DailyLogPrefill,
 } from '@/api/supervision-reports'
 import { apiClient } from '@/api/client'
 import { AlertTriangle, ArrowLeft, Download, Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
@@ -106,6 +117,10 @@ const safetyNotes = ref('')
 // ── 五、其他 ──
 const otherSupervisionNotes = ref('')
 const supervisorSigned = ref(false)
+
+// ── 施工日誌覆蓋確認對話框 ──
+const dailyLogConfirmOpen = ref(false)
+const pendingPrefill = ref<DailyLogPrefill | null>(null)
 
 // ── PCCES picker ──
 const pccesPickerOpen = ref(false)
@@ -228,6 +243,78 @@ onMounted(async () => {
     errorMessage.value = e instanceof Error ? e.message : '載入失敗'
   } finally {
     loading.value = false
+  }
+})
+
+/** 判斷表單是否為「乾淨」（工項空白且天氣未填），可靜默套用預填 */
+function isFormClean(): boolean {
+  return workItems.value.length === 0 && !weatherAm.value && !weatherPm.value
+}
+
+/** 將施工日誌預填資料套用至表單 */
+function applyDailyLogPrefill(prefill: DailyLogPrefill) {
+  if (prefill.weatherAm) weatherAm.value = prefill.weatherAm
+  if (prefill.weatherPm) weatherPm.value = prefill.weatherPm
+  if (prefill.constructionActualProgress != null) {
+    constructionActualProgress.value = Number(prefill.constructionActualProgress)
+  }
+  if (prefill.workItems.length > 0) {
+    workItems.value = prefill.workItems.map((w) => ({
+      pccesItemId: w.pccesItemId ?? undefined,
+      workItemName: w.workItemName,
+      unit: w.unit,
+      contractQty: w.contractQty,
+      dailyCompletedQty: w.dailyCompletedQty,
+      accumulatedCompletedQty: '',
+      remark: w.remark,
+    }))
+  }
+  prefilledFromDailyLog.value = true
+  pendingPrefill.value = null
+}
+
+/** 使用者確認後套用（對話框的「是」按鈕） */
+function confirmApplyPrefill() {
+  if (pendingPrefill.value) applyDailyLogPrefill(pendingPrefill.value)
+  dailyLogConfirmOpen.value = false
+}
+
+/** 使用者拒絕套用（對話框的「否」按鈕） */
+function cancelApplyPrefill() {
+  pendingPrefill.value = null
+  dailyLogConfirmOpen.value = false
+}
+
+// 監聽填報日期變化（僅新增模式）
+watch(reportDate, async (newDate, oldDate) => {
+  if (!isNew.value || !newDate || newDate === oldDate) return
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(newDate)) return
+
+  try {
+    const defaults = await getSupervisionReportDefaults(projectId.value, newDate)
+
+    // 永遠更新施工預定進度（依日期插值）
+    if (defaults.constructionPlannedProgress != null) {
+      constructionPlannedProgress.value = Number(defaults.constructionPlannedProgress)
+    } else {
+      constructionPlannedProgress.value = undefined
+    }
+
+    if (defaults.dailyLogPrefill) {
+      if (isFormClean()) {
+        // 表單乾淨 → 靜默套用
+        applyDailyLogPrefill(defaults.dailyLogPrefill)
+      } else {
+        // 表單已有內容 → 存起來，彈出確認對話框
+        pendingPrefill.value = defaults.dailyLogPrefill
+        dailyLogConfirmOpen.value = true
+      }
+    } else {
+      // 新日期無施工日誌 → 關閉 banner
+      prefilledFromDailyLog.value = false
+    }
+  } catch {
+    // 查詢失敗時靜默忽略，不影響使用者正在填寫的內容
   }
 })
 
@@ -717,6 +804,23 @@ function goBack() {
         </Button>
       </div>
     </template>
+
+    <!-- 施工日誌覆蓋確認對話框 -->
+    <AlertDialog v-model:open="dailyLogConfirmOpen">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>套用施工日誌資料？</AlertDialogTitle>
+          <AlertDialogDescription>
+            {{ reportDate }} 已有施工日誌，其中包含天氣、施工實際進度及工程項目。
+            套用後將覆蓋目前已填寫的天氣與工項內容，此動作無法復原。
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel @click="cancelApplyPrefill">保留現有內容</AlertDialogCancel>
+          <AlertDialogAction @click="confirmApplyPrefill">套用施工日誌</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <!-- PCCES picker dialog -->
     <Dialog v-model:open="pccesPickerOpen">
