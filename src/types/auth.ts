@@ -20,5 +20,7 @@ export interface LoginPayload {
 
 export interface LoginResponse {
   accessToken: string
+  /** 後端旋轉式 refresh token；需存入 localStorage 供 access token 過期時換發 */
+  refreshToken?: string
   user: User
 }

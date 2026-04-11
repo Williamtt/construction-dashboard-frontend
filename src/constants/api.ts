@@ -125,6 +125,9 @@ export const API_PATH = {
   /** PCCES Excel 變更用工程變更清單樣板（construction_project_change_list.xlsx） */
   PROJECT_PCCES_IMPORTS_CONSTRUCTION_PROJECT_CHANGE_LIST_EXCEL_TEMPLATE: (projectId: string) =>
     `${API_V1}/projects/${projectId}/pcces-imports/construction-project-change-list-excel-template`,
+  /** PCCES 預算書 XLS 匯入範本（pcces_budget_template.xls） */
+  PROJECT_PCCES_IMPORTS_BUDGET_TEMPLATE: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/pcces-imports/budget-template`,
 
   /** 公共工程施工日誌（依附表四） */
   PROJECT_CONSTRUCTION_DAILY_LOGS: (projectId: string) =>

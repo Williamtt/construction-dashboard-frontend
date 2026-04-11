@@ -7,10 +7,10 @@ import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { buildProjectPath, ROUTE_PATH, ROUTE_NAME } from '@/constants/routes'
-import { uploadPccesImport, listPccesImports } from '@/api/pcces-imports'
+import { uploadPccesImport, listPccesImports, downloadPccesBudgetTemplate } from '@/api/pcces-imports'
 import { useProjectModuleActions } from '@/composables/useProjectModuleActions'
 import { toast } from '@/components/ui/sonner'
-import { Loader2, Upload } from 'lucide-vue-next'
+import { Loader2, Upload, Download } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -21,6 +21,7 @@ const fileInputRef = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)
 const versionLabel = ref('')
 const submitting = ref(false)
+const downloadingTemplate = ref(false)
 const error = ref('')
 const hasAnyImport = ref<boolean | null>(null)
 
@@ -66,9 +67,22 @@ function onFileChange(ev: Event) {
   error.value = ''
 }
 
+async function downloadTemplate() {
+  if (!projectId.value) return
+  downloadingTemplate.value = true
+  try {
+    await downloadPccesBudgetTemplate(projectId.value)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : '下載失敗'
+    toast.error(msg)
+  } finally {
+    downloadingTemplate.value = false
+  }
+}
+
 async function submit() {
   if (!projectId.value || !file.value) {
-    error.value = '請選擇 XML 檔案'
+    error.value = '請選擇匯入檔案'
     return
   }
   const trimmedLabel = versionLabel.value.trim()
@@ -99,7 +113,7 @@ async function submit() {
     const msg = isAxiosError(e)
       ? (e.response?.data as { error?: { message?: string } })?.error?.message
       : null
-    error.value = msg ?? '匯入失敗，請確認檔案為 PCCES eTender XML'
+    error.value = msg ?? '匯入失敗，請確認檔案格式正確（PCCES eTender XML 或預算書 XLS）'
     toast.error(error.value)
   } finally {
     submitting.value = false
@@ -113,33 +127,42 @@ async function submit() {
       <Button variant="outline" as-child>
         <RouterLink :to="versionsPath">返回列表</RouterLink>
       </Button>
+      <Button
+        variant="outline"
+        :disabled="downloadingTemplate"
+        @click="downloadTemplate"
+      >
+        <Loader2 v-if="downloadingTemplate" class="size-4 animate-spin" />
+        <Download v-else class="size-4" />
+        下載預算書範本
+      </Button>
     </div>
 
     <div>
       <h1 class="text-xl font-semibold text-foreground">契約工項匯入</h1>
       <p class="mt-1 text-sm text-muted-foreground">
         <template v-if="hasAnyImport === false">
-          首次匯入請上傳 PCCES 產出之 XML；下方<strong class="text-foreground">版本名稱</strong>預設為「原契約」，可自行修改。
+          首次匯入請上傳 PCCES 產出之 XML 或預算書 XLS；下方<strong class="text-foreground">版本名稱</strong>預設為「原契約」，可自行修改。
         </template>
         <template v-else-if="hasAnyImport === true">
-          上傳<strong class="text-foreground">完整 PCCES XML 標單</strong>以新增一版（與「Excel
+          上傳<strong class="text-foreground">完整 PCCES XML 標單或預算書 XLS</strong>以新增一版（與「Excel
           變更」產生之版本不同）。請填寫<strong class="text-foreground">版本名稱</strong>（不預設）。
         </template>
-        <template v-else> 上傳 PCCES eTender 標單 XML（PayItem 樹狀結構）。 </template>
+        <template v-else> 上傳 PCCES eTender 標單 XML 或預算書 XLS（.xls / .xlsx）。 </template>
       </p>
       <p
         v-if="uploadContext === 'excel'"
         class="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
       >
         您是從「Excel 變更版」明細進入此頁。此處僅能上傳
-        <strong class="text-foreground">XML 全量標單</strong>
+        <strong class="text-foreground">XML／XLS 全量標單</strong>
         ；若要以變更清單產生下一版，請使用該版明細上的「Excel 變更」。
       </p>
       <p
         v-else-if="uploadContext === 'xml'"
         class="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground"
       >
-        目前為<strong class="text-foreground"> XML 全量匯入</strong>流程（.xml）。Excel 變更請至「新增版本」選單中的
+        目前為<strong class="text-foreground"> 全量匯入</strong>流程（.xml / .xls / .xlsx）。Excel 變更請至「新增版本」選單中的
         <strong class="text-foreground">Excel 變更</strong>，或從某一版明細進入。
       </p>
     </div>
@@ -150,13 +173,13 @@ async function submit() {
           <Upload class="size-5 text-muted-foreground" aria-hidden="true" />
           <CardTitle class="text-lg">選擇檔案</CardTitle>
         </div>
-        <CardDescription> 僅支援副檔名 .xml；檔案會解析後寫入資料庫並嘗試歸檔至檔案儲存。 </CardDescription>
+        <CardDescription> 支援副檔名 .xml、.xls、.xlsx；檔案會解析後寫入資料庫並嘗試歸檔至檔案儲存。 </CardDescription>
       </CardHeader>
       <CardContent class="space-y-4">
         <input
           ref="fileInputRef"
           type="file"
-          accept=".xml,application/xml,text/xml"
+          accept=".xml,.xls,.xlsx,application/xml,text/xml,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
           class="sr-only"
           @change="onFileChange"
         />
@@ -181,7 +204,7 @@ async function submit() {
           </p>
         </div>
         <div class="space-y-2">
-          <Label>XML 檔案</Label>
+          <Label>匯入檔案（XML / XLS）</Label>
           <div class="flex flex-wrap items-center gap-2">
             <Button type="button" variant="outline" :disabled="!perm.canCreate.value" @click="pickFile">
               選擇檔案
