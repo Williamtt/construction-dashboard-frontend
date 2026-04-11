@@ -77,6 +77,22 @@ export interface SupervisionReportListItemDto {
   createdAt: string
 }
 
+export interface DailyLogPrefillWorkItem {
+  pccesItemId: string | null
+  workItemName: string
+  unit: string
+  contractQty: string
+  dailyCompletedQty: string
+  remark: string
+}
+
+export interface DailyLogPrefill {
+  weatherAm: string | null
+  weatherPm: string | null
+  constructionActualProgress: string | null
+  workItems: DailyLogPrefillWorkItem[]
+}
+
 export interface SupervisionReportFormDefaults {
   projectName: string
   contractorName: string
@@ -92,6 +108,7 @@ export interface SupervisionReportFormDefaults {
   originalContractAmount: string | null
   designFee: string | null
   contractTotal: string | null
+  dailyLogPrefill: DailyLogPrefill | null
 }
 
 export type SupervisionReportUpsertPayload = {

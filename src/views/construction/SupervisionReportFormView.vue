@@ -33,7 +33,7 @@ import {
   type SupervisionReportPccesPickerRow,
 } from '@/api/supervision-reports'
 import { apiClient } from '@/api/client'
-import { ArrowLeft, Download, Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
+import { AlertTriangle, ArrowLeft, Download, Loader2, Plus, ShieldCheck, Trash2 } from 'lucide-vue-next'
 
 const route = useRoute()
 const router = useRouter()
@@ -45,6 +45,7 @@ const loading = ref(true)
 const saving = ref(false)
 const errorMessage = ref('')
 const successMessage = ref('')
+const prefilledFromDailyLog = ref(false)
 
 // ── 表頭 ──
 const reportNo = ref('')
@@ -197,6 +198,28 @@ onMounted(async () => {
       originalContractAmount.value = defaults.originalContractAmount ?? ''
       designFee.value = defaults.designFee ?? ''
       contractTotal.value = defaults.contractTotal ?? ''
+
+      // 預填施工日誌資料
+      if (defaults.dailyLogPrefill) {
+        const prefill = defaults.dailyLogPrefill
+        if (prefill.weatherAm) weatherAm.value = prefill.weatherAm
+        if (prefill.weatherPm) weatherPm.value = prefill.weatherPm
+        if (prefill.constructionActualProgress != null) {
+          constructionActualProgress.value = Number(prefill.constructionActualProgress)
+        }
+        if (prefill.workItems.length > 0) {
+          workItems.value = prefill.workItems.map((w) => ({
+            pccesItemId: w.pccesItemId ?? undefined,
+            workItemName: w.workItemName,
+            unit: w.unit,
+            contractQty: w.contractQty,
+            dailyCompletedQty: w.dailyCompletedQty,
+            accumulatedCompletedQty: '',
+            remark: w.remark,
+          }))
+        }
+        prefilledFromDailyLog.value = true
+      }
     } else {
       const dto = await getSupervisionReport(projectId.value, reportId.value)
       fillFromDto(dto)
@@ -407,6 +430,27 @@ function goBack() {
       <p v-if="successMessage" class="rounded-md bg-green-500/10 px-4 py-2 text-sm text-green-600">
         {{ successMessage }}
       </p>
+
+      <div
+        v-if="prefilledFromDailyLog"
+        class="flex items-start gap-3 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-300"
+      >
+        <AlertTriangle class="mt-0.5 size-4 shrink-0" />
+        <div>
+          <p class="font-medium">部分欄位已從施工日誌帶入</p>
+          <p class="mt-0.5 text-amber-700 dark:text-amber-400">
+            天氣、施工實際進度、工程項目等資料來自 {{ reportDate }} 的施工日誌，請確認內容正確後再儲存。
+          </p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          class="ml-auto shrink-0 text-amber-700 hover:text-amber-900 dark:text-amber-400"
+          @click="prefilledFromDailyLog = false"
+        >
+          知道了
+        </Button>
+      </div>
 
       <!-- 表頭 -->
       <section class="space-y-4 rounded-lg border border-border bg-card p-5">
