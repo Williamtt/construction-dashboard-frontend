@@ -354,7 +354,7 @@ const importsEmptyText = computed(() => {
   if (list.value.length === 0) {
     return q
       ? '沒有符合條件的資料'
-      : '尚無匯入紀錄，請透過「首次匯入／上傳 XML」建立版本。'
+      : '尚無匯入紀錄，請透過「首次匯入」建立版本。'
   }
   return '沒有符合條件的資料'
 })
@@ -419,7 +419,7 @@ const importsEmptyText = computed(() => {
               <Button v-if="list.length === 0" size="sm" class="gap-2" as-child>
                 <RouterLink :to="uploadXmlRoute" class="inline-flex items-center gap-2">
                   <Plus class="size-4" />
-                  首次匯入（XML）
+                  首次匯入（XML / XLS）
                 </RouterLink>
               </Button>
               <DropdownMenu v-else>
@@ -436,9 +436,9 @@ const importsEmptyText = computed(() => {
                       :to="uploadXmlRoute"
                       class="flex w-full flex-col items-start gap-0.5 py-2"
                     >
-                      <span class="font-medium">上傳契約工項 XML</span>
+                      <span class="font-medium">上傳契約工項（XML / XLS）</span>
                       <span class="text-xs font-normal text-muted-foreground">
-                        完整 eTender 標單；與 Excel 變更產生的版本不同
+                        完整 eTender XML 或 PCCES 預算書 XLS；與 Excel 變更產生的版本不同
                       </span>
                     </RouterLink>
                   </DropdownMenuItem>
@@ -533,9 +533,9 @@ const importsEmptyText = computed(() => {
 
           <div class="grid gap-3 sm:grid-cols-2">
             <div class="rounded-2xl border border-chart-2/30 bg-chart-2/8 p-4 shadow-sm">
-              <p class="font-bold text-chart-2">路線 A：上傳 XML</p>
+              <p class="font-bold text-chart-2">路線 A：上傳 XML / XLS</p>
               <p class="mt-2 leading-relaxed text-foreground">
-                把政府標單的 PCCES eTender XML 整包匯入。第 1 版常顯示「原契約」；
+                把政府標單的 PCCES eTender XML 或預算書 XLS（.xls / .xlsx）整包匯入。第 1 版常顯示「原契約」；
                 <span class="font-bold text-destructive">從第 2 版起記得要取名字</span>，方便日後辨識。
               </p>
               <p class="mt-2 text-xs leading-relaxed text-muted-foreground">
@@ -639,6 +639,7 @@ const importsEmptyText = computed(() => {
             <p class="font-bold text-chart-5">上傳或匯入失敗？可能原因</p>
             <ul class="mt-2 list-inside list-disc space-y-1.5 leading-relaxed text-foreground">
               <li>XML 格式不對、缺段落、或工項編號重複 → 請檢查檔案是否為正確標單。</li>
+              <li>XLS 找不到「詳細表」工作表、或標題列欄位不符 → 請下載預算書範本確認格式。</li>
               <li>第 2 版起沒填版本名稱 → 補上再試。</li>
               <li>單次匯入列數極多，明細頁一次全開被擋下 → 改分頁瀏覽或洽管理員。</li>
               <li>Excel 變更找不到對應工項或選錯父層 → 對照基底版清單再調整。</li>
