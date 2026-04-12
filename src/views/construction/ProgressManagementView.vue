@@ -264,11 +264,24 @@ const displayCumulativePlanned = computed(() =>
   displayPeriods.value.map((p) => p.cumulativePlanned)
 )
 
-const cumulativeActualDraft = ref<Record<string, string>>({})
+/** 累計實際：從本期實際自動 running sum（不再手動輸入） */
+const cumulativeActualComputed = computed<Record<string, string>>(() => {
+  const result: Record<string, string> = {}
+  const allPeriods = periods.value
+  let sum = 0
+  for (const p of allPeriods) {
+    const v = actualDraft.value[p.periodDate]
+    if (v != null && v !== '') {
+      const n = Number(String(v).replace(/,/g, ''))
+      if (Number.isFinite(n)) sum += n
+    }
+    result[p.periodDate] = sum === 0 ? '' : String(Math.round(sum * 100) / 100)
+  }
+  return result
+})
 
-/** 累計實際：手填草稿（聚合檢視時唯讀，key 仍為原始 periodDate） */
 const displayCumulativeActual = computed(() =>
-  displayPeriods.value.map((p) => cumulativeActualDraft.value[p.periodDate] ?? '')
+  displayPeriods.value.map((p) => cumulativeActualComputed.value[p.periodDate] ?? '')
 )
 
 const curveYValues = computed(() => {
@@ -322,22 +335,15 @@ function patchActualDraft(periodDate: string, value: string) {
   actualDraft.value = { ...actualDraft.value, [periodDate]: value }
 }
 
-function patchCumulativeActualDraft(periodDate: string, value: string) {
-  cumulativeActualDraft.value = { ...cumulativeActualDraft.value, [periodDate]: value }
-}
-
 function syncDraftsFromPeriods(list: ProgressPeriodDto[]) {
   const pd: Record<string, string> = {}
   const ad: Record<string, string> = {}
-  const cad: Record<string, string> = {}
   for (const p of list) {
     pd[p.periodDate] = p.periodPlanned ?? ''
     ad[p.periodDate] = p.periodActual ?? ''
-    cad[p.periodDate] = p.cumulativeActual ?? ''
   }
   plannedDraft.value = pd
   actualDraft.value = ad
-  cumulativeActualDraft.value = cad
 }
 
 async function load() {
@@ -558,13 +564,13 @@ async function saveActuals() {
         periodDate: p.periodDate,
         periodIndex: p.periodIndex,
         periodProgressPercent: parsePct(actualDraft.value[p.periodDate] ?? ''),
-        cumulativeProgressPercent: parsePct(cumulativeActualDraft.value[p.periodDate] ?? ''),
+        cumulativeProgressPercent: parsePct(cumulativeActualComputed.value[p.periodDate] ?? ''),
       })),
     })
     progressDashStore.applySavedActuals(
       projectId.value,
       actualDraft.value,
-      cumulativeActualDraft.value
+      cumulativeActualComputed.value
     )
   } catch {
     toast.error('儲存實際進度失敗')
@@ -928,11 +934,10 @@ watch(progressTab, async (tab) => {
                   :perm-can-update-actual="timeScale === 'raw' ? scurveCanUpdateActual : false"
                   :planned-draft="plannedDraft"
                   :actual-draft="actualDraft"
-                  :cumulative-actual-draft="cumulativeActualDraft"
+                  :cumulative-actual-draft="cumulativeActualComputed"
                   v-bind="scurveTheme"
                   @update:planned-draft="patchPlannedDraft"
                   @update:actual-draft="patchActualDraft"
-                  @update:cumulative-actual-draft="patchCumulativeActualDraft"
                 />
               </div>
             </div>

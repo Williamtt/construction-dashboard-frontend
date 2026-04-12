@@ -18,6 +18,8 @@ export interface ProgressPeriodDto {
   cumulativePlannedCompare: string | null
   periodActual: string | null
   cumulativeActual: string
+  supervisionPeriodActual: string | null
+  supervisionCumulativeActual: string | null
   isLocked: boolean
   isExtended: boolean
 }

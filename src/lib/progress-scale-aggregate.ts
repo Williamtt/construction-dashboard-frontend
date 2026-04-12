@@ -134,6 +134,8 @@ export function aggregateProgressData(
       cumulativePlannedCompare: last.cumulativePlannedCompare ?? null,
       periodActual: sumNullable(group.map((p) => p.periodActual)),
       cumulativeActual: last.cumulativeActual,
+      supervisionPeriodActual: sumNullable(group.map((p) => p.supervisionPeriodActual)),
+      supervisionCumulativeActual: lastNonNull(group.map((p) => p.supervisionCumulativeActual)),
       isLocked: group.some((p) => p.isLocked),
       isExtended: group.some((p) => p.isExtended),
     })

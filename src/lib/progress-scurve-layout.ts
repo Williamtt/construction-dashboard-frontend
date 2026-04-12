@@ -9,9 +9,9 @@ export const CHART_H = 260
 /** 圖表繪圖區上下內距（避免曲線貼邊遮擋 Y 軸刻度與日期列） */
 export const CHART_PAD_TOP = 14
 export const CHART_PAD_BOTTOM = 14
-/** 底表四列高度（含本期輸入欄，需高於 input 避免 foreignObject 裁切） */
+/** 底表列高度（含本期輸入欄，需高於 input 避免 foreignObject 裁切） */
 export const ROW_H = 40
-export const TABLE_ROWS = 4
+export const TABLE_ROWS = 6
 export const LABEL_W = 56
 export const SUB_W = 52
 export const MIN_CELL_W = 48

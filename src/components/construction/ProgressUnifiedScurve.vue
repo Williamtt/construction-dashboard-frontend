@@ -75,7 +75,6 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:plannedDraft': [periodDate: string, value: string]
   'update:actualDraft': [periodDate: string, value: string]
-  'update:cumulativeActualDraft': [periodDate: string, value: string]
 }>()
 
 const d3RootRef = ref<SVGGElement | null>(null)
@@ -755,7 +754,11 @@ function render() {
     .attr('stroke-width', 1.2)
 
   // --- Layer 11: 底表背景與格線、文字 ---
-  const rowLabels = ['本期預定（%）', '累計預定（%）', '本期實際（%）', '累計實際（%）']
+  const rowLabels = [
+    '本期預定（%）', '累計預定（%）',
+    '本期實際（%）', '累計實際（%）',
+    '本期實際（報表）', '累計實際（報表）',
+  ]
   for (let r = 0; r < TABLE_ROWS; r++) {
     const y0 = tableRowY(r)
     sel
@@ -803,8 +806,8 @@ function render() {
       .text(cp || '0')
   }
 
+  // 累計實際（自動 running sum，始終唯讀）
   for (let i = 0; i < n.value; i++) {
-    if (props.permCanUpdateActual) continue
     const ca = (props.displayCumulativeActual[i] ?? '').trim()
     const yCumA = tableRowY(3) + ROW_H / 2 + 4
     sel
@@ -817,6 +820,36 @@ function render() {
       .attr('font-weight', '400')
       .attr('class', 'tabular-nums')
       .text(ca ? ca : '—')
+  }
+
+  // 本期實際（報表）— 唯讀
+  for (let i = 0; i < n.value; i++) {
+    const v = (props.periods[i]?.supervisionPeriodActual ?? '').trim()
+    sel
+      .append('text')
+      .attr('x', ptX(i, cw))
+      .attr('y', tableRowY(4) + ROW_H / 2 + 4)
+      .attr('text-anchor', 'middle')
+      .attr('fill', props.mutedForeground)
+      .attr('font-size', TABLE_INPUT_PX)
+      .attr('font-weight', '400')
+      .attr('class', 'tabular-nums')
+      .text(v ? v : '—')
+  }
+
+  // 累計實際（報表）— 唯讀
+  for (let i = 0; i < n.value; i++) {
+    const v = (props.periods[i]?.supervisionCumulativeActual ?? '').trim()
+    sel
+      .append('text')
+      .attr('x', ptX(i, cw))
+      .attr('y', tableRowY(5) + ROW_H / 2 + 4)
+      .attr('text-anchor', 'middle')
+      .attr('fill', props.mutedForeground)
+      .attr('font-size', TABLE_INPUT_PX)
+      .attr('font-weight', '400')
+      .attr('class', 'tabular-nums')
+      .text(v ? v : '—')
   }
 
   // 本期預定（僅文字，非 input）：baseline 或無權限
@@ -926,7 +959,6 @@ watch(
     permCanUpdateActual: props.permCanUpdateActual,
     plannedDraft: props.plannedDraft,
     actualDraft: props.actualDraft,
-    cumulativeActualDraft: props.cumulativeActualDraft,
   }),
   () => render(),
   { deep: true }
@@ -999,27 +1031,6 @@ function foH() {
           :model-value="actualDraft[p.periodDate] ?? ''"
           class="h-8 w-full min-h-0 border-border bg-background px-2 py-0 text-center tabular-nums text-[12px] leading-none font-normal md:text-[12px] shadow-none"
           @update:model-value="(v) => emit('update:actualDraft', p.periodDate, String(v))"
-        />
-      </div>
-    </foreignObject>
-
-    <foreignObject
-      v-for="(p, i) in periods"
-      v-show="permCanUpdateActual"
-      :key="`pca-${p.periodDate}`"
-      :x="foX(i)"
-      :y="foY(3)"
-      :width="foW()"
-      :height="foH()"
-    >
-      <div
-        xmlns="http://www.w3.org/1999/xhtml"
-        class="flex h-full items-center justify-center"
-      >
-        <Input
-          :model-value="cumulativeActualDraft[p.periodDate] ?? ''"
-          class="h-8 w-full min-h-0 border-border bg-background px-2 py-0 text-center tabular-nums text-[12px] leading-none font-normal md:text-[12px] shadow-none"
-          @update:model-value="(v) => emit('update:cumulativeActualDraft', p.periodDate, String(v))"
         />
       </div>
     </foreignObject>
