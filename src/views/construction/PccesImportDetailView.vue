@@ -73,6 +73,7 @@ const kindFilter = ref<'all' | 'general' | 'mainItem' | 'formula' | 'variablePri
 
 const deleteOpen = ref(false)
 const deleteLoading = ref(false)
+const approveOpen = ref(false)
 const importApprovedAt = ref<string | null>(null)
 const summaryApprovalEffectiveAt = ref<string | null>(null)
 const editApprovalEffectiveLocal = ref('')
@@ -239,7 +240,8 @@ async function onApproveVersion() {
   try {
     const updated = await approvePccesImport(projectId.value, importId.value)
     importApprovedAt.value = updated.approvedAt
-    toast.success('已核定此版本')
+    approveOpen.value = false
+    toast.success('已核定此版本。若需補填開工日至今的施工日誌，請至下方「核定生效時間」設為開工日期。')
   } catch (e) {
     const msg = isAxiosError(e)
       ? (e.response?.data as { error?: { message?: string } })?.error?.message
@@ -396,9 +398,8 @@ async function clearApprovalEffectiveAt() {
           variant="default"
           size="sm"
           :disabled="approveLoading"
-          @click="onApproveVersion"
+          @click="approveOpen = true"
         >
-          <Loader2 v-if="approveLoading" class="mr-2 size-4 animate-spin" />
           核定此版本
         </Button>
         <Button
@@ -587,6 +588,29 @@ async function clearApprovalEffectiveAt() {
         </CardContent>
       </Card>
     </template>
+
+    <AlertDialog :open="approveOpen" @update:open="(v: boolean) => { if (!v) approveOpen = false }">
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>確認核定此版本？</AlertDialogTitle>
+          <AlertDialogDescription as="div">
+            <p>核定後，此版本的<strong>生效日曆日預設為今天</strong>（按下核定當天）。</p>
+            <p style="margin-top:0.5rem;">
+              若要補填<strong>開工日至今</strong>的施工日誌（例如模擬日期 2026/3/1 起），請在核定後至下方
+              「<strong>核定生效時間（施工日誌）</strong>」欄位，將日期改設為開工日期並儲存。
+            </p>
+            <p style="margin-top:0.5rem; color: #6b7280;">已核定的版本無法撤銷核定，但可隨時修改「核定生效時間」。</p>
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel :disabled="approveLoading">取消</AlertDialogCancel>
+          <Button variant="default" :disabled="approveLoading" @click="onApproveVersion">
+            <Loader2 v-if="approveLoading" class="mr-2 size-4 animate-spin" />
+            確認核定
+          </Button>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
 
     <AlertDialog :open="deleteOpen" @update:open="(v: boolean) => !v && closeDeleteDialog()">
       <AlertDialogContent>
