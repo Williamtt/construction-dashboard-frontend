@@ -599,4 +599,11 @@ router.beforeEach((to, _from, next) => {
   next()
 })
 
+// 部署後舊快取 chunk 失效時強制重新整理，避免 "Failed to fetch dynamically imported module"
+router.onError((err, to) => {
+  if (/Failed to fetch dynamically imported module|Unable to preload CSS for/.test(err.message)) {
+    window.location.href = to.fullPath
+  }
+})
+
 export default router
