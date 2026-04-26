@@ -46,6 +46,8 @@ const isEditMode = ref(false)
 /** 表單資料（預定完工 = 開工+工期，預定竣工 = 開工+工期+調整天數，由 API 回傳） */
 const form = ref({
   projectName: '',
+  code: '',
+  description: '',
   contractNo: '',
   ownerAgency: '',
   designUnit: '',
@@ -122,6 +124,8 @@ function dateToInputValue(iso: string | null | undefined): string {
 function fillForm(project: ProjectDetail) {
   form.value = {
     projectName: project.name ?? '',
+    code: project.code ?? '',
+    description: project.description ?? '',
     contractNo: project.contractNo ?? '',
     ownerAgency: project.ownerAgency ?? '',
     designUnit: project.designUnit ?? '',
@@ -192,6 +196,8 @@ async function save() {
   try {
     await updateProject(id, {
       name: form.value.projectName.trim() || undefined,
+      code: form.value.code.trim() || null,
+      description: form.value.description.trim() || null,
       contractNo: form.value.contractNo.trim() || null,
       ownerAgency: form.value.ownerAgency.trim() || null,
       designUnit: form.value.designUnit.trim() || null,
@@ -273,6 +279,14 @@ async function save() {
             <p class="text-sm font-medium text-foreground">{{ displayValue(form.projectName) }}</p>
           </div>
           <div class="space-y-1">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">專案代碼</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.code) }}</p>
+          </div>
+          <div class="space-y-1 sm:col-span-2">
+            <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">說明</p>
+            <p class="text-sm font-medium text-foreground">{{ displayValue(form.description) }}</p>
+          </div>
+          <div class="space-y-1">
             <p class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約編號</p>
             <p class="text-sm font-medium text-foreground">{{ displayValue(form.contractNo) }}</p>
           </div>
@@ -297,6 +311,14 @@ async function save() {
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">工程名稱</label>
             <Input v-model="form.projectName" placeholder="請輸入工程名稱" class="mt-0.5" />
+          </div>
+          <div class="space-y-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">專案代碼</label>
+            <Input v-model="form.code" placeholder="例：PROJ-001" class="mt-0.5" />
+          </div>
+          <div class="space-y-2 sm:col-span-2">
+            <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">說明</label>
+            <Input v-model="form.description" placeholder="專案簡述" class="mt-0.5" />
           </div>
           <div class="space-y-2">
             <label class="text-xs font-medium uppercase tracking-wider text-muted-foreground">契約編號</label>
