@@ -852,7 +852,7 @@ watch(
         </div>
         <template v-else>
           <div class="flex min-h-0 flex-1 flex-col gap-4">
-            <div class="min-h-0 flex-1 overflow-hidden">
+            <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
               <PermissionMatrixForm
                 v-model="projectPermModules"
                 class="min-h-[200px]"

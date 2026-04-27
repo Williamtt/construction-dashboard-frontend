@@ -920,7 +920,7 @@ async function confirmBatchDelete() {
                 套用至表單
               </Button>
             </div>
-            <div class="min-h-0 flex-1 overflow-hidden">
+            <div class="flex min-h-0 flex-1 flex-col overflow-hidden">
               <PermissionMatrixForm
                 v-model="permModules"
                 :platform-disabled-module-ids="platformDisabledModuleIds"
