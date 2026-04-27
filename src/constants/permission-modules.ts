@@ -160,6 +160,6 @@ export const PERMISSION_MODULE_LABELS: Record<PermissionModuleId, string> = {
 export const PERMISSION_PRESET_OPTIONS = [
   { value: 'owner_viewer' as const, label: '業主檢視（僅讀）' },
   { value: 'project_engineer' as const, label: '專案工程師（全模組）' },
-  { value: 'site_supervisor' as const, label: '工地主任（讀＋檢查／缺失／日誌／契約工項／照片）' },
+  { value: 'site_supervisor' as const, label: '工地主任（讀＋檢查／缺失／日誌／契約工項／監造報表／照片）' },
   { value: 'equipment_manager' as const, label: '設備管理（設備與報修）' },
 ]
