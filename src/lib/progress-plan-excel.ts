@@ -23,6 +23,11 @@ function toIsoDateUtc(d: Date): string {
   return `${d.getUTCFullYear()}-${pad2(d.getUTCMonth() + 1)}-${pad2(d.getUTCDate())}`
 }
 
+/** xlsx cellDates:true 產生的 Date 物件是 local midnight，需用本地方法取年月日 */
+function toIsoDateLocal(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
 /** Excel serial (days since 1899-12-30) → UTC 日期字串 */
 function excelSerialToIso(n: number): string | null {
   if (!Number.isFinite(n)) return null
@@ -34,7 +39,7 @@ function excelSerialToIso(n: number): string | null {
 export function parseCellDate(v: unknown): string | null {
   if (v == null || v === '') return null
   if (typeof v === 'number') return excelSerialToIso(v)
-  if (v instanceof Date && !Number.isNaN(v.getTime())) return toIsoDateUtc(v)
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return toIsoDateLocal(v)
   const s = String(v).trim()
   const m = s.match(/^(\d{4})\D(\d{1,2})\D(\d{1,2})/)
   if (m) return `${m[1]}-${pad2(Number(m[2]))}-${pad2(Number(m[3]))}`
