@@ -16,8 +16,6 @@ import {
   chartPlotTopY,
   chartTopY,
   cellWFromHostWidth,
-  curveOriginX,
-  curvePeriodEndX,
   lineX,
   localTodayYmd,
   ptX,
@@ -175,8 +173,8 @@ function render() {
 
   const guideLine = guideRoot
     .append('line')
-    .attr('x1', curveOriginX(cw))
-    .attr('x2', curveOriginX(cw))
+    .attr('x1', lineX(0, cw))
+    .attr('x2', lineX(0, cw))
     .attr('y1', plotTop)
     .attr('y2', plotBottom)
     .attr('stroke', props.foreground)
@@ -193,7 +191,7 @@ function render() {
   }
 
   function setHoverGuideColumn(idx: number) {
-    const x = curvePeriodEndX(idx, cw)
+    const x = ptX(idx, cw)
     guideLine.attr('x1', x).attr('x2', x)
     guideRoot.style('visibility', 'visible')
   }
@@ -211,7 +209,7 @@ function render() {
     tipRoot.attr('transform', `translate(${tx}, ${ty})`)
   }
 
-  /** 依游標 x 落在哪一個時間欄 [lineX(i), lineX(i+1)) → 期別 i（與期末累計點對齊） */
+  /** 依游標 x 落在哪一個時間欄 [lineX(i), lineX(i+1)) → 期別 i */
   function periodIndexFromCursorX(px: number): number {
     if (n.value <= 0) return 0
     const x0 = lineX(0, cw)
@@ -527,8 +525,7 @@ function render() {
     .text('累計 %')
 
   function curveDatumX(d: { i: number }): number {
-    if (d.i === -1) return curveOriginX(cw)
-    return curvePeriodEndX(d.i, cw)
+    return ptX(d.i, cw)
   }
 
   const lineGen = d3
@@ -544,9 +541,9 @@ function render() {
     .y1((d) => yScale(d.y))
     .defined((d) => Number.isFinite(d.y))
 
-  /** 折線起點為 (curveOriginX, 0)，各期期末為 lineX(i+1) */
+  /** 各期累計點對齊日期欄中心 ptX(i) */
   function pointsFromRow(row: string[]): { i: number; y: number }[] {
-    const pts: { i: number; y: number }[] = [{ i: -1, y: 0 }]
+    const pts: { i: number; y: number }[] = []
     for (let i = 0; i < row.length; i++) {
       const y = parseY(row[i] ?? '')
       if (Number.isFinite(y)) pts.push({ i, y })
@@ -608,29 +605,16 @@ function render() {
     const stroke = props.curveStrokes[orderIdx] ?? props.foreground
     const op = lineOpacity(p.planId)
     const pr = pointRFor(p.planId)
-    const rowPts = pointsFromRow(yRow)
     for (let i = 0; i < yRow.length; i++) {
       const yv = parseY(yRow[i] ?? '')
       if (!Number.isFinite(yv)) continue
-      const cxEnd = curvePeriodEndX(i, cw)
+      const cxEnd = ptX(i, cw)
       sel
         .append('circle')
         .attr('pointer-events', 'none')
         .attr('cx', Math.min(cxEnd, W - pr - 0.5))
         .attr('cy', yScale(yv))
         .attr('r', pr)
-        .attr('fill', stroke)
-        .attr('stroke', props.pointRing)
-        .attr('stroke-width', 1.5)
-        .attr('opacity', op)
-    }
-    if (rowPts.length >= 2) {
-      sel
-        .append('circle')
-        .attr('pointer-events', 'none')
-        .attr('cx', curveOriginX(cw))
-        .attr('cy', yScale(0))
-        .attr('r', Math.max(Math.min(pr, 2.5), 2))
         .attr('fill', stroke)
         .attr('stroke', props.pointRing)
         .attr('stroke-width', 1.5)
@@ -647,7 +631,7 @@ function render() {
     markerByIdx.set(m.index, arr)
   }
   for (const [idx, labels] of markerByIdx) {
-    const x = curvePeriodEndX(idx, cw)
+    const x = ptX(idx, cw)
     const stroke = props.markerStroke
     sel
       .append('line')
@@ -675,7 +659,7 @@ function render() {
   const actFinite = props.displayCumulativeActual
     .map((s, i) => ({ i, y: parseY(s) }))
     .filter((d) => Number.isFinite(d.y))
-  const actPts: { i: number; y: number }[] = [{ i: -1, y: 0 }, ...actFinite]
+  const actPts: { i: number; y: number }[] = [...actFinite]
   if (actPts.length >= 2) {
     sel
       .append('path')
@@ -693,18 +677,8 @@ function render() {
       .attr('stroke-width', 2.5)
       .attr('pointer-events', 'none')
       .attr('d', lineGen)
-    sel
-      .append('circle')
-      .attr('pointer-events', 'none')
-      .attr('cx', curveOriginX(cw))
-      .attr('cy', yScale(0))
-      .attr('r', 2.5)
-      .attr('fill', props.actualStroke)
-      .attr('stroke', props.pointRing)
-      .attr('stroke-width', 1.2)
     for (const d of actPts) {
-      if (d.i < 0) continue
-      const ax = curvePeriodEndX(d.i, cw)
+      const ax = ptX(d.i, cw)
       const ay = yScale(d.y)
       const triRight = Math.min(ax + 5, W - 0.5)
       sel

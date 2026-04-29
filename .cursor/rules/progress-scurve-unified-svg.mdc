@@ -22,7 +22,7 @@ globs:
 - `PAD_L = CELL_W / 2`
 - 格線左緣：`lineX(i) = LABEL_W + SUB_W + i * CELL_W`
 - 欄中心（日期、底表置中）：`ptX(i) = LABEL_W + SUB_W + PAD_L + i * CELL_W`
-- **S 曲線折線／面積 x**：起點累計 0% 在 `curveOriginX()`＝`lineX(0)`；第 `i` 期（0-based）期末在 `curvePeriodEndX(i)`＝`lineX(i+1)`（兩欄之間格線）
+- **S 曲線折線／面積 x**：各期累計點對齊日期欄中心 `ptX(i)`，與日期標籤 x 一致；不另加左側 0% 原點，曲線從第一期有效資料點起畫。`curveOriginX()` 與 `curvePeriodEndX()` 已廢棄，禁止在曲線繪製中使用。
 - 垂直區塊高度（由上而下）：**`LEGEND_H`（圖例列）** → `DATE_H`（日期列）→ `CHART_H` → 底表 4×`ROW_H`；總高見 `totalSvgHeight()`。圖表內 **`CHART_PAD_TOP`／`CHART_PAD_BOTTOM`** 為繪圖內距。垂直格線自 **`dateRowTopY()`** 起向下延伸，避免切過圖例列。
 
 ## 圖層 append 順序（底→頂）
@@ -32,9 +32,9 @@ globs:
 3. 圖表區 Y 向水平虛線格線與左側 % 刻度  
 4. 各版本面積：非 active（目前版本）先、active 後；`fill-opacity` 約 0.04／0.08  
 5. 各版本折線：非 active 先、active 後；baseline（v0）`stroke-dasharray` 5,3；線寬與透明度依 active／比較／其他  
-6. 版本圓點（含原點 0%、各期末在 `curvePeriodEndX`）  
-7. 變更生效垂直虛線 + 標籤（x 對齊該期期末格線）  
-8. 實際進度面積 + 線 + 原點小圓 + 三角點（期末）  
+6. 版本圓點（各期在 `ptX(i)`，無額外原點圓）
+7. 變更生效垂直虛線 + 標籤（x 對齊 `ptX(idx)`）
+8. 實際進度面積 + 線 + 三角點（各期在 `ptX(i)`，無額外原點圓）
 9. 今日垂直虛線 +「今日」標籤  
 10. 圖表與底表分隔線  
 11. 底表列背景、列標、累計與唯讀文字（`ptX` 置中）  
