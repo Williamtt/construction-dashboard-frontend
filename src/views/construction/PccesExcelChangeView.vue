@@ -787,6 +787,13 @@ function highlightClass(has: boolean) {
   return has ? 'bg-amber-500/15 dark:bg-amber-400/10' : ''
 }
 
+function decimalInputEquals(a: string, b: string | null | undefined): boolean {
+  const na = parseLocaleNumber(a)
+  const nb = parseLocaleNumber(b)
+  if (na === null || nb === null) return false
+  return Math.abs(na - nb) < 1e-9
+}
+
 async function onConfirmImport() {
   if (!projectId.value || !baseImportId.value) return
   if (!perm.canCreate.value) {
@@ -801,8 +808,11 @@ async function onConfirmImport() {
 
   const autoMatched: PccesExcelApplyBody['autoMatched'] = []
   for (const [itemKey, excel] of matchedAuto.value) {
-    const q = excel.qtyRaw.trim()
-    const p = excel.unitPriceRaw.trim()
+    const baseItem = items.value.find((i) => i.itemKey === itemKey)
+    const qRaw = excel.qtyRaw.trim()
+    const pRaw = excel.unitPriceRaw.trim()
+    const q = qRaw && !decimalInputEquals(qRaw, baseItem?.quantity) ? qRaw : ''
+    const p = pRaw && !decimalInputEquals(pRaw, baseItem?.unitPrice) ? pRaw : ''
     if (!q && !p) continue
     autoMatched.push({
       itemKey,
