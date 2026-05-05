@@ -74,6 +74,11 @@ async function onSubmit() {
         <Button type="submit" class="w-full" :disabled="loading">
           {{ loading ? '登入中…' : '登入' }}
         </Button>
+        <div class="text-center">
+          <Button variant="link" class="h-auto p-0 text-xs text-muted-foreground" @click="router.push(ROUTE_PATH.FORGOT_PASSWORD)">
+            忘記密碼？
+          </Button>
+        </div>
       </form>
       <p class="text-center text-sm text-muted-foreground">
         還沒有帳號？

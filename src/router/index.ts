@@ -30,6 +30,28 @@ const router = createRouter({
         },
       ],
     },
+    {
+      path: ROUTE_PATH.FORGOT_PASSWORD,
+      component: AuthLayout,
+      children: [
+        {
+          path: '',
+          name: ROUTE_NAME.FORGOT_PASSWORD,
+          component: () => import('@/views/ForgotPasswordView.vue'),
+        },
+      ],
+    },
+    {
+      path: ROUTE_PATH.RESET_PASSWORD,
+      component: AuthLayout,
+      children: [
+        {
+          path: '',
+          name: ROUTE_NAME.RESET_PASSWORD,
+          component: () => import('@/views/ResetPasswordView.vue'),
+        },
+      ],
+    },
     // 手機版（PWA／現場查驗）— 完全獨立路由與 Layout
         {
           path: ROUTE_PATH.MOBILE,
@@ -551,8 +573,14 @@ router.beforeEach((to, _from, next) => {
   const { isMobileApp } = useDevice()
   const appPreference = useAppPreferenceStore()
 
-  // 登入、申請、操作手冊頁面不需認證
-  if (to.path === ROUTE_PATH.LOGIN || to.path === ROUTE_PATH.APPLY || to.path === ROUTE_PATH.HELP) {
+  // 登入、申請、忘記密碼、重設密碼、操作手冊頁面不需認證
+  const isPublic =
+    to.path === ROUTE_PATH.LOGIN ||
+    to.path === ROUTE_PATH.APPLY ||
+    to.path === ROUTE_PATH.FORGOT_PASSWORD ||
+    to.path === ROUTE_PATH.RESET_PASSWORD ||
+    to.path === ROUTE_PATH.HELP
+  if (isPublic) {
     if (auth.isAuthenticated && to.path === ROUTE_PATH.LOGIN) {
       if (isMobileApp.value && !appPreference.preferDesktopOnMobile) {
         next(ROUTE_PATH.MOBILE)

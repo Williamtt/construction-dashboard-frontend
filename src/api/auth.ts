@@ -40,6 +40,21 @@ export async function changePassword(payload: ChangePasswordPayload) {
   )
 }
 
+export async function forgotPassword(email: string): Promise<string> {
+  const { data } = await apiClient.post<ApiResponse<{ message: string }>>(
+    API_PATH.AUTH_FORGOT_PASSWORD,
+    { email }
+  )
+  return data.data.message
+}
+
+export async function resetPassword(token: string, newPassword: string): Promise<void> {
+  await apiClient.post<ApiResponse<{ ok: true }>>(API_PATH.AUTH_RESET_PASSWORD, {
+    token,
+    newPassword,
+  })
+}
+
 /** 上傳個人頭貼（multipart form: file） */
 export async function uploadAvatar(file: File): Promise<void> {
   const form = new FormData()

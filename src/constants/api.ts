@@ -9,6 +9,8 @@ export const API_PATH = {
   AUTH_REFRESH: `${API_V1}/auth/refresh`,
   AUTH_ME: `${API_V1}/auth/me`,
   AUTH_CHANGE_PASSWORD: `${API_V1}/auth/me/password`,
+  AUTH_FORGOT_PASSWORD: `${API_V1}/auth/forgot-password`,
+  AUTH_RESET_PASSWORD: `${API_V1}/auth/reset-password`,
   /** 個人頭貼：POST 上傳、GET 取得圖片 */
   AUTH_ME_AVATAR: `${API_V1}/auth/me/avatar`,
   /** 當前使用者所屬租戶品牌（名稱、是否有 Logo），供 header 顯示 */

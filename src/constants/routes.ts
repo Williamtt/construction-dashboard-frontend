@@ -27,6 +27,8 @@ export const ROUTE_PATH = {
   HOME: '/',
   LOGIN: '/login',
   APPLY: '/apply',
+  FORGOT_PASSWORD: '/forgot-password',
+  RESET_PASSWORD: '/reset-password',
   /** 專案列表（獨立入口，選專案後進入 /p/:projectId/dashboard） */
   PROJECTS: '/projects',
   /** 操作手冊 */
@@ -147,6 +149,8 @@ export const ROUTE_NAME = {
   HOME: 'home',
   LOGIN: 'login',
   APPLY: 'apply',
+  FORGOT_PASSWORD: 'forgot-password',
+  RESET_PASSWORD: 'reset-password',
   PROJECTS: 'projects',
   HELP: 'help',
   MOBILE: 'mobile',
