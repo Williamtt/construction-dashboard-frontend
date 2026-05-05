@@ -91,7 +91,7 @@ const computedPlannedEndDisplay = computed(() => {
   if (Number.isNaN(d.getTime())) return ''
   const numDays = typeof days === 'number' ? days : parseInt(String(days), 10)
   if (Number.isNaN(numDays) || numDays < 0) return ''
-  d.setDate(d.getDate() + numDays)
+  d.setDate(d.getDate() + numDays - 1)
   return d.toISOString().slice(0, 10)
 })
 
