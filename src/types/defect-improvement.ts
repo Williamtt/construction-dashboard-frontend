@@ -23,6 +23,10 @@ export interface DefectItem {
   floor: string | null
   location: string | null
   status: DefectStatus
+  sourceType?: string | null
+  sourceRecordId?: string | null
+  sourceItemId?: string | null
+  sourceTemplateId?: string | null
   createdAt: string
   updatedAt: string
   photos?: DefectPhoto[]
@@ -46,6 +50,10 @@ export interface CreateDefectPayload {
   location?: string | null
   status?: DefectStatus
   attachmentIds?: string[]
+  sourceType?: 'self_inspection'
+  sourceRecordId?: string
+  sourceItemId?: string
+  sourceTemplateId?: string
 }
 
 export interface UpdateDefectPayload {

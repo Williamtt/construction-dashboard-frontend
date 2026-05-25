@@ -61,6 +61,7 @@ export interface FilledPayload {
     timingOptionId?: string
   }
   items?: Record<string, { actualText?: string; resultOptionId?: string }>
+  photoAttachmentIds?: string[]
 }
 
 export interface SelfInspectionRecordItem {
@@ -153,6 +154,22 @@ export async function createProjectSelfInspectionRecord(
     body
   )
   return data.data
+}
+
+export async function exportProjectSelfInspectionSummary(projectId: string): Promise<void> {
+  const res = await apiClient.get(API_PATH.PROJECT_SELF_INSPECTION_EXPORT(projectId), {
+    responseType: 'blob',
+  })
+  const blob = res.data as Blob
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  const today = new Date().toISOString().slice(0, 10)
+  a.download = `自主檢查查核總表_${today}.xlsx`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
 }
 
 export async function getProjectSelfInspectionRecord(

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
@@ -30,6 +30,22 @@ const attachmentIds = ref<string[]>([])
 const uploading = ref(false)
 const submitting = ref(false)
 const errorMessage = ref('')
+
+const sourceType = ref<'self_inspection' | undefined>(undefined)
+const sourceRecordId = ref<string | undefined>(undefined)
+const sourceItemId = ref<string | undefined>(undefined)
+const sourceTemplateId = ref<string | undefined>(undefined)
+
+onMounted(() => {
+  if (route.query.fromInspection === '1') {
+    description.value = typeof route.query.description === 'string' ? route.query.description : ''
+    location.value = typeof route.query.location === 'string' ? route.query.location : ''
+    sourceType.value = 'self_inspection'
+    sourceRecordId.value = typeof route.query.sourceRecordId === 'string' ? route.query.sourceRecordId : undefined
+    sourceItemId.value = typeof route.query.sourceItemId === 'string' ? route.query.sourceItemId : undefined
+    sourceTemplateId.value = typeof route.query.sourceTemplateId === 'string' ? route.query.sourceTemplateId : undefined
+  }
+})
 
 const priorityOptions: { value: DefectPriority; label: string }[] = [
   { value: 'low', label: '低' },
@@ -87,6 +103,12 @@ async function submit() {
       location: location.value.trim() || undefined,
       status: status.value,
       attachmentIds: attachmentIds.value.length ? attachmentIds.value : undefined,
+      ...(sourceType.value && {
+        sourceType: sourceType.value,
+        sourceRecordId: sourceRecordId.value,
+        sourceItemId: sourceItemId.value,
+        sourceTemplateId: sourceTemplateId.value,
+      }),
     })
     router.back()
   } catch (e) {

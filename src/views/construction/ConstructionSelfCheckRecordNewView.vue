@@ -4,13 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Loader2 } from 'lucide-vue-next'
+import { ArrowLeft, Loader2, Paperclip } from 'lucide-vue-next'
 import {
   getProjectSelfInspectionTemplateHub,
   createProjectSelfInspectionRecord,
 } from '@/api/project-self-inspections'
 import type { ProjectSelfInspectionTemplateHub } from '@/api/project-self-inspections'
 import type { FilledPayload } from '@/api/project-self-inspections'
+import { uploadFile } from '@/api/files'
 import { ROUTE_NAME } from '@/constants/routes'
 import { useSelfCheckBreadcrumbStore } from '@/stores/selfCheckBreadcrumb'
 import { useProjectStore } from '@/stores/project'
@@ -47,6 +48,34 @@ const itemState = ref<Record<string, { actualText: string; resultOptionId: strin
 
 const submitting = ref(false)
 const submitError = ref('')
+
+const photoIds = ref<string[]>([])
+const photoFileNames = ref<string[]>([])
+const uploading = ref(false)
+const uploadError = ref('')
+const photoInputRef = ref<HTMLInputElement | null>(null)
+
+async function onPhotoInputChange(e: Event) {
+  const input = e.target as HTMLInputElement
+  const files = input.files
+  if (!files?.length || !projectId.value) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file.type.startsWith('image/')) continue
+      const result = await uploadFile({ file, projectId: projectId.value, category: 'self_inspection_photo' })
+      photoIds.value = [...photoIds.value, result.id]
+      photoFileNames.value = [...photoFileNames.value, result.fileName]
+    }
+  } catch {
+    uploadError.value = '照片上傳失敗，請稍後再試'
+  } finally {
+    uploading.value = false
+    input.value = ''
+  }
+}
 
 const hc = computed(() => hub.value?.template.headerConfig)
 const isArchived = computed(() => hub.value?.template.status === 'archived')
@@ -150,6 +179,7 @@ async function submit() {
   const filledPayload: FilledPayload = {
     header,
     ...(Object.keys(items).length ? { items } : {}),
+    ...(photoIds.value.length ? { photoAttachmentIds: photoIds.value } : {}),
   }
   try {
     const created = await createProjectSelfInspectionRecord(pid, tid, { filledPayload })
@@ -364,6 +394,45 @@ watchEffect(() => {
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div class="space-y-3 rounded-lg border border-border bg-card p-4 md:p-6">
+        <h2 class="text-base font-medium text-foreground">照片附件（選填）</h2>
+        <div class="flex flex-wrap items-center gap-3">
+          <input
+            ref="photoInputRef"
+            type="file"
+            accept="image/*"
+            multiple
+            class="sr-only"
+            aria-label="選擇照片"
+            @change="onPhotoInputChange"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            class="gap-1.5"
+            :disabled="uploading || isArchived"
+            @click="photoInputRef?.click()"
+          >
+            <Loader2 v-if="uploading" class="size-4 animate-spin" />
+            <Paperclip v-else class="size-4" />
+            {{ uploading ? '上傳中…' : '選擇照片' }}
+          </Button>
+          <span v-if="photoIds.length" class="text-sm text-muted-foreground">
+            已選 {{ photoIds.length }} 張
+          </span>
+        </div>
+        <ul v-if="photoFileNames.length" class="flex flex-wrap gap-2">
+          <li
+            v-for="(name, idx) in photoFileNames"
+            :key="idx"
+            class="rounded border border-border bg-muted/30 px-2 py-1 text-xs text-foreground"
+          >
+            {{ name }}
+          </li>
+        </ul>
+        <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
       </div>
 
       <div v-if="submitError" class="text-sm text-destructive">{{ submitError }}</div>

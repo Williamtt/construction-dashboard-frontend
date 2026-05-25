@@ -4,12 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { Loader2 } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import MobilePhotoUpload from '@/views/mobile/components/MobilePhotoUpload.vue'
 import {
   getProjectSelfInspectionTemplateHub,
   createProjectSelfInspectionRecord,
 } from '@/api/project-self-inspections'
 import type { ProjectSelfInspectionTemplateHub } from '@/api/project-self-inspections'
 import type { FilledPayload } from '@/api/project-self-inspections'
+import { uploadFile } from '@/api/files'
 import { useProjectStore } from '@/stores/project'
 import { useMobileSelfInspectionNavStore } from '@/stores/mobileSelfInspectionNav'
 
@@ -39,6 +41,30 @@ const itemState = ref<Record<string, { actualText: string; resultOptionId: strin
 
 const submitting = ref(false)
 const submitError = ref('')
+
+const photoIds = ref<string[]>([])
+const photoFileNames = ref<string[]>([])
+const uploading = ref(false)
+const uploadError = ref('')
+
+async function onPhotoChange(files: FileList | null) {
+  if (!files?.length || !projectId.value) return
+  uploading.value = true
+  uploadError.value = ''
+  try {
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      if (!file.type.startsWith('image/')) continue
+      const result = await uploadFile({ file, projectId: projectId.value, category: 'self_inspection_photo' })
+      photoIds.value = [...photoIds.value, result.id]
+      photoFileNames.value = [...photoFileNames.value, result.fileName]
+    }
+  } catch {
+    uploadError.value = '照片上傳失敗，請稍後再試'
+  } finally {
+    uploading.value = false
+  }
+}
 
 const hc = computed(() => hub.value?.template.headerConfig)
 const isArchived = computed(() => hub.value?.template.status === 'archived')
@@ -138,6 +164,7 @@ async function submit() {
   const filledPayload: FilledPayload = {
     header,
     ...(Object.keys(items).length ? { items } : {}),
+    ...(photoIds.value.length ? { photoAttachmentIds: photoIds.value } : {}),
   }
   try {
     await createProjectSelfInspectionRecord(pid, tid, { filledPayload })
@@ -291,6 +318,25 @@ onUnmounted(() => {
           </div>
         </section>
       </template>
+
+      <section class="space-y-3 rounded-xl border border-border bg-card p-4">
+        <h3 class="text-base font-semibold text-foreground">照片附件（選填）</h3>
+        <MobilePhotoUpload @change="onPhotoChange" />
+        <p v-if="uploading" class="flex items-center gap-1.5 text-xs text-muted-foreground">
+          <Loader2 class="size-3.5 animate-spin" aria-hidden />
+          上傳中…
+        </p>
+        <ul v-if="photoFileNames.length" class="flex flex-wrap gap-2">
+          <li
+            v-for="(name, idx) in photoFileNames"
+            :key="idx"
+            class="rounded-lg border border-border bg-muted/30 px-2 py-1.5 text-xs text-foreground"
+          >
+            {{ name }}
+          </li>
+        </ul>
+        <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
+      </section>
 
       <p v-if="submitError" class="text-sm text-destructive">{{ submitError }}</p>
 

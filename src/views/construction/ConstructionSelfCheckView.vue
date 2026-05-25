@@ -24,13 +24,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { Loader2, ClipboardList, Plus } from 'lucide-vue-next'
+import { Loader2, ClipboardList, Plus, Download } from 'lucide-vue-next'
 import StateCard from '@/components/common/StateCard.vue'
 import {
   listProjectSelfInspectionTemplates,
   listProjectSelfInspectionImportCatalog,
   importProjectSelfInspectionTemplate,
   removeProjectSelfInspectionTemplate,
+  exportProjectSelfInspectionSummary,
 } from '@/api/project-self-inspections'
 import type {
   ProjectSelfInspectionTemplateItem,
@@ -73,6 +74,22 @@ const importHeaderIndeterminate = computed(() => {
   const n = rows.filter((r) => importSelection.value[r.id]).length
   return n > 0 && n < rows.length
 })
+
+const exporting = ref(false)
+const exportError = ref('')
+
+async function tryExportSummary() {
+  if (!ensureProjectPermission(inspectionPerm.canRead.value, 'read')) return
+  exporting.value = true
+  exportError.value = ''
+  try {
+    await exportProjectSelfInspectionSummary(projectId.value)
+  } catch {
+    exportError.value = '匯出失敗，請稍後再試'
+  } finally {
+    exporting.value = false
+  }
+}
 
 const removeOpen = ref(false)
 const removingRow = ref<ProjectSelfInspectionTemplateItem | null>(null)
@@ -321,11 +338,26 @@ const table = useVueTable({
   <div class="space-y-6">
     <div class="flex flex-wrap items-center justify-between gap-4">
       <h1 class="text-xl font-semibold text-foreground">自主檢查</h1>
-      <Button class="gap-1.5" @click="tryOpenImportDialog">
-        <Plus class="size-4" />
-        匯入樣板
-      </Button>
+      <div class="flex gap-2">
+        <Button
+          v-if="inspectionPerm.canRead.value"
+          variant="outline"
+          class="gap-1.5"
+          :disabled="exporting"
+          @click="tryExportSummary"
+        >
+          <Loader2 v-if="exporting" class="size-4 animate-spin" />
+          <Download v-else class="size-4" />
+          匯出查核總表
+        </Button>
+        <Button class="gap-1.5" @click="tryOpenImportDialog">
+          <Plus class="size-4" />
+          匯入樣板
+        </Button>
+      </div>
     </div>
+
+    <p v-if="exportError" class="text-sm text-destructive">{{ exportError }}</p>
 
     <p class="text-sm text-muted-foreground">
       請從租戶後台已啟用的樣板中匯入至本專案；已匯入者無法重複選取。僅當該樣板在本專案尚無查驗紀錄時，才可移除匯入。每完整填寫一張表計為一次查驗。

@@ -228,6 +228,8 @@ export const API_PATH = {
     `${API_V1}/projects/${projectId}/self-inspections/templates/${templateId}/records`,
   PROJECT_SELF_INSPECTION_RECORD: (projectId: string, templateId: string, recordId: string) =>
     `${API_V1}/projects/${projectId}/self-inspections/templates/${templateId}/records/${recordId}`,
+  PROJECT_SELF_INSPECTION_EXPORT: (projectId: string) =>
+    `${API_V1}/projects/${projectId}/self-inspections/export`,
   /** 即時警報（目前假資料；之後接 CWA） */
   ALERTS_CURRENT: `${API_V1}/alerts/current`,
   /** 歷史警報（query: projectId?, startDate, endDate, limit?） */

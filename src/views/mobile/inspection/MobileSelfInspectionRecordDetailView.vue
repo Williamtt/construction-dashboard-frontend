@@ -1,18 +1,22 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { Loader2 } from 'lucide-vue-next'
+import { useRoute, useRouter } from 'vue-router'
+import { Loader2, ImageIcon, Download, AlertTriangle } from 'lucide-vue-next'
 import {
   getProjectSelfInspectionRecord,
   getProjectSelfInspectionTemplateHub,
 } from '@/api/project-self-inspections'
 import type { SelfInspectionRecordItem } from '@/api/project-self-inspections'
 import type { ProjectSelfInspectionTemplateHub } from '@/api/project-self-inspections'
+import { listProjectFiles, getFileBlob } from '@/api/files'
+import type { AttachmentItem } from '@/api/files'
 import { useMobileSelfInspectionNavStore } from '@/stores/mobileSelfInspectionNav'
+import { ROUTE_NAME } from '@/constants/routes'
 
 defineOptions({ name: 'MobileSelfInspectionRecordDetailView' })
 
 const route = useRoute()
+const router = useRouter()
 const navStore = useMobileSelfInspectionNavStore()
 
 const projectId = computed(() => (route.params.projectId as string) ?? '')
@@ -23,6 +27,8 @@ const loading = ref(true)
 const loadError = ref('')
 const record = ref<SelfInspectionRecordItem | null>(null)
 const hub = ref<ProjectSelfInspectionTemplateHub | null>(null)
+const photoAttachments = ref<AttachmentItem[]>([])
+const downloadingId = ref<string | null>(null)
 
 const hc = computed(() => hub.value?.template.headerConfig)
 
@@ -49,6 +55,17 @@ function formatDateTime(iso: string) {
   })
 }
 
+async function loadPhotos(pid: string, ids: string[]) {
+  if (!ids.length) return
+  try {
+    const result = await listProjectFiles({ projectId: pid, category: 'self_inspection_photo', limit: 200 })
+    const idSet = new Set(ids)
+    photoAttachments.value = result.data.filter((a) => idSet.has(a.id))
+  } catch {
+    /* silently ignore */
+  }
+}
+
 async function load() {
   const pid = projectId.value
   const tid = templateId.value
@@ -58,6 +75,7 @@ async function load() {
   loadError.value = ''
   record.value = null
   hub.value = null
+  photoAttachments.value = []
   navStore.setTemplateTitle(null)
   try {
     const rec = await getProjectSelfInspectionRecord(pid, tid, rid)
@@ -68,11 +86,62 @@ async function load() {
       hub.value = await getProjectSelfInspectionTemplateHub(pid, tid)
     }
     navStore.setTemplateTitle(hub.value?.template.name ?? null)
+    const photoIds = rec.filledPayload?.photoAttachmentIds ?? []
+    await loadPhotos(pid, photoIds)
   } catch {
     loadError.value = '無法載入紀錄'
   } finally {
     loading.value = false
   }
+}
+
+async function downloadPhoto(a: AttachmentItem) {
+  if (downloadingId.value) return
+  downloadingId.value = a.id
+  try {
+    const { blob, fileName } = await getFileBlob(a.id, { download: true, fileName: a.fileName })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = fileName
+    document.body.appendChild(anchor)
+    anchor.click()
+    document.body.removeChild(anchor)
+    URL.revokeObjectURL(url)
+  } catch {
+    /* ignore */
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+function isDefectResult(optionId: string | undefined): boolean {
+  if (!optionId || !hc.value) return false
+  const label = resultLabel(optionId)
+  return label.includes('×') || label.includes('缺失') || label.includes('不合格')
+}
+
+function createDefect(itemId: string, itemName: string, standardText: string) {
+  const h = header.value
+  const itemData = items.value[itemId]
+  const description = [
+    itemName,
+    `規範標準：${standardText}`,
+    `實際情形：${itemData?.actualText?.trim() || '—'}`,
+    `檢查結果：${resultLabel(itemData?.resultOptionId)}`,
+  ].join('\n').slice(0, 800)
+  router.push({
+    name: ROUTE_NAME.MOBILE_DEFECT_NEW,
+    params: { projectId: projectId.value },
+    query: {
+      fromInspection: '1',
+      description,
+      location: (h?.inspectionLocation ?? '').slice(0, 200),
+      sourceRecordId: recordId.value,
+      sourceItemId: itemId,
+      sourceTemplateId: templateId.value,
+    },
+  })
 }
 
 watch(
@@ -151,6 +220,30 @@ const items = computed(() => record.value?.filledPayload?.items ?? {})
       </section>
 
       <section
+        v-if="photoAttachments.length"
+        class="space-y-3 rounded-xl border border-border bg-card p-4"
+      >
+        <h3 class="flex items-center gap-1.5 text-base font-semibold text-foreground">
+          <ImageIcon class="size-4" aria-hidden />
+          照片附件
+        </h3>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="a in photoAttachments"
+            :key="a.id"
+            type="button"
+            class="flex min-h-10 items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-sm text-foreground touch-manipulation active:bg-muted/50 disabled:opacity-50"
+            :disabled="downloadingId === a.id"
+            @click="downloadPhoto(a)"
+          >
+            <Loader2 v-if="downloadingId === a.id" class="size-3.5 animate-spin" aria-hidden />
+            <Download v-else class="size-3.5" aria-hidden />
+            <span class="max-w-[200px] truncate">{{ a.fileName }}</span>
+          </button>
+        </div>
+      </section>
+
+      <section
         v-for="block in hub.blocks"
         :key="block.id"
         class="space-y-3 rounded-xl border border-border bg-card p-4"
@@ -182,6 +275,16 @@ const items = computed(() => record.value?.filledPayload?.items ?? {})
           <div>
             <p class="text-xs font-medium text-muted-foreground">{{ hc.resultSectionLabel }}</p>
             <p class="text-sm text-foreground">{{ resultLabel(items[it.id]?.resultOptionId) }}</p>
+          </div>
+          <div v-if="isDefectResult(items[it.id]?.resultOptionId)" class="pt-1">
+            <button
+              type="button"
+              class="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 py-2 text-sm text-amber-700 ring-1 ring-amber-300 touch-manipulation active:bg-amber-50 dark:text-amber-400 dark:ring-amber-700"
+              @click="createDefect(it.id, it.itemName, it.standardText)"
+            >
+              <AlertTriangle class="size-4" aria-hidden />
+              建立缺失改善
+            </button>
           </div>
         </div>
       </section>
