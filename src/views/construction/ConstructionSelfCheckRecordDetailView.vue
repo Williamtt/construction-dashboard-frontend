@@ -3,7 +3,7 @@ import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Loader2, ImageIcon, Download, AlertTriangle } from 'lucide-vue-next'
+import { ArrowLeft, Loader2, ImageIcon, Download, AlertTriangle, ChevronLeft, ChevronRight } from 'lucide-vue-next'
 import {
   Dialog,
   DialogContent,
@@ -20,6 +20,8 @@ import type { SelfInspectionRecordItem } from '@/api/project-self-inspections'
 import type { ProjectSelfInspectionTemplateHub } from '@/api/project-self-inspections'
 import { listProjectFiles, getFileBlob } from '@/api/files'
 import type { AttachmentItem } from '@/api/files'
+import PhotoThumbnail from '@/components/files/PhotoThumbnail.vue'
+import { useAuthImageUrl } from '@/composables/useAuthImageUrl'
 import { createDefectImprovement } from '@/api/defect-improvements'
 import { ROUTE_NAME } from '@/constants/routes'
 
@@ -118,6 +120,26 @@ async function downloadPhoto(a: AttachmentItem) {
   } finally {
     downloadingId.value = null
   }
+}
+
+// ---- 照片燈箱 ----
+const lightboxOpen = ref(false)
+const lightboxIndex = ref(0)
+const selectedPhotoId = computed(() => photoAttachments.value[lightboxIndex.value]?.id)
+const { objectUrl: lightboxUrl, loading: lightboxLoading } = useAuthImageUrl(selectedPhotoId)
+const lbHasMultiple = computed(() => photoAttachments.value.length > 1)
+const lbCanPrev = computed(() => lightboxIndex.value > 0)
+const lbCanNext = computed(() => lightboxIndex.value < photoAttachments.value.length - 1)
+
+function openLightbox(idx: number) {
+  lightboxIndex.value = idx
+  lightboxOpen.value = true
+}
+function lbPrev() {
+  if (lbCanPrev.value) lightboxIndex.value -= 1
+}
+function lbNext() {
+  if (lbCanNext.value) lightboxIndex.value += 1
 }
 
 watch(
@@ -282,19 +304,27 @@ const items = computed(() => record.value?.filledPayload?.items ?? {})
           <ImageIcon class="size-4" aria-hidden />
           照片附件
         </h2>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="a in photoAttachments"
-            :key="a.id"
-            type="button"
-            class="flex items-center gap-1.5 rounded border border-border bg-muted/30 px-3 py-1.5 text-sm text-foreground underline-offset-2 hover:bg-muted/50 disabled:opacity-50"
-            :disabled="downloadingId === a.id"
-            @click="downloadPhoto(a)"
-          >
-            <Loader2 v-if="downloadingId === a.id" class="size-3.5 animate-spin" aria-hidden />
-            <Download v-else class="size-3.5" aria-hidden />
-            <span class="max-w-[200px] truncate">{{ a.fileName }}</span>
-          </button>
+        <div class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+          <div v-for="(a, idx) in photoAttachments" :key="a.id" class="relative aspect-square">
+            <button
+              type="button"
+              class="block size-full"
+              :aria-label="`檢視 ${a.fileName}`"
+              @click="openLightbox(idx)"
+            >
+              <PhotoThumbnail :file-id="a.id" />
+            </button>
+            <button
+              type="button"
+              class="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/70 disabled:opacity-50"
+              :disabled="downloadingId === a.id"
+              :aria-label="`下載 ${a.fileName}`"
+              @click.stop="downloadPhoto(a)"
+            >
+              <Loader2 v-if="downloadingId === a.id" class="size-3.5 animate-spin" aria-hidden />
+              <Download v-else class="size-3.5" aria-hidden />
+            </button>
+          </div>
         </div>
       </div>
 
@@ -362,6 +392,59 @@ const items = computed(() => record.value?.filledPayload?.items ?? {})
         </div>
       </div>
     </template>
+
+    <Dialog v-model:open="lightboxOpen">
+      <DialogContent class="sm:max-w-3xl">
+        <DialogHeader>
+          <DialogTitle>
+            照片預覽<span v-if="lbHasMultiple"> {{ lightboxIndex + 1 }} / {{ photoAttachments.length }}</span>
+          </DialogTitle>
+          <DialogDescription class="sr-only">放大檢視自主檢查照片</DialogDescription>
+        </DialogHeader>
+        <div class="relative flex min-h-[300px] items-center justify-center rounded-md bg-muted/30">
+          <img
+            v-if="lightboxUrl && !lightboxLoading"
+            :src="lightboxUrl"
+            :alt="photoAttachments[lightboxIndex]?.fileName"
+            class="max-h-[70vh] max-w-full object-contain"
+          />
+          <Loader2 v-else class="size-8 animate-spin text-muted-foreground" aria-hidden />
+          <button
+            v-if="lbHasMultiple && lbCanPrev"
+            type="button"
+            class="absolute left-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+            aria-label="上一張"
+            @click="lbPrev"
+          >
+            <ChevronLeft class="size-5" />
+          </button>
+          <button
+            v-if="lbHasMultiple && lbCanNext"
+            type="button"
+            class="absolute right-2 top-1/2 flex size-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
+            aria-label="下一張"
+            @click="lbNext"
+          >
+            <ChevronRight class="size-5" />
+          </button>
+        </div>
+        <DialogFooter>
+          <Button
+            variant="outline"
+            class="gap-1.5"
+            :disabled="!photoAttachments[lightboxIndex] || downloadingId === photoAttachments[lightboxIndex]?.id"
+            @click="photoAttachments[lightboxIndex] && downloadPhoto(photoAttachments[lightboxIndex])"
+          >
+            <Loader2
+              v-if="downloadingId === photoAttachments[lightboxIndex]?.id"
+              class="size-4 animate-spin"
+            />
+            <Download v-else class="size-4" />
+            下載原檔
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Dialog v-model:open="defectDialogOpen">
       <DialogContent class="max-h-[90vh] overflow-y-auto sm:max-w-lg">

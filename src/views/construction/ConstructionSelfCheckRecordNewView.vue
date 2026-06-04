@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { ArrowLeft, Loader2, Paperclip } from 'lucide-vue-next'
+import { ArrowLeft, Loader2, Paperclip, X } from 'lucide-vue-next'
 import {
   getProjectSelfInspectionTemplateHub,
   createProjectSelfInspectionRecord,
@@ -51,6 +51,7 @@ const submitError = ref('')
 
 const photoIds = ref<string[]>([])
 const photoFileNames = ref<string[]>([])
+const photoPreviewUrls = ref<string[]>([])
 const uploading = ref(false)
 const uploadError = ref('')
 const photoInputRef = ref<HTMLInputElement | null>(null)
@@ -68,6 +69,7 @@ async function onPhotoInputChange(e: Event) {
       const result = await uploadFile({ file, projectId: projectId.value, category: 'self_inspection_photo' })
       photoIds.value = [...photoIds.value, result.id]
       photoFileNames.value = [...photoFileNames.value, result.fileName]
+      photoPreviewUrls.value = [...photoPreviewUrls.value, URL.createObjectURL(file)]
     }
   } catch {
     uploadError.value = '照片上傳失敗，請稍後再試'
@@ -75,6 +77,14 @@ async function onPhotoInputChange(e: Event) {
     uploading.value = false
     input.value = ''
   }
+}
+
+function removePhoto(idx: number) {
+  const url = photoPreviewUrls.value[idx]
+  if (url) URL.revokeObjectURL(url)
+  photoIds.value = photoIds.value.filter((_, i) => i !== idx)
+  photoFileNames.value = photoFileNames.value.filter((_, i) => i !== idx)
+  photoPreviewUrls.value = photoPreviewUrls.value.filter((_, i) => i !== idx)
 }
 
 const hc = computed(() => hub.value?.template.headerConfig)
@@ -196,6 +206,7 @@ async function submit() {
 
 onUnmounted(() => {
   selfCheckBreadcrumbStore.setTemplateTitle(null)
+  for (const url of photoPreviewUrls.value) URL.revokeObjectURL(url)
 })
 
 const createDeniedToastShown = ref(false)
@@ -423,15 +434,24 @@ watchEffect(() => {
             已選 {{ photoIds.length }} 張
           </span>
         </div>
-        <ul v-if="photoFileNames.length" class="flex flex-wrap gap-2">
-          <li
-            v-for="(name, idx) in photoFileNames"
+        <div v-if="photoPreviewUrls.length" class="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+          <div
+            v-for="(url, idx) in photoPreviewUrls"
             :key="idx"
-            class="rounded border border-border bg-muted/30 px-2 py-1 text-xs text-foreground"
+            class="relative aspect-square overflow-hidden rounded-md border border-border bg-muted"
           >
-            {{ name }}
-          </li>
-        </ul>
+            <img :src="url" :alt="photoFileNames[idx]" class="size-full object-cover" />
+            <button
+              type="button"
+              class="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/70 disabled:opacity-50"
+              :disabled="isArchived"
+              :aria-label="`移除 ${photoFileNames[idx]}`"
+              @click="removePhoto(idx)"
+            >
+              <X class="size-3.5" aria-hidden />
+            </button>
+          </div>
+        </div>
         <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
       </div>
 
