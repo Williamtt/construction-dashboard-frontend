@@ -10,6 +10,8 @@ import type { SelfInspectionRecordItem } from '@/api/project-self-inspections'
 import type { ProjectSelfInspectionTemplateHub } from '@/api/project-self-inspections'
 import { listProjectFiles, getFileBlob } from '@/api/files'
 import type { AttachmentItem } from '@/api/files'
+import PhotoThumbnail from '@/components/files/PhotoThumbnail.vue'
+import { usePhotoViewer } from '@/composables/usePhotoViewer'
 import { useMobileSelfInspectionNavStore } from '@/stores/mobileSelfInspectionNav'
 import { ROUTE_NAME } from '@/constants/routes'
 
@@ -18,6 +20,7 @@ defineOptions({ name: 'MobileSelfInspectionRecordDetailView' })
 const route = useRoute()
 const router = useRouter()
 const navStore = useMobileSelfInspectionNavStore()
+const photoViewer = usePhotoViewer()
 
 const projectId = computed(() => (route.params.projectId as string) ?? '')
 const templateId = computed(() => (route.params.templateId as string) ?? '')
@@ -93,6 +96,14 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+function openPhotoViewer(index: number) {
+  if (!photoAttachments.value.length) return
+  photoViewer.open(
+    photoAttachments.value.map((a) => a.url),
+    index
+  )
 }
 
 async function downloadPhoto(a: AttachmentItem) {
@@ -227,19 +238,27 @@ const items = computed(() => record.value?.filledPayload?.items ?? {})
           <ImageIcon class="size-4" aria-hidden />
           照片附件
         </h3>
-        <div class="flex flex-wrap gap-2">
-          <button
-            v-for="a in photoAttachments"
-            :key="a.id"
-            type="button"
-            class="flex min-h-10 items-center gap-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2 text-left text-sm text-foreground touch-manipulation active:bg-muted/50 disabled:opacity-50"
-            :disabled="downloadingId === a.id"
-            @click="downloadPhoto(a)"
-          >
-            <Loader2 v-if="downloadingId === a.id" class="size-3.5 animate-spin" aria-hidden />
-            <Download v-else class="size-3.5" aria-hidden />
-            <span class="max-w-[200px] truncate">{{ a.fileName }}</span>
-          </button>
+        <div class="grid grid-cols-3 gap-2">
+          <div v-for="(a, idx) in photoAttachments" :key="a.id" class="relative aspect-square">
+            <button
+              type="button"
+              class="block size-full touch-manipulation"
+              :aria-label="`檢視 ${a.fileName}`"
+              @click="openPhotoViewer(idx)"
+            >
+              <PhotoThumbnail :file-id="a.id" />
+            </button>
+            <button
+              type="button"
+              class="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/55 text-white touch-manipulation active:bg-black/70 disabled:opacity-50"
+              :disabled="downloadingId === a.id"
+              :aria-label="`下載 ${a.fileName}`"
+              @click.stop="downloadPhoto(a)"
+            >
+              <Loader2 v-if="downloadingId === a.id" class="size-3.5 animate-spin" aria-hidden />
+              <Download v-else class="size-3.5" aria-hidden />
+            </button>
+          </div>
         </div>
       </section>
 

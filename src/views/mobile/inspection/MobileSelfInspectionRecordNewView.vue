@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, watch, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Loader2 } from 'lucide-vue-next'
+import { Loader2, X } from 'lucide-vue-next'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import MobilePhotoUpload from '@/views/mobile/components/MobilePhotoUpload.vue'
@@ -44,6 +44,7 @@ const submitError = ref('')
 
 const photoIds = ref<string[]>([])
 const photoFileNames = ref<string[]>([])
+const photoPreviewUrls = ref<string[]>([])
 const uploading = ref(false)
 const uploadError = ref('')
 
@@ -58,12 +59,21 @@ async function onPhotoChange(files: FileList | null) {
       const result = await uploadFile({ file, projectId: projectId.value, category: 'self_inspection_photo' })
       photoIds.value = [...photoIds.value, result.id]
       photoFileNames.value = [...photoFileNames.value, result.fileName]
+      photoPreviewUrls.value = [...photoPreviewUrls.value, URL.createObjectURL(file)]
     }
   } catch {
     uploadError.value = '照片上傳失敗，請稍後再試'
   } finally {
     uploading.value = false
   }
+}
+
+function removePhoto(idx: number) {
+  const url = photoPreviewUrls.value[idx]
+  if (url) URL.revokeObjectURL(url)
+  photoIds.value = photoIds.value.filter((_, i) => i !== idx)
+  photoFileNames.value = photoFileNames.value.filter((_, i) => i !== idx)
+  photoPreviewUrls.value = photoPreviewUrls.value.filter((_, i) => i !== idx)
 }
 
 const hc = computed(() => hub.value?.template.headerConfig)
@@ -178,6 +188,7 @@ async function submit() {
 
 onUnmounted(() => {
   navStore.setTemplateTitle(null)
+  for (const url of photoPreviewUrls.value) URL.revokeObjectURL(url)
 })
 </script>
 
@@ -326,15 +337,23 @@ onUnmounted(() => {
           <Loader2 class="size-3.5 animate-spin" aria-hidden />
           上傳中…
         </p>
-        <ul v-if="photoFileNames.length" class="flex flex-wrap gap-2">
-          <li
-            v-for="(name, idx) in photoFileNames"
+        <div v-if="photoPreviewUrls.length" class="grid grid-cols-3 gap-2">
+          <div
+            v-for="(url, idx) in photoPreviewUrls"
             :key="idx"
-            class="rounded-lg border border-border bg-muted/30 px-2 py-1.5 text-xs text-foreground"
+            class="relative aspect-square overflow-hidden rounded-lg border border-border bg-muted"
           >
-            {{ name }}
-          </li>
-        </ul>
+            <img :src="url" :alt="photoFileNames[idx]" class="size-full object-cover" />
+            <button
+              type="button"
+              class="absolute right-1 top-1 flex size-7 items-center justify-center rounded-full bg-black/55 text-white touch-manipulation active:bg-black/70"
+              :aria-label="`移除 ${photoFileNames[idx]}`"
+              @click="removePhoto(idx)"
+            >
+              <X class="size-3.5" aria-hidden />
+            </button>
+          </div>
+        </div>
         <p v-if="uploadError" class="text-sm text-destructive">{{ uploadError }}</p>
       </section>
 
